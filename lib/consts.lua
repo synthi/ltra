@@ -1,21 +1,14 @@
--- code/ltra/lib/consts.lua | v0.6
+-- code/ltra/lib/consts.lua | v0.9.5
 local Consts = {}
 
 Consts.BRIGHT = {
     OFF = 0,
-    BG_MATRIX_A = 1,   -- Pitch/Morph cols
-    BG_MATRIX_B = 3,   -- Amp/FX cols
-    BG_DASHBOARD = 4,
-    BG_TRIGGERS = 5,
-    BG_NAV = 2,
-    VAL_LOW = 5,
-    VAL_MED = 8,
-    VAL_HIGH = 11,
-    VAL_PEAK = 13,
+    BG_MATRIX_A = 1, BG_MATRIX_B = 3,
+    BG_DASHBOARD = 4, BG_TRIGGERS = 5, BG_NAV = 2,
+    VAL_LOW = 5, VAL_MED = 8, VAL_HIGH = 11, VAL_PEAK = 13,
     TOUCH = 15
 }
 
--- Ciclo Inverso: 100% -> 0%
 Consts.MATRIX_CYCLES = {1.0, 0.66, 0.33, 0.0}
 
 Consts.SOURCES = { LFO1=1, LFO2=2, CHAOS=3, OUTLINE=4, ARP=5 }
@@ -32,11 +25,12 @@ Consts.MENU = {
 }
 
 Consts.LOOPER_PAIRS = { {1,2}, {3,4}, {5,6} }
--- Partición de Buffers (0-40, 40-80, 80-120)
-Consts.LOOPER_BOUNDS = {
-    {min=0, max=40},
-    {min=40, max=80},
-    {min=80, max=120}
+Consts.LOOPER_BOUNDS = { {min=0, max=40}, {min=40, max=80}, {min=80, max=120} }
+
+-- Parámetros que se guardan en un Snapshot de Sonido (Fila 7)
+-- Se usan patrones de string para filtrar IDs
+Consts.SNAPSHOT_PATTERNS = {
+    "^osc", "^filt", "^lfo", "^chaos", "^delay", "^reverb", "^tape", "^system", "^dust", "^mat_"
 }
 
 Consts.SCALES_A = {
