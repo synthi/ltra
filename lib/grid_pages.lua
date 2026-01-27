@@ -1,6 +1,5 @@
--- code/ltra/lib/grid_pages.lua | v0.9
--- LTRA: Grid Views (Golden Master)
--- FEATURES: Matrix Hold, Looper Multitouch, Full Navigation
+-- code/ltra/lib/grid_pages.lua | v0.9.5
+-- LTRA: Grid Views (Complete)
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -34,11 +33,11 @@ local function draw_nav_bar()
         led_safe(i, y, b) 
     end
     
-    -- LATCH Button (5)
-    local latch_b = Globals.latch_mode and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
-    led_safe(5, y, latch_b)
+    -- LATCH (5)
+    local lb = Globals.latch_mode and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
+    led_safe(5, y, lb)
     
-    -- TAP TEMPO (12)
+    -- TAP (12)
     led_safe(12, y, Consts.BRIGHT.BG_NAV)
     
     -- Pages (13-15)
@@ -51,35 +50,30 @@ local function draw_nav_bar()
 end
 
 local function check_hold()
-    -- 1. Check Dashboard Hold (Fila 6)
-    local y_dash = 6
-    local held_dash = nil
+    local y = 6
+    local held = nil
     for x=1, 16 do
-        if Globals.button_state[x] and Globals.button_state[x][y_dash] then held_dash = x; break end
+        if Globals.button_state[x] and Globals.button_state[x][y] then held = x; break end
     end
     
-    if held_dash then
-        if held_dash <= 4 then Globals.menu_mode = Consts.MENU.OSC; Globals.menu_target = held_dash
-        elseif held_dash == 13 then Globals.menu_mode = Consts.MENU.DELAY
-        elseif held_dash == 14 then Globals.menu_mode = Consts.MENU.REVERB
-        elseif held_dash == 11 or held_dash == 12 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = (held_dash==11 and 1 or 2)
-        elseif held_dash == 6 or held_dash == 7 then Globals.menu_mode = Consts.MENU.LFO; Globals.menu_target = (held_dash==6 and 1 or 2)
+    if held then
+        if held <= 4 then Globals.menu_mode = Consts.MENU.OSC; Globals.menu_target = held
+        elseif held == 13 then Globals.menu_mode = Consts.MENU.DELAY
+        elseif held == 14 then Globals.menu_mode = Consts.MENU.REVERB
+        elseif held == 11 or held == 12 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = (held==11 and 1 or 2)
+        elseif held == 6 or held == 7 then Globals.menu_mode = Consts.MENU.LFO; Globals.menu_target = (held==6 and 1 or 2)
         end
         Globals.dirty = true
-        return -- Prioridad Dashboard
+        return
     end
 
-    -- 2. Check Matrix Hold (Filas 1-4) - SOLO EN PÁGINA 1
+    -- Matrix Hold (Page 1 only)
     if Globals.page == 1 then
-        local held_matrix = nil
         for y=1, 4 do
             for x=1, 16 do
-                -- Chequeo simple: si está pulsado, asumimos intención de editar
-                -- (Para v1.0 se podría añadir timer de 200ms)
-                if Globals.button_state[x] and Globals.button_state[x][y] then
-                    -- Solo si hay conexión activa o se quiere crear
+                if Globals.button_state[x][y] then
                     Globals.menu_mode = Consts.MENU.MATRIX
-                    Globals.menu_target = {x=x, y=y} -- Guardar coords para editar ese punto
+                    Globals.menu_target = {x=x, y=y}
                     Globals.dirty = true
                     return
                 end
@@ -87,7 +81,6 @@ local function check_hold()
         end
     end
 
-    -- Si nada está pulsado, cerrar menú
     if Globals.menu_mode ~= Consts.MENU.NONE and Globals.menu_mode ~= Consts.MENU.LOOPER then 
         Globals.menu_mode = Consts.MENU.NONE; Globals.dirty = true 
     end
@@ -97,25 +90,45 @@ local function draw_loopers()
     local heads = Globals.visuals.tape_heads
     for t=1, 3 do
         local offset = (t-1)*5
-        -- Sub-pixel dimming
         local pos_float = (heads[t] or 0) * 5
         local idx = math.floor(pos_float)
         local frac = pos_float - idx
         
-        -- Filas de cinta: 1, 3, 5
+        -- Cintas en 1, 3, 5
         local y_tape = (t-1)*2 + 1
         
         for c=1, 5 do
             local x = c + offset
-            local b = Consts.BRIGHT.BG_NAV
-            if c == idx + 1 then b = math.floor(2 + (13 * (1.0 - frac)))
-            elseif c == idx + 2 then b = math.floor(2 + (13 * frac)) end
+            local b = Consts.BRIGHT.BG_NAV -- Fondo tenue
+            
+            -- Sub-pixel dimming (Ouroboros style)
+            if c == idx + 1 then b = math.floor(2 + (13 * (1.0 - frac))) end
+            if c == idx + 2 then b = math.floor(2 + (13 * frac)) end
+            
             led_safe(x, y_tape, b)
         end
         
         -- Selectores (Fila 6)
-        local x_sel = (t-1)*5 + 1
-        led_safe(x_sel, 6, Consts.BRIGHT.BG_DASHBOARD)
+        led_safe((t-1)*5 + 1, 6, Consts.BRIGHT.BG_DASHBOARD)
+    end
+end
+
+local function draw_sequencers()
+    -- Fila 7 (Cols 1-4)
+    local now = util.time()
+    for i=1, 4 do
+        local seq = Globals.gestures[i]
+        local b = Consts.BRIGHT.BG_NAV
+        
+        if seq.state == 1 then -- REC (Pulsación lenta)
+            b = math.floor(util.linlin(-1, 1, 5, 15, math.sin(now * 4)))
+        elseif seq.state == 2 then -- PLAY (Brillo alto)
+            b = Consts.BRIGHT.VAL_HIGH
+        elseif seq.state == 4 then -- DUB (Pulsación rápida)
+            b = math.floor(util.linlin(-1, 1, 5, 15, math.sin(now * 12)))
+        end
+        
+        led_safe(i, 7, b)
     end
 end
 
@@ -132,6 +145,8 @@ function Pages.redraw()
         led_safe(7, 6, lfo2)
         led_safe(8, 6, Consts.BRIGHT.BG_DASHBOARD); led_safe(9, 6, Consts.BRIGHT.BG_DASHBOARD) 
         for i=11, 14 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
+        
+        draw_sequencers() -- Fila 7 visible en Main
     end
     
     if Globals.page == 2 then
@@ -147,7 +162,7 @@ function Pages.redraw()
     
     if Globals.page == 3 then
         draw_loopers()
-        -- Check hold on Looper Selectors (Row 6)
+        -- Check Hold Loopers
         local held_looper = nil
         for t=1,3 do 
             local x = (t-1)*5 + 1
@@ -166,7 +181,6 @@ end
 function Pages.key(x, y, z)
     if z==1 then Globals.grid_timers[x][y] = util.time() end
     
-    -- Fila 8: Global
     if y == 8 then
         if x == 5 and z == 1 then
             Globals.latch_mode = not Globals.latch_mode
@@ -175,7 +189,6 @@ function Pages.key(x, y, z)
             end
             Globals.dirty = true; return
         end
-        
         if x == 12 and z == 1 then
             local now = util.time()
             if Globals.tap_last then
@@ -189,9 +202,13 @@ function Pages.key(x, y, z)
             end
             Globals.tap_last = now; return
         end
-        
         if x <= 4 then
             local Bridge = require 'ltra/lib/engine_bridge'
+            local Gestures = require 'ltra/lib/seq_gestures'
+            
+            -- Grabar gesto
+            Gestures.record_event(x, x, y, z)
+            
             if z == 1 then 
                 Bridge.set_gate(x, 1)
                 if Globals.latch_mode then Globals.voices[x].latched = true end
@@ -201,7 +218,6 @@ function Pages.key(x, y, z)
             end
             return
         end
-        
         if x >= 13 and z == 1 then
             local page_map = {[13]=1, [14]=2, [15]=3}
             if page_map[x] then Globals.page = page_map[x]; Globals.dirty = true end
@@ -209,23 +225,24 @@ function Pages.key(x, y, z)
         end
     end
     
-    -- Page 1: Matrix
-    if Globals.page == 1 and y <= 4 then Matrix.key(x, y, z) end
+    if Globals.page == 1 then
+        if y <= 4 then Matrix.key(x, y, z) end
+        -- Sequencers Fila 7
+        if y == 7 and x <= 4 and z == 1 then
+            local Gestures = require 'ltra/lib/seq_gestures'
+            Gestures.toggle(x)
+        end
+    end
     
-    -- Page 2: Scales
     if Globals.page == 2 then
         if y == 1 and z == 1 then Globals.scale.current_idx = x; Globals.dirty=true end
         if y == 6 and z == 1 and x>=3 and x<=14 then Globals.scale.root_note = x - 2; Globals.dirty=true end
     end
     
-    -- Page 3: Loopers (INPUT HANDLING)
     if Globals.page == 3 then
-        -- Cintas en 1, 3, 5
         if y == 1 then Loopers.handle_grid_input(1, x, z) end
         if y == 3 then Loopers.handle_grid_input(2, x, z) end
         if y == 5 then Loopers.handle_grid_input(3, x, z) end
-        
-        -- Selectores Fila 6 (Transporte Click)
         if y == 6 and z == 1 then
             if x == 1 then Loopers.transport_action(1, "press") end
             if x == 6 then Loopers.transport_action(2, "press") end
