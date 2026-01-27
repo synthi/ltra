@@ -1,29 +1,36 @@
--- code/ltra/lib/parameters.lua | v0.9
--- LTRA: Parameters (Complete)
-
+-- code/ltra/lib/parameters.lua | v0.9.5
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
 local Consts = require 'ltra/lib/consts'
+local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v0.9")
+    params:add_separator("LTRA v0.9.5")
     
     -- GLOBAL
     params:add_group("GLOBAL", 4)
     params:add_control("output_level", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("output_level", function(x) _norns.audio.level_dac(x) end)
     params:add_number("scale_idx", "Scale", 1, 30, 1)
-    params:set_action("scale_idx", function(x) if Globals then Globals.scale.current_idx = x end end)
+    params:set_action("scale_idx", function(x) if Globals then Globals.scale.current_idx = x; Globals.dirty=true end end)
     params:add_number("scale_root", "Root Note", 1, 12, 1)
-    params:set_action("scale_root", function(x) if Globals then Globals.scale.root_note = x end end)
+    params:set_action("scale_root", function(x) if Globals then Globals.scale.root_note = x; Globals.dirty=true end end)
     params:add_control("monitor_level", "Monitor In", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("monitor_level", function(x) _norns.audio.level_adc(x) end)
 
     -- VOICES
-    params:add_group("VOICES", 24)
+    params:add_group("VOICES", 28)
     for i=1,4 do
         params:add_separator("Voice "..i)
+        params:add_control("osc"..i.."_pitch", "Pitch", controlspec.new(0,1,"lin",0,0))
+        params:set_action("osc"..i.."_pitch", function(x)
+            local deg = math.floor(x * 24)
+            local hz = Scales.get_freq(deg, 0)
+            local tune = params:get("osc"..i.."_tune") or 0
+            hz = hz * (2 ^ (tune / 12))
+            Bridge.set_freq(i, hz)
+        end)
         params:add_control("osc"..i.."_vol", "Vol", controlspec.new(0,1,"lin",0.01,0))
         params:set_action("osc"..i.."_vol", function(x) if Globals then Globals.voices[i].vol=x end; Bridge.set_param("vol"..i, x) end)
         params:add_control("osc"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0.01,0))
@@ -38,11 +45,11 @@ function Params.init(g_ref)
         params:set_action("osc"..i.."_route", function(x) if Globals then Globals.voices[i].to_looper=(x==1) end end)
     end
     
-    -- ARP (NUEVO)
+    -- ARP
     params:add_group("ARP", 4)
     params:add_option("arp_div", "Clock Div", {"1/4", "1/8", "1/16", "1/32"}, 2)
     params:add_control("arp_chaos", "Chaos Prob", controlspec.new(0,1,"lin",0.01,0.2))
-    
+
     -- FILTERS
     params:add_group("FILTERS", 6)
     params:add_control("filt1_tone", "Filt 1 Tone", controlspec.new(-1,1,"lin",0.01,0))
@@ -124,7 +131,7 @@ function Params.init(g_ref)
         params:set_action("loop"..i.."_pre", function(x) if Globals then Globals.tracks[i].pre_fx = (x==1) end end)
     end
 
-    -- MATRIX
+    -- MATRIX (HIDDEN)
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
             local id = "mat_"..s_name.."_"..d_name
