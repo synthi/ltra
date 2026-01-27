@@ -1,7 +1,4 @@
--- code/ltra/lib/midi_16n.lua | v0.9
--- LTRA: 16n Control
--- FIX: Fader 16 Mapping
-
+-- code/ltra/lib/midi_16n.lua | v0.9.5
 local Midi16n = {}
 local Globals
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -12,12 +9,13 @@ local FADER_FUNC = {
     [1]="pitch1", [2]="pitch2", [3]="pitch3", [4]="pitch4",
     [5]="amp1",   [6]="amp2",   [7]="amp3",   [8]="amp4",
     [9]="filt1",  [10]="filt2", [11]="chaos", [12]="lfo1",
-    [13]="lfo2",  [14]="delay_t",[15]="delay_fb",[16]="delay_send" -- CORREGIDO
+    [13]="lfo2",  [14]="delay_t",[15]="delay_fb",[16]="delay_send"
 }
 
 local function trigger_popup(text, val)
     if Globals.ui_popup then
-        Globals.ui_popup.active = true; Globals.ui_popup.text = text
+        Globals.ui_popup.active = true
+        Globals.ui_popup.text = text
         Globals.ui_popup.val = string.format("%.2f", val)
         Globals.ui_popup.deadline = util.time() + 2
         Globals.dirty = true
@@ -27,7 +25,10 @@ end
 local function check_takeover(id, val)
     local virt = Globals.fader_virtual[id]
     if Globals.fader_ghost[id] then
-        if math.abs(val - virt) < 0.05 then Globals.fader_ghost[id] = nil; return true end
+        if math.abs(val - virt) < 0.05 then 
+            Globals.fader_ghost[id] = nil
+            return true 
+        end
         return false
     end
     return true
@@ -42,11 +43,10 @@ local function process_fader(id, val)
     
     local func = FADER_FUNC[id]
     
-    if func == "pitch1" then 
-        local deg = math.floor(norm*24); Bridge.set_freq(1, Scales.get_freq(deg,0)); trigger_popup("PITCH 1", deg)
-    elseif func == "pitch2" then Bridge.set_freq(2, Scales.get_freq(math.floor(norm*24),0)); trigger_popup("PITCH 2", math.floor(norm*24))
-    elseif func == "pitch3" then Bridge.set_freq(3, Scales.get_freq(math.floor(norm*24),0)); trigger_popup("PITCH 3", math.floor(norm*24))
-    elseif func == "pitch4" then Bridge.set_freq(4, Scales.get_freq(math.floor(norm*24),0)); trigger_popup("PITCH 4", math.floor(norm*24))
+    if func == "pitch1" then params:set("osc1_pitch", norm); trigger_popup("PITCH 1", norm)
+    elseif func == "pitch2" then params:set("osc2_pitch", norm); trigger_popup("PITCH 2", norm)
+    elseif func == "pitch3" then params:set("osc3_pitch", norm); trigger_popup("PITCH 3", norm)
+    elseif func == "pitch4" then params:set("osc4_pitch", norm); trigger_popup("PITCH 4", norm)
     
     elseif func == "amp1" then params:set("osc1_vol", norm); trigger_popup("VOL 1", norm)
     elseif func == "amp2" then params:set("osc2_vol", norm)
@@ -58,10 +58,11 @@ local function process_fader(id, val)
     
     elseif func == "chaos" then params:set("chaos_rate", norm); trigger_popup("CHAOS", norm)
     elseif func == "lfo1" then params:set("lfo1_rate", norm); trigger_popup("LFO 1", norm)
-    elseif func == "lfo2" then params:set("lfo2_rate", norm)
-    elseif func == "delay_t" then params:set("delay_time", norm); trigger_popup("DELAY", norm)
-    elseif func == "delay_fb" then params:set("delay_fb", norm)
-    elseif func == "delay_send" then params:set("delay_send", norm); trigger_popup("SEND", norm)
+    elseif func == "lfo2" then params:set("lfo2_rate", norm); trigger_popup("LFO 2", norm)
+    
+    elseif func == "delay_t" then params:set("delay_time", norm); trigger_popup("DELAY T", norm)
+    elseif func == "delay_fb" then params:set("delay_fb", norm); trigger_popup("DELAY FB", norm)
+    elseif func == "delay_send" then params:set("delay_send", norm); trigger_popup("DELAY SEND", norm)
     end
 end
 
@@ -83,4 +84,5 @@ function Midi16n.init(g_ref, ui_ref)
         end
     end)
 end
+
 return Midi16n
