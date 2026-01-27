@@ -1,9 +1,9 @@
--- code/ltra/lib/seq_gestures.lua | v0.6
--- LTRA: Secuenciador de Gestos (Elastic Time)
+-- code/ltra/lib/seq_gestures.lua | v0.9.5
+-- LTRA: Gesture Sequencer (Clock Synced)
 
 local Gestures = {}
 local Globals
-local GridPages -- Inyección
+local GridPages
 
 function Gestures.init(g_ref, pages_ref)
     Globals = g_ref
@@ -11,7 +11,7 @@ function Gestures.init(g_ref, pages_ref)
     
     clock.run(function()
         while true do
-            clock.sync(1/24)
+            clock.sync(1/24) -- Resolución fina
             Gestures.tick()
         end
     end)
@@ -40,25 +40,24 @@ function Gestures.tick()
         end
         
         if seq.state == 2 then -- Play
-            -- Lógica de reproducción simplificada para v0.6
-            -- (Requiere gestión de índices y loops precisa)
+            -- Lógica de reproducción básica para v0.9.5
+            -- (Iterar eventos y disparar si coincide el tiempo)
+            -- Requiere gestión de puntero 'event_idx'
         end
     end
 end
 
 function Gestures.toggle(idx)
     local seq = Globals.gestures[idx]
-    if seq.state == 0 then -- Empty -> Rec
+    if seq.state == 0 or seq.state == 3 then -- Empty/Stop -> Rec
         seq.state = 1
         seq.data = {}
         seq.beat_start = clock.get_beats()
     elseif seq.state == 1 then -- Rec -> Play
         seq.state = 2
-        -- Cerrar loop
+        seq.beat_len = clock.get_beats() - seq.beat_start
     elseif seq.state == 2 then -- Play -> Stop
         seq.state = 3
-    elseif seq.state == 3 then -- Stop -> Play
-        seq.state = 2
     end
 end
 
