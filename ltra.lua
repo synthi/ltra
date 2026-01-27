@@ -1,5 +1,6 @@
--- ltra.lua | v0.6
+-- ltra.lua | v0.6.1
 -- LTRA: Main Script (Final Assembly)
+-- FIX: Params initialization with Globals injection
 
 engine.name = 'Ltra'
 
@@ -22,16 +23,22 @@ local Storage = include('lib/storage')
 
 local g_state
 
-function osc.event(path, args, from) Bridge.handle_osc(path, args) end
+-- OSC HANDLER CENTRAL
+function osc.event(path, args, from)
+    Bridge.handle_osc(path, args)
+end
 
 function init()
-    print("LTRA: Initializing v0.6...")
+    print("LTRA: Initializing v0.6.1...")
     
+    -- 1. Crear directorios
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
     
+    -- 2. Estado Global
     g_state = Globals.new()
     
+    -- 3. Inicializar Subsistemas
     Bridge.init(g_state)
     Scales.init(g_state)
     Matrix.init(g_state)
@@ -40,28 +47,33 @@ function init()
     Arp.init(g_state)
     Enc.init(g_state)
     Keys.init(g_state)
-    Storage.init(g_state) -- Hook params
+    Storage.init(g_state)
     
+    -- 4. Grid (Inyección de Dependencias)
     GridPages.init(g_state)
     GridHW.init(g_state, 1, GridPages)
     GridPages.set_hw(GridHW)
     
-    Params.init() -- Cargar params del sistema
+    -- 5. Parámetros del Sistema (CORRECCIÓN AQUÍ)
+    -- Pasamos g_state para que Params pueda actualizar Globals
+    if Params then Params.init(g_state) end
     
+    -- 6. Tareas Diferidas (MIDI y Audio Handshake)
     clock.run(function()
         clock.sleep(0.5)
         Midi16n.init(g_state, UI)
         Bridge.query_config()
     end)
     
+    -- 7. Secuenciador
     Gestures.init(g_state, GridPages)
     
-    -- Defaults Audio
+    -- 8. Defaults Audio
     Bridge.set_filter_tone(1, 0.0)
     Bridge.set_filter_tone(2, 0.0)
     Bridge.set_param("delay_send", 0.5)
     
-    -- UI Loop (Dirty Flag)
+    -- 9. UI Loop (Dirty Flag)
     local fps = metro.init()
     fps.time = 1/15
     fps.event = function() 
@@ -69,7 +81,7 @@ function init()
     end
     fps:start()
     
-    -- Grid Loop (Buffer Cache)
+    -- 10. Grid Loop (Buffer Cache)
     local grid_fps = metro.init()
     grid_fps.time = 1/30
     grid_fps.event = function() GridHW.redraw() end
@@ -78,7 +90,18 @@ function init()
     print("LTRA: System Ready.")
 end
 
-function key(n,z) Keys.event(n,z) end
-function enc(n,d) Enc.delta(n,d) end
-function redraw() UI.redraw() end
-function cleanup() print("LTRA: Cleanup") end
+function key(n, z)
+    Keys.event(n, z)
+end
+
+function enc(n, d)
+    Enc.delta(n, d)
+end
+
+function redraw()
+    UI.redraw()
+end
+
+function cleanup()
+    print("LTRA: Cleanup")
+end
