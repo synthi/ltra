@@ -1,12 +1,18 @@
--- code/ltra/lib/grid_pages.lua | v0.7
+-- code/ltra/lib/grid_pages.lua | v0.8
+-- LTRA: Grid Views (Full Implementation)
+
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
 local Globals
 local Consts = require 'ltra/lib/consts'
-local Bridge = require 'ltra/lib/engine_bridge'
 local HW
 
-function Pages.init(g_ref) Globals = g_ref; Matrix.init(g_ref) end
+function Pages.init(g_ref, hw_ref)
+    Globals = g_ref
+    HW = hw_ref 
+    Matrix.init(g_ref)
+end
+
 function Pages.set_hw(h) HW = h end
 
 local function led_safe(x, y, val)
@@ -23,7 +29,7 @@ local function draw_nav_bar()
     -- Triggers (1-4)
     for i=1, 4 do 
         local b = Consts.BRIGHT.BG_TRIGGERS
-        if Globals.voices[i].latched then b = Consts.BRIGHT.VAL_HIGH end -- Latched visual
+        if Globals.voices[i].latched then b = Consts.BRIGHT.VAL_HIGH end
         led_safe(i, y, b) 
     end
     
@@ -31,7 +37,10 @@ local function draw_nav_bar()
     local latch_b = Globals.latch_mode and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
     led_safe(5, y, latch_b)
     
-    -- Pages
+    -- TAP TEMPO (12)
+    led_safe(12, y, Consts.BRIGHT.BG_NAV)
+    
+    -- Pages (13-15)
     local page_map = {[13]=1, [14]=2, [15]=3}
     for x=13, 15 do
         local p = page_map[x]
@@ -40,17 +49,24 @@ local function draw_nav_bar()
     end
 end
 
--- ... (draw_dashboard y draw_loopers igual que v0.6) ...
--- Para ahorrar espacio, asumo que esas funciones no cambian, solo draw_nav_bar y key
-
-local function draw_dashboard()
+local function check_hold()
     local y = 6
-    for i=1, 4 do led_safe(i, y, Consts.BRIGHT.BG_DASHBOARD) end
-    local lfo1 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.lfo_vals[1] or 0))
-    led_safe(6, 6, lfo1); local lfo2 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.lfo_vals[2] or 0))
-    led_safe(7, 6, lfo2)
-    led_safe(8, 6, Consts.BRIGHT.BG_DASHBOARD); led_safe(9, 6, Consts.BRIGHT.BG_DASHBOARD) 
-    for i=11, 13 do led_safe(i, y, Consts.BRIGHT.BG_DASHBOARD) end
+    local held = nil
+    for x=1, 16 do
+        if Globals.button_state[x] and Globals.button_state[x][y] then held = x; break end
+    end
+    
+    if held then
+        if held <= 4 then Globals.menu_mode = Consts.MENU.OSC; Globals.menu_target = held
+        elseif held == 13 then Globals.menu_mode = Consts.MENU.DELAY
+        elseif held == 14 then Globals.menu_mode = Consts.MENU.REVERB
+        elseif held == 11 or held == 12 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = (held==11 and 1 or 2)
+        elseif held == 6 or held == 7 then Globals.menu_mode = Consts.MENU.LFO; Globals.menu_target = (held==6 and 1 or 2)
+        end
+        Globals.dirty = true
+    else
+        if Globals.menu_mode ~= Consts.MENU.NONE then Globals.menu_mode = Consts.MENU.NONE; Globals.dirty = true end
+    end
 end
 
 local function draw_loopers()
@@ -69,14 +85,27 @@ local function draw_loopers()
             for r=2, 4 do led_safe(x, r, 2) end
         end
     end
+    for t=1, 3 do
+        local x = (t-1)*5 + 1
+        led_safe(x, 6, Consts.BRIGHT.BG_DASHBOARD)
+    end
 end
 
 function Pages.redraw()
     if not HW then return end
+    
     if Globals.page == 1 then
+        check_hold()
         Matrix.draw(HW, led_safe)
-        draw_dashboard()
-    elseif Globals.page == 2 then
+        for i=1, 4 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
+        local lfo1 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.lfo_vals[1] or 0))
+        led_safe(6, 6, lfo1); local lfo2 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.lfo_vals[2] or 0))
+        led_safe(7, 6, lfo2)
+        led_safe(8, 6, Consts.BRIGHT.BG_DASHBOARD); led_safe(9, 6, Consts.BRIGHT.BG_DASHBOARD) 
+        for i=11, 14 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
+    end
+    
+    if Globals.page == 2 then
         for x=1, 16 do led_safe(x, 1, (x==Globals.scale.current_idx) and 11 or 2) end
         local blacks = {false, true, false, true, false, false, true, false, true, false, true, false}
         for i=1, 12 do
@@ -85,52 +114,68 @@ function Pages.redraw()
             if blacks[i] then led_safe(x, 4, Consts.BRIGHT.BG_MATRIX_B) end
         end
         led_safe(Globals.scale.root_note + 2, 6, 11)
-    elseif Globals.page == 3 then
-        draw_loopers()
     end
+    
+    if Globals.page == 3 then
+        draw_loopers()
+        local held_looper = nil
+        for t=1,3 do 
+            local x = (t-1)*5 + 1
+            if Globals.button_state[x] and Globals.button_state[x][6] then held_looper = t end
+        end
+        if held_looper then
+            Globals.menu_mode = Consts.MENU.LOOPER; Globals.menu_target = held_looper; Globals.dirty=true
+        elseif Globals.menu_mode == Consts.MENU.LOOPER then
+            Globals.menu_mode = Consts.MENU.NONE; Globals.dirty=true
+        end
+    end
+    
     draw_nav_bar()
 end
 
 function Pages.key(x, y, z)
     if z==1 then Globals.grid_timers[x][y] = util.time() end
     
-    -- ROW 8: PERFORMANCE
     if y == 8 then
-        -- LATCH BUTTON (5)
         if x == 5 and z == 1 then
             Globals.latch_mode = not Globals.latch_mode
-            -- Si activamos Latch, comprobar si hay triggers pulsados para engancharlos
             if Globals.latch_mode then
-                for i=1, 4 do
-                    if Globals.button_state[i][8] then Globals.voices[i].latched = true end
+                for i=1, 4 do if Globals.button_state[i][8] then Globals.voices[i].latched = true end end
+            end
+            Globals.dirty = true; return
+        end
+        
+        if x == 12 and z == 1 then
+            -- TAP TEMPO LOGIC
+            local now = util.time()
+            if Globals.tap_last then
+                local diff = now - Globals.tap_last
+                if diff > 0.1 and diff < 2.0 then
+                    local bpm = 60 / diff
+                    params:set("clock_tempo", bpm)
+                    Globals.ui_popup.active = true
+                    Globals.ui_popup.text = "TAP BPM"
+                    Globals.ui_popup.val = string.format("%.1f", bpm)
+                    Globals.ui_popup.deadline = now + 1
+                    Globals.dirty = true
                 end
             end
-            Globals.dirty = true
+            Globals.tap_last = now
             return
         end
         
-        -- TRIGGERS (1-4)
         if x <= 4 then
-            if z == 1 then -- Press
+            local Bridge = require 'ltra/lib/engine_bridge'
+            if z == 1 then 
                 Bridge.set_gate(x, 1)
-                -- Si Latch Mode ON, enganchar
-                if Globals.latch_mode then Globals.voices[i].latched = true end
-            else -- Release
-                -- Si NO está latched, soltar
-                if not Globals.voices[x].latched then
-                    Bridge.set_gate(x, 0)
-                else
-                    -- Si ESTÁ latched, pero Latch Mode OFF, desenganchar
-                    if not Globals.latch_mode then
-                        Globals.voices[x].latched = false
-                        Bridge.set_gate(x, 0)
-                    end
-                end
+                if Globals.latch_mode then Globals.voices[x].latched = true end
+            else 
+                if not Globals.voices[x].latched then Bridge.set_gate(x, 0)
+                elseif not Globals.latch_mode then Globals.voices[x].latched = false; Bridge.set_gate(x, 0) end
             end
             return
         end
         
-        -- PAGES (13-15)
         if x >= 13 and z == 1 then
             local page_map = {[13]=1, [14]=2, [15]=3}
             if page_map[x] then Globals.page = page_map[x]; Globals.dirty = true end
@@ -140,7 +185,10 @@ function Pages.key(x, y, z)
     
     if Globals.page == 1 and y <= 4 then Matrix.key(x, y, z) end
     
-    -- (Resto de lógica de páginas Scales/Loopers igual que v0.6)
+    if Globals.page == 2 then
+        if y == 1 and z == 1 then Globals.scale.current_idx = x; Globals.dirty=true end
+        if y == 6 and z == 1 and x>=3 and x<=14 then Globals.scale.root_note = x - 2; Globals.dirty=true end
+    end
 end
 
 return Pages
