@@ -1,4 +1,4 @@
--- code/ltra/lib/controls_key.lua | v0.6
+-- code/ltra/lib/controls_key.lua | v0.9.5
 local Keys = {}
 local Globals
 local Consts = require 'ltra/lib/consts'
@@ -10,12 +10,18 @@ function Keys.event(n, z)
     if z==0 then return end
     Globals.dirty = true
     
+    -- MODO MENÚ
     if Globals.menu_mode ~= Consts.MENU.NONE then
         local t = Globals.menu_target
         
         if Globals.menu_mode == Consts.MENU.OSC then
-            if n==2 then Globals.voices[t].arp_enabled = not Globals.voices[t].arp_enabled
-            elseif n==3 then Globals.voices[t].to_looper = not Globals.voices[t].to_looper end
+            if n==2 then -- Toggle Arp
+                local curr = params:get("osc"..t.."_arp")
+                params:set("osc"..t.."_arp", 1-curr)
+            elseif n==3 then -- Toggle Route
+                local curr = params:get("osc"..t.."_route")
+                params:set("osc"..t.."_route", 1-curr)
+            end
             
         elseif Globals.menu_mode == Consts.MENU.FILTER then
             if n==2 then -- Toggle Type
@@ -24,12 +30,21 @@ function Keys.event(n, z)
             end
             
         elseif Globals.menu_mode == Consts.MENU.LOOPER then
-            if n==2 then Globals.tracks[t].pre_fx = not Globals.tracks[t].pre_fx
-            elseif n==3 then -- Half Speed
-                if math.abs(Globals.tracks[t].speed) == 0.5 then Globals.tracks[t].speed = 1.0 
-                else Globals.tracks[t].speed = 0.5 end
+            if n==2 then -- Pre/Post
+                local curr = params:get("loop"..t.."_pre")
+                params:set("loop"..t.."_pre", 1-curr)
             end
         end
+        return
+    end
+    
+    -- GLOBAL
+    if n==2 then
+        -- Tap Tempo (K2) ? O K1+K2?
+        -- Norns nativo usa K1+K2 para params.
+        -- Dejamos libre para futuro
+    elseif n==3 then
+        -- Panic?
     end
 end
 return Keys
