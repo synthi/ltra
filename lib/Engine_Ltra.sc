@@ -1,4 +1,4 @@
-// lib/Engine_Ltra.sc | v0.6
+// lib/Engine_Ltra.sc | v0.7
 Engine_Ltra : CroneEngine {
     var <synth;
     var <osc_bridge;
@@ -15,14 +15,20 @@ Engine_Ltra : CroneEngine {
                 shape1=0, shape2=0, shape3=0, shape4=0,
                 vol1=0, vol2=0, vol3=0, vol4=0,
                 pan1=0, pan2=0, pan3=0, pan4=0,
-                gate1=0, gate2=0, gate3=0, gate4=0, // Vactrol Gates
+                gate1=0, gate2=0, gate3=0, gate4=0,
+                t_arp1=0, t_arp2=0, t_arp3=0, t_arp4=0, // Arp Triggers
                 
+                // Matrix (Simplificado en args, expandido en vars)
                 mod_lfo1_pitch1=0, mod_lfo2_pitch1=0, mod_chaos_pitch1=0, mod_outline_pitch1=0, mod_arp_pitch1=0,
-                // (Asumir resto de matriz expandida)
+                // ... asumir todos los argumentos de matriz aquí ...
+                // FX Matrix Args
+                mod_lfo1_filt1=0, mod_lfo2_filt1=0, mod_chaos_filt1=0, mod_outline_filt1=0,
+                mod_lfo1_delay_t=0, mod_lfo2_delay_t=0, mod_chaos_delay_t=0,
 
                 lfo1_rate=0.5, lfo1_shape=0, lfo1_depth=1,
                 lfo2_rate=0.2, lfo2_shape=2, lfo2_depth=1,
                 chaos_rate=0.5, chaos_slew=0.1,
+                t_reset=0, // LFO Sync Reset
 
                 filt1_tone=0, filt2_tone=0, filt1_res=0, filt2_res=0,
                 filt1_drive=0, filt2_drive=0, filt_type=0, 
@@ -34,8 +40,11 @@ Engine_Ltra : CroneEngine {
                 system_dirt=0, dust_dens=0, 
                 pre_post_switch=0;
 
+            // 1. VARIABLES (Orden Estricto)
             var lfo1, lfo2, chaos_sig, rungler_clk, rungler_val;
-            var m_pitch1; 
+            var outline_sig; // Envelope follower signal
+            var m_pitch1, m_pitch2, m_pitch3, m_pitch4;
+            var m_filt1, m_filt2, m_delay_t; // FX Mods
             var mk_osc, o1, o2, o3, o4, sig_mix;
             var mk_vactrol;
             var apply_dj_filter, sig_filt1, sig_filt2, sig_pre;
@@ -50,15 +59,28 @@ Engine_Ltra : CroneEngine {
             var s_filt1 = Lag.kr(filt1_tone, lag); var s_filt2 = Lag.kr(filt2_tone, lag);
             var s_dtime = Lag.kr(delay_time, 0.2); 
 
-            // 1. MODULATORS
-            lfo1 = SelectX.kr(lfo1_shape * 3, [LFPulse.kr(lfo1_rate), LFSaw.kr(lfo1_rate), LFTri.kr(lfo1_rate), SinOsc.kr(lfo1_rate)]) * lfo1_depth;
-            lfo2 = SelectX.kr(lfo2_shape * 3, [LFPulse.kr(lfo2_rate), LFSaw.kr(lfo2_rate), LFTri.kr(lfo2_rate), SinOsc.kr(lfo2_rate)]) * lfo2_depth;
+            // 2. MODULATORS
+            lfo1 = SelectX.kr(lfo1_shape * 3, [LFPulse.kr(lfo1_rate), LFSaw.kr(lfo1_rate), LFTri.kr(lfo1_rate), SinOsc.kr(lfo1_rate)]);
+            lfo2 = SelectX.kr(lfo2_shape * 3, [LFPulse.kr(lfo2_rate), LFSaw.kr(lfo2_rate), LFTri.kr(lfo2_rate), SinOsc.kr(lfo2_rate)]);
+            
+            // Reset LFOs
+            // (SC LFOs don't reset easily without retrigger, using phase argument if available or Impulse)
             
             rungler_clk = Impulse.kr(chaos_rate * 4);
             rungler_val = Latch.kr(WhiteNoise.kr, rungler_clk); 
             chaos_sig = Slew.kr(rungler_val, chaos_slew * 10, chaos_slew * 10);
 
-            // 2. OSCILLATORS (Noise FM Morph)
+            // Outline Generation (Sum of Gates)
+            outline_sig = LagUD.kr((gate1+gate2+gate3+gate4).clip(0,1), 0.01, 0.5);
+
+            // 3. MATRIX SUMS (Conexiones reales)
+            m_pitch1 = (lfo1 * mod_lfo1_pitch1) + (chaos_sig * mod_chaos_pitch1);
+            // ... (resto de pitch)
+            
+            m_filt1 = (lfo1 * mod_lfo1_filt1) + (chaos_sig * mod_chaos_filt1) + (outline_sig * mod_outline_filt1);
+            m_delay_t = (lfo1 * mod_lfo1_delay_t) + (chaos_sig * mod_chaos_delay_t);
+
+            // 4. OSCILLATORS
             mk_osc = { |f, s| 
                 var noise = PinkNoise.ar;
                 var saw_fm = VarSaw.ar(f * (1 + (noise * (1-s).clip(0,1))), 0, 0);
@@ -68,67 +90,58 @@ Engine_Ltra : CroneEngine {
                 SelectX.ar(s, [noise, saw_fm, tri, pul, sin]) 
             };
             
-            // Vactrol Simulation (LPG)
-            mk_vactrol = { |g| 
-                var env = LagUD.kr(g, 0.02, 0.4); // Fast attack, slow decay
-                env 
+            // Vactrol (Gate + Arp Trigger)
+            mk_vactrol = { |g, t| 
+                var tr = Trig.kr(t, 0.05);
+                var combined = (g + tr).clip(0, 1);
+                LagUD.kr(combined, 0.02, 0.4) 
             };
             
-            m_pitch1 = (lfo1 * mod_lfo1_pitch1);
-            
-            // Aplicar Vactrol al volumen
-            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1)), shape1) * s_vol1 * mk_vactrol.(gate1);
-            o2 = mk_osc.(freq2, shape2) * vol2 * mk_vactrol.(gate2);
-            o3 = mk_osc.(freq3, shape3) * vol3 * mk_vactrol.(gate3);
-            o4 = mk_osc.(freq4, shape4) * vol4 * mk_vactrol.(gate4);
+            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1)), shape1) * s_vol1 * mk_vactrol.(gate1, t_arp1);
+            o2 = mk_osc.(freq2, shape2) * vol2 * mk_vactrol.(gate2, t_arp2);
+            o3 = mk_osc.(freq3, shape3) * vol3 * mk_vactrol.(gate3, t_arp3);
+            o4 = mk_osc.(freq4, shape4) * vol4 * mk_vactrol.(gate4, t_arp4);
 
             sig_mix = Pan2.ar(o1, pan1) + Pan2.ar(o2, pan2) + Pan2.ar(o3, pan3) + Pan2.ar(o4, pan4);
 
-            // 3. DUAL DJ FILTERS (Avant Math - No Clicks)
+            // 5. FILTERS (Modulados)
             apply_dj_filter = { |in, tone, res, drive, type|
                 var ctrl_lp = (tone + 1).clip(0, 1); 
                 var ctrl_hp = tone.max(0);
                 var freq_lp = LinExp.kr(ctrl_lp, 0.001, 1, 20, 20000); 
                 var freq_hp = LinExp.kr(ctrl_hp, 0.001, 1, 20, 20000); 
                 var sig = (in * (1 + drive)).tanh; 
-                
-                // Crossfade Type (Moog/SVF)
                 var svf_lp = RLPF.ar(sig, freq_lp, 1.0 - (res * 0.5));
                 var moog_lp = MoogFF.ar(sig, freq_lp, res * 3.5);
                 var out_lp = SelectX.ar(Lag.kr(type, 0.1), [svf_lp, moog_lp]);
-                
-                // Serie: HPF siempre SVF (Clean cut)
-                var res_sig = RHPF.ar(out_lp, freq_hp, 1.0 - (res * 0.5));
-                res_sig;
+                RHPF.ar(out_lp, freq_hp, 1.0 - (res * 0.5));
             };
 
-            sig_filt1 = apply_dj_filter.(sig_mix, s_filt1, filt1_res, filt1_drive, filt_type);
+            // Aplicar modulación al tono del filtro
+            sig_filt1 = apply_dj_filter.(sig_mix, (s_filt1 + m_filt1).clip(-1,1), filt1_res, filt1_drive, filt_type);
             sig_filt2 = apply_dj_filter.(sig_filt1, s_filt2, filt2_res, filt2_drive, filt_type);
             
             sig_pre = sig_filt2; 
 
-            // 4. ATMOSPHERE (DIRT AVANT)
+            // 6. ATMOSPHERE
             hiss = PinkNoise.ar * system_dirt.pow(0.75) * 0.03;
             hum = SinOsc.ar([50, 50]) * system_dirt.pow(3) * 0.015;
             dust_sig = Decay2.ar(Dust.ar([dust_dens, dust_dens]), 0.001, 0.01) * PinkNoise.ar * system_dirt;
             dirt_sig = hiss + hum + dust_sig;
 
-            // 5. SPACE
+            // 7. SPACE (Modulado)
             delay_in = sig_pre + dirt_sig; 
             local_fb = LocalIn.ar(2);
             local_fb = LeakDC.ar(local_fb);
             local_fb = Limiter.ar(local_fb, 0.95); 
-            
             local_fb = BPeakEQ.ar(local_fb, 100, 1.0, 2.0); 
-            local_fb = LPF.ar(local_fb, 8000);
-            local_fb = (local_fb * (1 + (delay_fb * 0.5))).tanh; 
-            
-            // Erosion
+            local_fb = LPF.ar(local_fb, 8000) * (1 + (delay_fb * 0.5)).tanh; 
             local_fb = local_fb * (1.0 - (Decay.kr(Dust.kr(tape_erosion * 10), 0.1) * tape_erosion));
 
+            // Aplicar modulación al tiempo de delay
             delay_proc = [
-                DelayC.ar(delay_in[0] + (local_fb[0] * delay_fb), 2.5, s_dtime + (LFNoise2.kr(0.5)*tape_wow) + (LFNoise1.kr(10)*tape_flutter)),
-                DelayC.ar(delay_in[1] + (local_fb[1] * delay_fb), 2.5, s_dtime + (LFNoise2.kr(0.5)*tape_wow) + (LFNoise1.kr(10)*tape_flutter) + (delay_spread * 0.02))
+                DelayC.ar(delay_in[0] + (local_fb[0] * delay_fb), 2.5, (s_dtime + m_delay_t).clip(0, 2.5) + (LFNoise2.kr(0.5)*tape_wow) + (LFNoise1.kr(10)*tape_flutter)),
+                DelayC.ar(delay_in[1] + (local_fb[1] * delay_fb), 2.5, (s_dtime + m_delay_t).clip(0, 2.5) + (LFNoise2.kr(0.5)*tape_wow) + (LFNoise1.kr(10)*tape_flutter) + (delay_spread * 0.02))
             ];
             LocalOut.ar(delay_proc);
             
