@@ -1,4 +1,4 @@
--- code/ltra/lib/engine_bridge.lua | v0.6
+-- code/ltra/lib/engine_bridge.lua | v0.7
 local Bridge = {}
 local Globals
 local Loopers = require 'ltra/lib/loopers'
@@ -23,7 +23,13 @@ end
 function Bridge.query_config() engine.query_config() end
 function Bridge.set_param(name, value) engine.param(name, value) end
 function Bridge.set_freq(idx, hz) engine.param("freq"..idx, hz) end
-function Bridge.set_gate(idx, val) engine.param("gate"..idx, val) end -- New for Vactrols
+function Bridge.set_gate(idx, val) engine.param("gate"..idx, val) end
+
+-- NUEVO: Trigger para Arp
+function Bridge.trigger_arp(idx) engine.param("t_arp"..idx, 1) end
+
+-- NUEVO: Reset LFOs
+function Bridge.reset_lfo() engine.param("t_reset", 1) end
 
 function Bridge.set_filter_tone(idx, val)
     local tone = util.linlin(0, 1, -1.0, 1.0, val)
