@@ -1,12 +1,25 @@
--- code/ltra/lib/parameters.lua | v0.8
+-- code/ltra/lib/parameters.lua | v0.9
+-- LTRA: Parameters (Complete)
+
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
 local Consts = require 'ltra/lib/consts'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v0.8")
+    params:add_separator("LTRA v0.9")
     
+    -- GLOBAL
+    params:add_group("GLOBAL", 4)
+    params:add_control("output_level", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
+    params:set_action("output_level", function(x) _norns.audio.level_dac(x) end)
+    params:add_number("scale_idx", "Scale", 1, 30, 1)
+    params:set_action("scale_idx", function(x) if Globals then Globals.scale.current_idx = x end end)
+    params:add_number("scale_root", "Root Note", 1, 12, 1)
+    params:set_action("scale_root", function(x) if Globals then Globals.scale.root_note = x end end)
+    params:add_control("monitor_level", "Monitor In", controlspec.new(0,1,"lin",0.01,0))
+    params:set_action("monitor_level", function(x) _norns.audio.level_adc(x) end)
+
     -- VOICES
     params:add_group("VOICES", 24)
     for i=1,4 do
@@ -24,6 +37,11 @@ function Params.init(g_ref)
         params:add_binary("osc"..i.."_route", "To Looper", "toggle", 1)
         params:set_action("osc"..i.."_route", function(x) if Globals then Globals.voices[i].to_looper=(x==1) end end)
     end
+    
+    -- ARP (NUEVO)
+    params:add_group("ARP", 4)
+    params:add_option("arp_div", "Clock Div", {"1/4", "1/8", "1/16", "1/32"}, 2)
+    params:add_control("arp_chaos", "Chaos Prob", controlspec.new(0,1,"lin",0.01,0.2))
     
     -- FILTERS
     params:add_group("FILTERS", 6)
@@ -48,20 +66,16 @@ function Params.init(g_ref)
     params:set_action("lfo1_depth", function(x) Bridge.set_param("lfo1_depth", x) end)
     params:add_control("lfo1_shape", "LFO1 Shape", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("lfo1_shape", function(x) Bridge.set_param("lfo1_shape", x) end)
-    
     params:add_control("lfo2_rate", "LFO2 Rate", controlspec.new(0.01,20,"exp",0.01,0.2))
     params:set_action("lfo2_rate", function(x) Bridge.set_param("lfo2_rate", x) end)
     params:add_control("lfo2_depth", "LFO2 Depth", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("lfo2_depth", function(x) Bridge.set_param("lfo2_depth", x) end)
     params:add_control("lfo2_shape", "LFO2 Shape", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("lfo2_shape", function(x) Bridge.set_param("lfo2_shape", x) end)
-    
     params:add_control("chaos_rate", "Chaos Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
     params:set_action("chaos_rate", function(x) Bridge.set_param("chaos_rate", x) end)
     params:add_control("chaos_slew", "Chaos Slew", controlspec.new(0,1,"lin",0.01,0.1))
     params:set_action("chaos_slew", function(x) Bridge.set_param("chaos_slew", x) end)
-    
-    -- NUEVO: Outline Source
     params:add_option("outline_src", "Outline Source", {"Internal Gates", "External Audio"}, 1)
     params:set_action("outline_src", function(x) Bridge.set_param("outline_source", x-1) end)
 
