@@ -1,4 +1,4 @@
--- code/ltra/lib/globals.lua | v0.7
+-- code/ltra/lib/globals.lua | v0.9.5
 local Globals = {}
 local Consts = require 'ltra/lib/consts'
 
@@ -9,30 +9,34 @@ function Globals.new()
         page = 1,
         loading_pset = false,
         
-        -- UI
         menu_mode = Consts.MENU.NONE,
         menu_target = nil, 
         ui_popup = { active=false, text="", val="", deadline=0 },
         
         k2_held = false, k3_held = false,
+        latch_mode = false,
         
-        -- LATCH STATE (NUEVO)
-        latch_mode = false, -- Estado del botón global (5,8)
-        
-        -- Hardware Buffers
         led_cache = {}, button_state = {}, grid_timers = {},
         
-        -- Audio Visuals
         visuals = { amp_l=0, amp_r=0, lfo_vals={0,0}, tape_heads={0,0,0} },
 
-        -- Data
         matrix = {},
         voices = {}, 
         tracks = {}, 
         gestures = {},
         snapshots = {},
         
-        arp = { step_val = {0,0,0,0}, history = {0,0,0,0} },
+        -- Arp Rungler State
+        arp = {
+            -- Registro de 8 bits por voz (tabla de 1s y 0s)
+            register = {
+                {0,0,0,0,0,0,0,0}, 
+                {0,0,0,0,0,0,0,0}, 
+                {0,0,0,0,0,0,0,0}, 
+                {0,0,0,0,0,0,0,0}
+            },
+            step_val = {0,0,0,0}
+        },
         
         fader_values = {}, fader_virtual = {}, fader_ghost = {},
         
@@ -50,10 +54,7 @@ function Globals.new()
 
     for s=1, 5 do state.matrix[s] = {}; for d=1, 16 do state.matrix[s][d] = 0.0 end end
     
-    for i=1, 4 do 
-        -- Añadido 'latched' per voice
-        state.voices[i] = {shape=0, pan=0, tune=0, arp_enabled=false, to_looper=true, latched=false} 
-    end
+    for i=1, 4 do state.voices[i] = {shape=0, pan=0, tune=0, arp_enabled=false, to_looper=true, latched=false} end
 
     for i=1, 3 do
         state.tracks[i] = {
