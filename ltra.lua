@@ -1,5 +1,5 @@
--- ltra.lua | v0.8
--- LTRA: Main Script
+-- ltra.lua | v0.9.5
+-- LTRA: Main Script (Golden Master)
 
 engine.name = 'Ltra'
 
@@ -25,23 +25,27 @@ local g_state
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v0.8...")
+    print("LTRA: Initializing v0.9.5...")
+    
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
     
     g_state = Globals.new()
-    g_state.tap_last = 0 -- Init tap timer
     
+    -- Inicializar Subsistemas
     Bridge.init(g_state); Scales.init(g_state); Matrix.init(g_state)
     Loopers.init(g_state); UI.init(g_state); Arp.init(g_state)
     Enc.init(g_state); Keys.init(g_state); Storage.init(g_state)
     
+    -- Grid (Inyección)
     GridPages.init(g_state)
     GridHW.init(g_state, 1, GridPages)
     GridPages.set_hw(GridHW)
     
+    -- Parámetros (Con referencia a Globals)
     Params.init(g_state)
     
+    -- Tareas Diferidas
     clock.run(function()
         clock.sleep(0.5)
         Midi16n.init(g_state, UI)
@@ -50,14 +54,19 @@ function init()
     
     Gestures.init(g_state, GridPages)
     
+    -- Defaults
     Bridge.set_filter_tone(1, 0.0); Bridge.set_filter_tone(2, 0.0)
     Bridge.set_param("delay_send", 0.5)
     
+    -- UI Loop
     local fps = metro.init()
     fps.time = 1/15
-    fps.event = function() if g_state.dirty then UI.redraw(); g_state.dirty = false end end
+    fps.event = function() 
+        if g_state.dirty then UI.redraw(); g_state.dirty = false end
+    end
     fps:start()
     
+    -- Grid Loop
     local grid_fps = metro.init()
     grid_fps.time = 1/30
     grid_fps.event = function() GridHW.redraw() end
