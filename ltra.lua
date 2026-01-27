@@ -1,6 +1,5 @@
--- ltra.lua | v0.7
+-- ltra.lua | v0.8
 -- LTRA: Main Script
--- FIX: Tempo Callback & Latch Integration
 
 engine.name = 'Ltra'
 
@@ -26,11 +25,12 @@ local g_state
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v0.7...")
+    print("LTRA: Initializing v0.8...")
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
     
     g_state = Globals.new()
+    g_state.tap_last = 0 -- Init tap timer
     
     Bridge.init(g_state); Scales.init(g_state); Matrix.init(g_state)
     Loopers.init(g_state); UI.init(g_state); Arp.init(g_state)
@@ -50,21 +50,16 @@ function init()
     
     Gestures.init(g_state, GridPages)
     
-    -- Callback de Tempo (Nuevo)
-    clock.transport.tempo_change_handler = function(bpm)
-        -- Recalcular LFOs si están en modo Sync (Futuro)
-        -- Resetear LFOs
-        Bridge.reset_lfo()
-    end
-    
     Bridge.set_filter_tone(1, 0.0); Bridge.set_filter_tone(2, 0.0)
     Bridge.set_param("delay_send", 0.5)
     
-    local fps = metro.init(); fps.time = 1/15
+    local fps = metro.init()
+    fps.time = 1/15
     fps.event = function() if g_state.dirty then UI.redraw(); g_state.dirty = false end end
     fps:start()
     
-    local grid_fps = metro.init(); grid_fps.time = 1/30
+    local grid_fps = metro.init()
+    grid_fps.time = 1/30
     grid_fps.event = function() GridHW.redraw() end
     grid_fps:start()
     
