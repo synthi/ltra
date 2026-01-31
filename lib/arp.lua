@@ -1,4 +1,10 @@
--- code/ltra/lib/arp.lua | v0.9.5
+-- =============================================================================
+-- PROJECT: LTRA
+-- FILE: lib/arp.lua
+-- VERSION: v1.0 (Golden Master)
+-- DESCRIPTION: Shift Register (Rungler) Arpeggiator sincronizado al Clock.
+-- =============================================================================
+
 local Arp = {}
 local Globals
 local Scales = require 'ltra/lib/scales'
@@ -7,7 +13,7 @@ local Bridge = require 'ltra/lib/engine_bridge'
 function Arp.init(g_ref)
     Globals = g_ref
     
-    -- Reloj del Arpegiador
+    -- Reloj del Arpegiador (Sincronizado)
     clock.run(function()
         while true do
             -- Leer división del parámetro (1=1/4, 2=1/8, 3=1/16, 4=1/32)
@@ -24,18 +30,18 @@ function Arp.init(g_ref)
 end
 
 function Arp.tick()
-    -- Probabilidad de Caos
+    -- Probabilidad de Caos (Bit flip)
     local chaos_prob = params:get("arp_chaos") or 0.1
 
     for i=1, 4 do
         if Globals.voices[i].arp_enabled then
             local reg = Globals.arp.register[i]
             
-            -- Rungler Logic (Shift Register)
-            -- Bit nuevo = Último Bit XOR Penúltimo Bit (con probabilidad de error/caos)
+            -- Rungler Logic (Shift Register XOR)
+            -- Bit nuevo = Último Bit XOR Penúltimo Bit
             local last_bit = reg[8]
             local prev_bit = reg[7]
-            local new_bit = (last_bit ~= prev_bit) and 1 or 0 -- XOR
+            local new_bit = (last_bit ~= prev_bit) and 1 or 0 
             
             -- Inyección de caos
             if math.random() < chaos_prob then
@@ -54,8 +60,7 @@ function Arp.tick()
             Globals.arp.step_val[i] = norm_val
             
             -- Enviar al Engine (CV para matriz)
-            -- Nota: Engine espera arp_cvX. Usamos un comando param genérico si no existe específico,
-            -- o asumimos que Bridge.set_param maneja "arp_cv"..i
+            -- Usamos un comando genérico param para arp_cv
             engine.param("arp_cv"..i, norm_val)
             
             -- Generar Nota (Pitch)
