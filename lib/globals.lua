@@ -1,4 +1,4 @@
--- code/ltra/lib/globals.lua | v0.9.5
+-- code/ltra/lib/globals.lua | v1.0
 local Globals = {}
 local Consts = require 'ltra/lib/consts'
 
@@ -14,7 +14,7 @@ function Globals.new()
         ui_popup = { active=false, text="", val="", deadline=0 },
         
         k2_held = false, k3_held = false,
-        latch_mode = false,
+        latch_mode = false, -- Estado visual del botón Latch
         
         led_cache = {}, button_state = {}, grid_timers = {},
         
@@ -23,17 +23,13 @@ function Globals.new()
         matrix = {},
         voices = {}, 
         tracks = {}, 
-        gestures = {},
-        snapshots = {},
+        snapshots = {}, -- Banco de memoria RAM (Fila 7)
         
-        -- Arp Rungler State
+        -- Arp Rungler State (8-bit registers)
         arp = {
-            -- Registro de 8 bits por voz (tabla de 1s y 0s)
             register = {
-                {0,0,0,0,0,0,0,0}, 
-                {0,0,0,0,0,0,0,0}, 
-                {0,0,0,0,0,0,0,0}, 
-                {0,0,0,0,0,0,0,0}
+                {0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0}, 
+                {0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0}
             },
             step_val = {0,0,0,0}
         },
@@ -64,7 +60,6 @@ function Globals.new()
         }
     end
     
-    for i=1, 4 do state.gestures[i] = {state=0, data={}, beat_start=0, pulse_visual=0} end
     for i=1, 6 do state.snapshots[i] = nil end
 
     return state
