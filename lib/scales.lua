@@ -1,16 +1,26 @@
--- code/ltra/lib/scales.lua | v0.9.5
+-- =============================================================================
+-- PROJECT: LTRA
+-- FILE: lib/scales.lua
+-- VERSION: v1.0 (Golden Master)
+-- DESCRIPTION: Motor de afinación. Conversión JI/TET y gestión de frecuencias.
+-- =============================================================================
+
 local Scales = {}
 local Consts = require 'ltra/lib/consts'
 local musicutil = require 'musicutil'
 local Globals 
 
-function Scales.init(g_ref) Globals = g_ref end
+function Scales.init(g_ref) 
+    Globals = g_ref 
+end
 
+-- Obtener frecuencia base de la nota Raíz actual (C3 reference)
 local function get_root_freq()
     local midi = 48 + (Globals.scale.root_note - 1)
     return musicutil.note_num_to_freq(midi)
 end
 
+-- Función Maestra: Grado -> Hz
 function Scales.get_freq(degree, octave)
     local idx = Globals.scale.current_idx
     local def = (idx <= #Consts.SCALES_A) and Consts.SCALES_A[idx] or Consts.SCALES_B[idx - #Consts.SCALES_A]
@@ -18,6 +28,7 @@ function Scales.get_freq(degree, octave)
     if not def then return 440 end
 
     if def.type == "JI" then
+        -- Entonación Justa (Ratios Puros)
         local ratios = def.intervals
         local len = #ratios
         local oct_shift = math.floor(degree / len)
@@ -26,6 +37,7 @@ function Scales.get_freq(degree, octave)
         local ratio = ratios[ratio_idx]
         return get_root_freq() * ratio * (2 ^ (octave + oct_shift))
     else
+        -- Temperamento Igual (MIDI)
         local root = 48 + (Globals.scale.root_note - 1)
         local ints = def.intervals
         local len = #ints
@@ -37,7 +49,7 @@ end
 
 -- Helper para Arp/Modulación (0.0-1.0 -> Hz)
 function Scales.get_freq_from_voltage(volts)
-    local range = 24 -- 2 octavas
+    local range = 24 -- 2 octavas de rango dinámico
     local degree = math.floor(volts * range)
     return Scales.get_freq(degree, 0)
 end
