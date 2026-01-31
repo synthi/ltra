@@ -1,4 +1,10 @@
--- code/ltra/lib/midi_16n.lua | v0.9.5
+-- =============================================================================
+-- PROJECT: LTRA
+-- FILE: lib/midi_16n.lua
+-- VERSION: v1.0 (Golden Master)
+-- DESCRIPTION: Gestión del controlador 16n con Soft Takeover y Popups.
+-- =============================================================================
+
 local Midi16n = {}
 local Globals
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -49,9 +55,9 @@ local function process_fader(id, val)
     elseif func == "pitch4" then params:set("osc4_pitch", norm); trigger_popup("PITCH 4", norm)
     
     elseif func == "amp1" then params:set("osc1_vol", norm); trigger_popup("VOL 1", norm)
-    elseif func == "amp2" then params:set("osc2_vol", norm)
-    elseif func == "amp3" then params:set("osc3_vol", norm)
-    elseif func == "amp4" then params:set("osc4_vol", norm)
+    elseif func == "amp2" then params:set("osc2_vol", norm); trigger_popup("VOL 2", norm)
+    elseif func == "amp3" then params:set("osc3_vol", norm); trigger_popup("VOL 3", norm)
+    elseif func == "amp4" then params:set("osc4_vol", norm); trigger_popup("VOL 4", norm)
     
     elseif func == "filt1" then params:set("filt1_tone", norm*2-1); trigger_popup("FILT 1", norm*2-1)
     elseif func == "filt2" then params:set("filt2_tone", norm*2-1); trigger_popup("FILT 2", norm*2-1)
