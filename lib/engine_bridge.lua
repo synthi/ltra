@@ -1,4 +1,4 @@
--- code/ltra/lib/engine_bridge.lua | v0.9.5
+-- code/ltra/lib/engine_bridge.lua | v1.0
 local Bridge = {}
 local Globals
 local Loopers = require 'ltra/lib/loopers'
@@ -21,19 +21,16 @@ function Bridge.handle_osc(path, args)
     end
 end
 
--- Sincronización Masiva (Post-Load)
 function Bridge.sync_matrix()
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
             local val = Globals.matrix[s_idx][d_idx]
             if val > 0 then
-                -- Reconstruir ID param
                 local idx = string.match(d_name, "(%d+)$") or ""
                 local dest = d_name:lower():gsub("%d", "")
                 if dest == "delay_t" then dest = "delay_time" end
                 if dest == "delay_f" then dest = "delay_fb" end
                 if dest == "filt" then dest = "filt" end 
-                
                 local param_id = "mod_" .. s_name:lower() .. "_" .. dest .. idx
                 engine.param(param_id, val)
             end
