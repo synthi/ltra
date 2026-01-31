@@ -1,4 +1,4 @@
--- code/ltra/lib/parameters.lua | v0.9.5
+-- code/ltra/lib/parameters.lua | v1.0
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
 local Consts = require 'ltra/lib/consts'
@@ -6,10 +6,10 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v0.9.5")
+    params:add_separator("LTRA v1.0")
     
     -- GLOBAL
-    params:add_group("GLOBAL", 4)
+    params:add_group("GLOBAL", 5)
     params:add_control("output_level", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("output_level", function(x) _norns.audio.level_dac(x) end)
     params:add_number("scale_idx", "Scale", 1, 30, 1)
@@ -18,6 +18,8 @@ function Params.init(g_ref)
     params:set_action("scale_root", function(x) if Globals then Globals.scale.root_note = x; Globals.dirty=true end end)
     params:add_control("monitor_level", "Monitor In", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("monitor_level", function(x) _norns.audio.level_adc(x) end)
+    params:add_control("loop_return", "Global Loop Return", controlspec.new(0,1,"lin",0.01,1))
+    params:set_action("loop_return", function(x) Bridge.set_param("loop_return_level", x) end)
 
     -- VOICES
     params:add_group("VOICES", 28)
@@ -49,6 +51,8 @@ function Params.init(g_ref)
     params:add_group("ARP", 4)
     params:add_option("arp_div", "Clock Div", {"1/4", "1/8", "1/16", "1/32"}, 2)
     params:add_control("arp_chaos", "Chaos Prob", controlspec.new(0,1,"lin",0.01,0.2))
+    params:add_binary("latch_mode", "Latch", "toggle", 0)
+    params:set_action("latch_mode", function(x) if Globals then Globals.latch_mode=(x==1); Globals.dirty=true end end)
 
     -- FILTERS
     params:add_group("FILTERS", 6)
