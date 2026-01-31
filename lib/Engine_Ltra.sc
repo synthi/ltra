@@ -1,6 +1,6 @@
-// lib/Engine_Ltra.sc | v0.9.1
-// LTRA Audio Engine - GOLDEN MASTER FIX
-// Full Matrix Implementation (All 80 connections verified)
+// lib/Engine_Ltra.sc | v0.9.2
+// LTRA Audio Engine
+// FIX: Moved 'calc_mod' variable declaration to top scope (SC Syntax Requirement)
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -48,19 +48,22 @@ Engine_Ltra : CroneEngine {
                 system_dirt=0, dust_dens=0, 
                 pre_post_switch=0;
 
-            // 1. VARIABLES
+            // 1. VARIABLES (DECLARACIÓN ESTRICTA AL INICIO)
             var lfo1, lfo2, chaos_sig, rungler_clk, rungler_val;
             var outline_sig, env_int, env_ext;
             
-            // Destinos de Modulación
+            // Helper Functions (Deben declararse aquí)
+            var calc_mod; 
+            var mk_osc, mk_vactrol, apply_dj_filter;
+            
+            // Destinos
             var m_pitch1, m_pitch2, m_pitch3, m_pitch4;
             var m_amp1, m_amp2, m_amp3, m_amp4;
-            var m_shape1, m_shape2, m_shape3, m_shape4; // RECUPERADO
+            var m_shape1, m_shape2, m_shape3, m_shape4;
             var m_filt1, m_filt2, m_delay_t, m_delay_f;
             
-            var mk_osc, o1, o2, o3, o4, sig_mix;
-            var mk_vactrol;
-            var apply_dj_filter, sig_filt1, sig_filt2, sig_pre;
+            var o1, o2, o3, o4, sig_mix;
+            var sig_filt1, sig_filt2, sig_pre;
             var dirt_sig, hiss, hum, dust_sig;
             var delay_in, local_fb, delay_proc, tape_sig;
             var reverb_sig, effects_out, sig_post;
@@ -86,8 +89,9 @@ Engine_Ltra : CroneEngine {
             env_ext = Amplitude.kr(SoundIn.ar(0)); 
             outline_sig = Select.kr(outline_source, [env_int, env_ext]);
 
-            // --- 3. MATRIX CALCULATION (FULL) ---
-            var calc_mod = { |dest_name, arp_val|
+            // --- 3. MATRIX CALCULATION ---
+            // Definición de la función (ya declarada arriba)
+            calc_mod = { |dest_name, arp_val|
                 (lfo1 * NamedControl.kr(("mod_lfo1_" ++ dest_name).asSymbol, 0)) +
                 (lfo2 * NamedControl.kr(("mod_lfo2_" ++ dest_name).asSymbol, 0)) +
                 (chaos_sig * NamedControl.kr(("mod_chaos_" ++ dest_name).asSymbol, 0)) +
@@ -107,7 +111,7 @@ Engine_Ltra : CroneEngine {
             m_amp3 = calc_mod.("amp3", arp_cv3);
             m_amp4 = calc_mod.("amp4", arp_cv4);
 
-            // SHAPE (MORPH) - REINTEGRADO
+            // SHAPE
             m_shape1 = calc_mod.("shape1", arp_cv1);
             m_shape2 = calc_mod.("shape2", arp_cv2);
             m_shape3 = calc_mod.("shape3", arp_cv3);
@@ -135,7 +139,6 @@ Engine_Ltra : CroneEngine {
                 LagUD.kr(combined, 0.02, 0.4) 
             };
             
-            // Aplicación de Modulaciones (Incluyendo Shape)
             o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1)), (shape1 + (m_shape1*4)).clip(0,4)) * (s_vol1 + m_amp1).clip(0,1) * mk_vactrol.(gate1, t_arp1);
             o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2)), (shape2 + (m_shape2*4)).clip(0,4)) * (s_vol2 + m_amp2).clip(0,1) * mk_vactrol.(gate2, t_arp2);
             o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3)), (shape3 + (m_shape3*4)).clip(0,4)) * (s_vol3 + m_amp3).clip(0,1) * mk_vactrol.(gate3, t_arp3);
