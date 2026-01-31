@@ -1,4 +1,10 @@
--- code/ltra/lib/controls_key.lua | v0.9.5
+-- =============================================================================
+-- PROJECT: LTRA
+-- FILE: lib/controls_key.lua
+-- VERSION: v1.0 (Golden Master)
+-- DESCRIPTION: Gestión de Teclas K2/K3 (Toggles y Funciones Globales).
+-- =============================================================================
+
 local Keys = {}
 local Globals
 local Consts = require 'ltra/lib/consts'
@@ -33,6 +39,21 @@ function Keys.event(n, z)
             if n==2 then -- Pre/Post
                 local curr = params:get("loop"..t.."_pre")
                 params:set("loop"..t.."_pre", 1-curr)
+            elseif n==3 then -- Half Speed Toggle (Simulado)
+                local curr = params:get("loop"..t.."_speed")
+                if math.abs(curr) == 0.5 then params:set("loop"..t.."_speed", 1.0)
+                else params:set("loop"..t.."_speed", 0.5) end
+            end
+            
+        elseif Globals.menu_mode == Consts.MENU.MATRIX then
+            if n==2 then -- Invertir Polaridad
+                local src_idx = Consts.SOURCES[Globals.menu_target.src_name]
+                local dst_idx = Consts.DESTINATIONS[Globals.menu_target.dest_name]
+                if src_idx and dst_idx then
+                    local current = Globals.matrix[src_idx][dst_idx]
+                    local id = "mat_"..Globals.menu_target.src_name.."_"..Globals.menu_target.dest_name
+                    params:set(id, current * -1)
+                end
             end
         end
         return
@@ -40,11 +61,9 @@ function Keys.event(n, z)
     
     -- GLOBAL
     if n==2 then
-        -- Tap Tempo (K2) ? O K1+K2?
-        -- Norns nativo usa K1+K2 para params.
-        -- Dejamos libre para futuro
+        -- K2 Global: Tap Tempo (Backup) o Panic
     elseif n==3 then
-        -- Panic?
+        -- K3 Global
     end
 end
 return Keys
