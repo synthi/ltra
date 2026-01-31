@@ -1,15 +1,34 @@
--- code/ltra/lib/consts.lua | v0.9.5
+-- code/ltra/lib/consts.lua | v0.9.6
+-- LTRA: Constantes Visuales y Tablas Fijas
+-- FIX: Restored NOTE_NAMES table
+
 local Consts = {}
 
+-- VISUALES
 Consts.BRIGHT = {
     OFF = 0,
-    BG_MATRIX_A = 1, BG_MATRIX_B = 3,
-    BG_DASHBOARD = 4, BG_TRIGGERS = 5, BG_NAV = 2,
-    VAL_LOW = 5, VAL_MED = 8, VAL_HIGH = 11, VAL_PEAK = 13,
+    BG_MATRIX_A = 1,   -- Pitch/Morph cols
+    BG_MATRIX_B = 3,   -- Amp/FX cols
+    BG_DASHBOARD = 4,
+    BG_TRIGGERS = 5,
+    BG_NAV = 2,
+    VAL_LOW = 5,
+    VAL_MED = 8,
+    VAL_HIGH = 11,
+    VAL_PEAK = 13,
     TOUCH = 15
 }
 
+-- Ciclo Inverso: 100% -> 0%
 Consts.MATRIX_CYCLES = {1.0, 0.66, 0.33, 0.0}
+
+-- Mapeo de Brillo según valor
+function Consts.get_matrix_brightness(val)
+    if val < 0.01 then return nil end
+    if val < 0.4 then return Consts.BRIGHT.VAL_LOW end
+    if val < 0.8 then return Consts.BRIGHT.VAL_MED end
+    return Consts.BRIGHT.VAL_HIGH
+end
 
 Consts.SOURCES = { LFO1=1, LFO2=2, CHAOS=3, OUTLINE=4, ARP=5 }
 Consts.DESTINATIONS = {
@@ -25,13 +44,19 @@ Consts.MENU = {
 }
 
 Consts.LOOPER_PAIRS = { {1,2}, {3,4}, {5,6} }
-Consts.LOOPER_BOUNDS = { {min=0, max=40}, {min=40, max=80}, {min=80, max=120} }
+Consts.LOOPER_BOUNDS = {
+    {min=0, max=40},
+    {min=40, max=80},
+    {min=80, max=120}
+}
 
--- Parámetros que se guardan en un Snapshot de Sonido (Fila 7)
--- Se usan patrones de string para filtrar IDs
+-- Patrones para guardar en Snapshots (Fila 7)
 Consts.SNAPSHOT_PATTERNS = {
     "^osc", "^filt", "^lfo", "^chaos", "^delay", "^reverb", "^tape", "^system", "^dust", "^mat_"
 }
+
+-- TABLA RECUPERADA (Causa del error)
+Consts.NOTE_NAMES = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
 
 Consts.SCALES_A = {
     {name="Major", intervals={0,2,4,5,7,9,11}},
