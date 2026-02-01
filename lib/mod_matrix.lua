@@ -1,8 +1,9 @@
--- code/ltra/lib/mod_matrix.lua | v0.9.5
--- LTRA: Matrix Logic (Params Persistence & Animation)
+-- code/ltra/lib/mod_matrix.lua | v1.0
+-- LTRA: Matrix Logic
 
 local Matrix = {}
 local Globals
+local Bridge = require 'ltra/lib/engine_bridge'
 local Consts = require 'ltra/lib/consts'
 
 function Matrix.init(g_ref) Globals = g_ref end
@@ -16,13 +17,9 @@ local COL_TO_DEST = {
 }
 
 function Matrix.key(x, y, z)
-    -- Si es Hold (detectado en Pages), no hacemos click
-    -- Pero aquí solo llega el evento raw.
-    -- La lógica de Hold está en Pages. Si Pages detecta hold, abre menú.
-    -- Si es un click corto, Pages debería llamar a Matrix.key.
-    -- Simplificación: Matrix.key siempre cicla en z=1.
-    
     if z == 1 then
+        -- Check Hold (Si es pulsación larga, GridPages abre menú, no cambiamos valor)
+        -- Aquí asumimos click simple para cambiar valor
         local src_name = ROW_TO_SOURCE[y]
         local dest_name = COL_TO_DEST[x]
         if src_name and dest_name then
@@ -39,7 +36,6 @@ function Matrix.key(x, y, z)
             end
             if current_val < 0.01 then next_val = 1.0 end
             
-            -- USAR PARAMS PARA PERSISTENCIA
             local param_id = "mat_"..src_name.."_"..dest_name
             params:set(param_id, next_val)
         end
