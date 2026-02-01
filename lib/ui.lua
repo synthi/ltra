@@ -1,5 +1,9 @@
--- code/ltra/lib/ui.lua | v0.9.5
--- LTRA: Screen Interface (Context Menus & Visual Feedback)
+-- =============================================================================
+-- PROJECT: LTRA
+-- FILE: lib/ui.lua
+-- VERSION: v1.0 (Golden Master)
+-- DESCRIPTION: Renderizado de Pantalla (Menús, Popups, Feedback Visual).
+-- =============================================================================
 
 local UI = {}
 local Globals
@@ -81,15 +85,16 @@ local function draw_menu()
         
     elseif mode == Consts.MENU.MATRIX then
         screen.move(5,10); screen.text("MATRIX EDIT")
-        -- Recuperar nombres
-        local src_name = "SRC" -- Placeholder, necesitaríamos mapeo inverso
-        local dst_name = "DST"
-        -- Como menu_target tiene {x,y}, podemos deducirlo
-        -- Por ahora mostramos coordenadas
-        screen.move(5,30); screen.text("Cell: "..t.y.." > "..t.x)
-        -- Mostrar valor del parámetro oculto
-        -- (Requiere lógica compleja de nombres, simplificado para v0.9.5)
-        screen.move(5,45); screen.text("Use E3 to set amount")
+        -- Recuperar nombres (Simplificado para visualización)
+        -- t contiene {x, y, src_name, dest_name}
+        if t and t.src_name then
+            screen.move(5,25); screen.text(t.src_name .. " > " .. t.dest_name)
+            -- Leer valor actual del parámetro oculto
+            local id = "mat_"..t.src_name.."_"..t.dest_name
+            local val = params:get(id)
+            screen.move(5,40); screen.text("AMOUNT: " .. string.format("%.2f", val))
+            screen.move(5,55); screen.text("E3: Adjust  K2: Invert")
+        end
     end
 end
 
@@ -114,7 +119,7 @@ function UI.redraw()
         
     -- 3. VISTA PRINCIPAL
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v0.9.5")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.0")
         
         -- Info de Escala
         screen.level(3)
@@ -124,6 +129,11 @@ function UI.redraw()
         end
         screen.move(0, 30); screen.text("Scl: "..s_name)
         screen.move(0, 40); screen.text("Root: "..Consts.NOTE_NAMES[Globals.scale.root_note])
+        
+        -- Indicadores de Estado
+        if Globals.latch_mode then 
+            screen.move(120, 10); screen.text("L") 
+        end
         
         -- Vúmetros
         local vu_l = util.clamp(Globals.visuals.amp_l * 40, 0, 40)
