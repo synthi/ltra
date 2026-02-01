@@ -1,5 +1,9 @@
--- code/ltra/lib/grid_hw.lua | v0.9.5
--- LTRA: Hardware Layer (Debounce & Cache)
+-- =============================================================================
+-- PROJECT: LTRA
+-- FILE: lib/grid_hw.lua
+-- VERSION: v1.0 (Golden Master)
+-- DESCRIPTION: Hardware Abstraction Layer (Debounce & Cache).
+-- =============================================================================
 
 local GridHW = {}
 local Globals; local Pages; local g
@@ -43,7 +47,7 @@ end
 
 function GridHW.handle_key(x, y, z)
     local now = util.time()
-    -- Debounce (50ms)
+    -- Debounce (50ms) para evitar rebotes de hardware
     if z == 1 then
         if (now - last_press[x][y]) < 0.05 then return end
         last_press[x][y] = now
