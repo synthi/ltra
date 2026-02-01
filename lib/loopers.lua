@@ -1,5 +1,5 @@
--- code/ltra/lib/loopers.lua | v0.9.5
--- LTRA: Softcut Manager (Multitouch & Partitioning)
+-- code/ltra/lib/loopers.lua | v1.0
+-- LTRA: Softcut Manager (Partitioned & Multitouch)
 
 local Loopers = {}
 local Globals
@@ -12,7 +12,7 @@ function Loopers.init(g_ref)
     Globals = g_ref
     
     -- Configuración Inicial Softcut
-    audio.level_adc_cut(1) 
+    audio.level_adc_cut(1) -- Monitor Input
     
     for i=1, 3 do
         local pair = Consts.LOOPER_PAIRS[i]
@@ -24,16 +24,16 @@ function Loopers.init(g_ref)
             softcut.level(v, 1.0)
             softcut.loop(v, 1)
             
-            -- Límites estrictos
+            -- LÍMITES ESTRICTOS (0-40, 40-80, 80-120)
             softcut.loop_start(v, bounds.min)
             softcut.loop_end(v, bounds.max)
             softcut.position(v, bounds.min)
             
             softcut.play(v, 1)
             softcut.rate(v, 1.0)
-            softcut.fade_time(v, 0.05)
+            softcut.fade_time(v, 0.05) -- Anti-click
             
-            -- Filtros internos
+            -- Filtros internos (Neutros por defecto)
             softcut.post_filter_lp(v, 1.0)
             softcut.post_filter_dry(v, 0.0)
             softcut.post_filter_fc(v, 18000)
@@ -41,8 +41,9 @@ function Loopers.init(g_ref)
         end
     end
     
-    -- Poll Visual
+    -- Poll Visual (15Hz)
     softcut.event_phase(function(v, pos)
+        -- Solo leemos la voz izquierda de cada par
         if v == 1 or v == 3 or v == 5 then
             local track_idx = (v+1)/2
             local bounds = Consts.LOOPER_BOUNDS[track_idx]
@@ -58,10 +59,7 @@ function Loopers.init(g_ref)
 end
 
 function Loopers.configure_audio_routing(g_ref)
-    -- Handshake recibido.
-    -- En v0.9.5 usamos el ruteo global estándar de Norns.
-    -- El Engine escribe en DAC. Softcut graba DAC (si no se mutea).
-    -- Para evitar feedback, controlamos niveles en params.
+    -- Handshake recibido. Ruteo estándar activo.
     print("LTRA: Audio Routing Active")
 end
 
@@ -72,7 +70,7 @@ function Loopers.handle_grid_input(track_idx, x, z)
     local len = bounds.max - bounds.min
     local offset = (track_idx-1)*5
     
-    -- Normalizar X a 1-5
+    -- Normalizar X a 1-5 (dentro de la cinta)
     local local_x = x - offset
     if local_x < 1 or local_x > 5 then return end
     
@@ -83,7 +81,7 @@ function Loopers.handle_grid_input(track_idx, x, z)
         held_keys[track_idx][x] = nil
     end
     
-    -- Contar dedos
+    -- Contar dedos activos
     local count = 0
     local min_x, max_x = 100, 0
     for k, _ in pairs(held_keys[track_idx]) do
@@ -95,9 +93,12 @@ function Loopers.handle_grid_input(track_idx, x, z)
     local pair = Consts.LOOPER_PAIRS[track_idx]
     
     if count == 1 then
-        -- SEEK (Salto)
+        -- SEEK (Salto con Inercia)
         local rel_pos = (min_x - offset - 1) / 4 -- 0.0 a 1.0
         local abs_pos = bounds.min + (rel_pos * len)
+        
+        -- Calcular inercia basada en tiempo de presión (si se suelta)
+        -- Aquí es salto directo al tocar. La inercia de velocidad es otro gesto.
         for _, v in ipairs(pair) do softcut.position(v, abs_pos) end
         
     elseif count == 2 then
@@ -146,6 +147,7 @@ function Loopers.transport_action(track_idx, action)
             softcut.rec(v, 0); softcut.rate(v, 1.0)
             softcut.loop_start(v, bounds.min); softcut.loop_end(v, bounds.max)
             softcut.position(v, bounds.min)
+            softcut.pre_level(v, 1.0)
         end
     end
 end
