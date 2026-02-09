@@ -1,5 +1,6 @@
--- ltra.lua | v1.0.1
--- LTRA: Main Script (Clean Build)
+-- ltra.lua | v1.3.1
+-- LTRA: Main Script
+-- FIX: Boot Order (Params BEFORE Subsystems) & Removed illegal audio call
 
 engine.name = 'Ltra'
 
@@ -24,34 +25,56 @@ local g_state
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v1.0.1...")
+    print("LTRA: Initializing v1.3.1 (Fixed Order)...")
     
+    -- 1. Directorios
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
     
+    -- 2. Estado Base
     g_state = Globals.new()
+    g_state.tap_last = 0
     
-    Bridge.init(g_state); Scales.init(g_state); Matrix.init(g_state)
-    Loopers.init(g_state); UI.init(g_state); Arp.init(g_state)
-    Enc.init(g_state); Keys.init(g_state); Storage.init(g_state)
+    -- 3. Lógica Pasiva
+    Bridge.init(g_state)
+    Scales.init(g_state)
+    Matrix.init(g_state)
     
-    GridPages.init(g_state)
-    GridHW.init(g_state, 1, GridPages)
-    GridPages.set_hw(GridHW)
+    -- 4. Grid Hardware (Buffer)
+    -- Pasamos GridPages aunque aún no esté init, es solo la referencia de la tabla
+    GridHW.init(g_state, 1, GridPages) 
     
+    -- 5. PARÁMETROS (CRÍTICO: ANTES QUE ARP/LOOPERS)
+    -- Esto crea 'arp_div' para que Arp.lua no falle al arrancar
     Params.init(g_state)
     
+    -- 6. Subsistemas Activos (Que leen params)
+    Loopers.init(g_state)
+    UI.init(g_state)
+    Arp.init(g_state) -- Ahora seguro porque Params ya existe
+    Enc.init(g_state)
+    Keys.init(g_state)
+    Storage.init(g_state)
+    
+    -- 7. Inicializar Lógica de Grid
+    GridPages.init(g_state)
+    GridPages.set_hw(GridHW)
+    
+    -- 8. Tareas Diferidas
     clock.run(function()
         clock.sleep(0.5)
         Midi16n.init(g_state, UI)
         Bridge.query_config()
-        params:bang()
+        params:bang() -- Forzar actualización inicial de valores
+        g_state.dirty = true
     end)
     
-    -- Defaults
-    Bridge.set_filter_tone(1, 0.0); Bridge.set_filter_tone(2, 0.0)
+    -- 9. Defaults Audio
+    Bridge.set_filter_tone(1, 0.0)
+    Bridge.set_filter_tone(2, 0.0)
     Bridge.set_param("delay_send", 0.5)
     
+    -- 10. Metros
     local fps = metro.init()
     fps.time = 1/15
     fps.event = function() 
