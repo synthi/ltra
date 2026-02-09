@@ -1,9 +1,6 @@
--- =============================================================================
--- PROJECT: LTRA
--- FILE: lib/ui.lua
--- VERSION: v1.0 (Golden Master)
--- DESCRIPTION: Renderizado de Pantalla (Menús, Popups, Feedback Visual).
--- =============================================================================
+-- code/ltra/lib/ui.lua | v1.2
+-- LTRA: Screen Interface
+-- FIX: Added LFO Menu
 
 local UI = {}
 local Globals
@@ -11,7 +8,6 @@ local Consts = require 'ltra/lib/consts'
 
 function UI.init(g_ref) Globals = g_ref end
 
--- Dibuja flechas si el fader físico no coincide con el valor del parámetro
 local function draw_ghost_arrows()
     screen.level(15)
     for i=1, 16 do
@@ -20,25 +16,16 @@ local function draw_ghost_arrows()
             local virt = Globals.fader_virtual[i]
             local x = 2 + ((i-1) * 8)
             local y = 62
-            
-            -- Flecha arriba/abajo
             if math.abs(phys - virt) > 0.05 then
-                if phys < virt then
-                    screen.move(x, y); screen.text("^")
-                else
-                    screen.move(x, y); screen.text("v")
-                end
-            else
-                screen.move(x, y); screen.text("-") -- Cerca
-            end
+                if phys < virt then screen.move(x, y); screen.text("^")
+                else screen.move(x, y); screen.text("v") end
+            else screen.move(x, y); screen.text("-") end
         end
     end
 end
 
 local function draw_menu()
-    -- Fondo blanco para indicar modo edición
     screen.level(15); screen.rect(0,0,128,64); screen.fill(); screen.level(0)
-    
     local t = Globals.menu_target
     local mode = Globals.menu_mode
     
@@ -47,18 +34,22 @@ local function draw_menu()
         screen.move(5,25); screen.text("E1 Shape: "..string.format("%.2f", params:get("osc"..t.."_shape")))
         screen.move(5,35); screen.text("E2 Pan: "..string.format("%.2f", params:get("osc"..t.."_pan")))
         screen.move(5,45); screen.text("E3 Tune: "..string.format("%.2f", params:get("osc"..t.."_tune")))
-        
         local arp_state = params:get("osc"..t.."_arp") == 1 and "ON" or "OFF"
         screen.move(5,58); screen.text("K2: ARP ["..arp_state.."]")
         
+    elseif mode == Consts.MENU.LFO then
+        -- BLOQUE RECUPERADO
+        screen.move(5,10); screen.text("LFO "..t.." EDIT")
+        screen.move(5,25); screen.text("E1 Shape: "..string.format("%.2f", params:get("lfo"..t.."_shape")))
+        screen.move(5,35); screen.text("E2 Depth: "..string.format("%.2f", params:get("lfo"..t.."_depth")))
+        screen.move(5,45); screen.text("E3 Rate: "..string.format("%.2f", params:get("lfo"..t.."_rate")))
+        
     elseif mode == Consts.MENU.FILTER then
         screen.move(5,10); screen.text("FILTER EDIT")
-        -- Filtro seleccionado por el botón pulsado (11->1, 12->2)
         local f_idx = t
         screen.move(5,25); screen.text("E1 Tone: "..string.format("%.2f", params:get("filt"..f_idx.."_tone")))
         screen.move(5,35); screen.text("E2 Res: "..string.format("%.2f", params:get("filt"..f_idx.."_res")))
         screen.move(5,45); screen.text("E3 Drive: "..string.format("%.2f", params:get("filt_drive")))
-        
         local type_str = params:get("filt_type") == 0 and "SVF" or "MOOG"
         screen.move(5,58); screen.text("K2: TYPE ["..type_str.."]")
 
@@ -79,17 +70,13 @@ local function draw_menu()
         screen.move(5,25); screen.text("E1 Send: "..string.format("%.2f", params:get("loop"..t.."_send")))
         screen.move(5,35); screen.text("E2 Fdbk: "..string.format("%.2f", params:get("loop"..t.."_feedback")))
         screen.move(5,45); screen.text("E3 Vol: "..string.format("%.2f", params:get("loop"..t.."_vol")))
-        
         local pre_str = params:get("loop"..t.."_pre") == 1 and "PRE" or "POST"
         screen.move(5,58); screen.text("K2: ROUTE ["..pre_str.."]")
         
     elseif mode == Consts.MENU.MATRIX then
         screen.move(5,10); screen.text("MATRIX EDIT")
-        -- Recuperar nombres (Simplificado para visualización)
-        -- t contiene {x, y, src_name, dest_name}
         if t and t.src_name then
             screen.move(5,25); screen.text(t.src_name .. " > " .. t.dest_name)
-            -- Leer valor actual del parámetro oculto
             local id = "mat_"..t.src_name.."_"..t.dest_name
             local val = params:get(id)
             screen.move(5,40); screen.text("AMOUNT: " .. string.format("%.2f", val))
@@ -102,11 +89,8 @@ function UI.redraw()
     screen.clear()
     screen.aa(0)
     
-    -- 1. MENÚS CONTEXTUALES (Prioridad Máxima)
     if Globals.menu_mode ~= Consts.MENU.NONE then
         draw_menu()
-        
-    -- 2. POPUPS TEMPORALES
     elseif Globals.ui_popup.active then
         if util.time() > Globals.ui_popup.deadline then 
             Globals.ui_popup.active = false 
@@ -114,14 +98,9 @@ function UI.redraw()
             screen.level(15); screen.rect(10,20,108,20); screen.fill(); screen.level(0)
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
-        -- Dibujar flechas incluso con popup
         draw_ghost_arrows()
-        
-    -- 3. VISTA PRINCIPAL
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.0")
-        
-        -- Info de Escala
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.2")
         screen.level(3)
         local s_name = Consts.SCALES_A[Globals.scale.current_idx].name
         if Globals.scale.current_idx > #Consts.SCALES_A then 
@@ -130,12 +109,6 @@ function UI.redraw()
         screen.move(0, 30); screen.text("Scl: "..s_name)
         screen.move(0, 40); screen.text("Root: "..Consts.NOTE_NAMES[Globals.scale.root_note])
         
-        -- Indicadores de Estado
-        if Globals.latch_mode then 
-            screen.move(120, 10); screen.text("L") 
-        end
-        
-        -- Vúmetros
         local vu_l = util.clamp(Globals.visuals.amp_l * 40, 0, 40)
         local vu_r = util.clamp(Globals.visuals.amp_r * 40, 0, 40)
         screen.level(15)
@@ -144,7 +117,6 @@ function UI.redraw()
         
         draw_ghost_arrows()
     end
-    
     screen.update()
 end
 
