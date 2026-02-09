@@ -1,6 +1,6 @@
--- code/ltra/lib/ui.lua | v1.2
+-- code/ltra/lib/ui.lua | v1.2.1
 -- LTRA: Screen Interface
--- FIX: Added LFO Menu
+-- FIX: Restored Latch Indicator (Regression Fix)
 
 local UI = {}
 local Globals
@@ -38,7 +38,6 @@ local function draw_menu()
         screen.move(5,58); screen.text("K2: ARP ["..arp_state.."]")
         
     elseif mode == Consts.MENU.LFO then
-        -- BLOQUE RECUPERADO
         screen.move(5,10); screen.text("LFO "..t.." EDIT")
         screen.move(5,25); screen.text("E1 Shape: "..string.format("%.2f", params:get("lfo"..t.."_shape")))
         screen.move(5,35); screen.text("E2 Depth: "..string.format("%.2f", params:get("lfo"..t.."_depth")))
@@ -101,6 +100,12 @@ function UI.redraw()
         draw_ghost_arrows()
     else
         screen.level(15); screen.move(0,10); screen.text("LTRA v1.2")
+        
+        -- INDICADOR DE LATCH (RECUPERADO)
+        if Globals.latch_mode then 
+            screen.move(120, 10); screen.text("L") 
+        end
+        
         screen.level(3)
         local s_name = Consts.SCALES_A[Globals.scale.current_idx].name
         if Globals.scale.current_idx > #Consts.SCALES_A then 
