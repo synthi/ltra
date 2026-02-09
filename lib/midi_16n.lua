@@ -1,9 +1,6 @@
--- =============================================================================
--- PROJECT: LTRA
--- FILE: lib/midi_16n.lua
--- VERSION: v1.0 (Golden Master)
--- DESCRIPTION: Gestión del controlador 16n con Soft Takeover y Popups.
--- =============================================================================
+-- code/ltra/lib/midi_16n.lua | v1.2
+-- LTRA: 16n Control
+-- FIX: Popups always visible (Ghost mode)
 
 local Midi16n = {}
 local Globals
@@ -44,37 +41,53 @@ local function process_fader(id, val)
     Globals.fader_values[id] = val
     local norm = val / 127
     
-    if not check_takeover(id, norm) then Globals.dirty = true; return end
+    local func = FADER_FUNC[id]
+    local name = func:upper()
+    
+    -- DISPARAR POPUP SIEMPRE (Para ver flechas si está bloqueado)
+    trigger_popup(name, norm)
+    
+    if not check_takeover(id, norm) then 
+        Globals.dirty = true -- Forzar redraw para flechas
+        return 
+    end
+    
     Globals.fader_virtual[id] = norm
     
-    local func = FADER_FUNC[id]
+    if func == "pitch1" then 
+        local deg = math.floor(norm*24); params:set("osc1_pitch", norm)
+    elseif func == "pitch2" then params:set("osc2_pitch", norm)
+    elseif func == "pitch3" then params:set("osc3_pitch", norm)
+    elseif func == "pitch4" then params:set("osc4_pitch", norm)
     
-    if func == "pitch1" then params:set("osc1_pitch", norm); trigger_popup("PITCH 1", norm)
-    elseif func == "pitch2" then params:set("osc2_pitch", norm); trigger_popup("PITCH 2", norm)
-    elseif func == "pitch3" then params:set("osc3_pitch", norm); trigger_popup("PITCH 3", norm)
-    elseif func == "pitch4" then params:set("osc4_pitch", norm); trigger_popup("PITCH 4", norm)
+    elseif func == "amp1" then params:set("osc1_vol", norm)
+    elseif func == "amp2" then params:set("osc2_vol", norm)
+    elseif func == "amp3" then params:set("osc3_vol", norm)
+    elseif func == "amp4" then params:set("osc4_vol", norm)
     
-    elseif func == "amp1" then params:set("osc1_vol", norm); trigger_popup("VOL 1", norm)
-    elseif func == "amp2" then params:set("osc2_vol", norm); trigger_popup("VOL 2", norm)
-    elseif func == "amp3" then params:set("osc3_vol", norm); trigger_popup("VOL 3", norm)
-    elseif func == "amp4" then params:set("osc4_vol", norm); trigger_popup("VOL 4", norm)
+    elseif func == "filt1" then params:set("filt1_tone", norm*2-1)
+    elseif func == "filt2" then params:set("filt2_tone", norm*2-1)
     
-    elseif func == "filt1" then params:set("filt1_tone", norm*2-1); trigger_popup("FILT 1", norm*2-1)
-    elseif func == "filt2" then params:set("filt2_tone", norm*2-1); trigger_popup("FILT 2", norm*2-1)
+    elseif func == "chaos" then params:set("chaos_rate", norm)
+    elseif func == "lfo1" then params:set("lfo1_rate", norm)
+    elseif func == "lfo2" then params:set("lfo2_rate", norm)
     
-    elseif func == "chaos" then params:set("chaos_rate", norm); trigger_popup("CHAOS", norm)
-    elseif func == "lfo1" then params:set("lfo1_rate", norm); trigger_popup("LFO 1", norm)
-    elseif func == "lfo2" then params:set("lfo2_rate", norm); trigger_popup("LFO 2", norm)
-    
-    elseif func == "delay_t" then params:set("delay_time", norm); trigger_popup("DELAY T", norm)
-    elseif func == "delay_fb" then params:set("delay_fb", norm); trigger_popup("DELAY FB", norm)
-    elseif func == "delay_send" then params:set("delay_send", norm); trigger_popup("DELAY SEND", norm)
+    elseif func == "delay_t" then params:set("delay_time", norm)
+    elseif func == "delay_fb" then params:set("delay_fb", norm)
+    elseif func == "delay_send" then params:set("delay_send", norm)
     end
 end
 
 function Midi16n.init(g_ref, ui_ref)
     Globals = g_ref
     UI_Ref = ui_ref
+    
+    -- Inicializar Ghosts al arrancar para forzar takeover suave desde el inicio
+    -- (Opcional: Si queremos "Snap" al inicio, quitar esto. Si queremos seguridad, dejarlo)
+    for i=1, 16 do
+        Globals.fader_ghost[i] = true 
+    end
+
     clock.run(function()
         midi.connect(); clock.sleep(0.2)
         local dev = midi.connect(1)
