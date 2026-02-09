@@ -1,4 +1,6 @@
--- code/ltra/lib/parameters.lua | v1.0
+-- code/ltra/lib/parameters.lua | v1.2
+-- LTRA: Parameters (Audible Defaults)
+
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
 local Consts = require 'ltra/lib/consts'
@@ -6,7 +8,7 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.0")
+    params:add_separator("LTRA v1.2")
     
     -- GLOBAL
     params:add_group("GLOBAL", 5)
@@ -21,11 +23,11 @@ function Params.init(g_ref)
     params:add_control("loop_return", "Global Loop Return", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("loop_return", function(x) Bridge.set_param("loop_return_level", x) end)
 
-    -- VOICES
+    -- VOICES (DEFAULTS AUDIBLES: Pitch 0.5, Vol 0.8)
     params:add_group("VOICES", 28)
     for i=1,4 do
         params:add_separator("Voice "..i)
-        params:add_control("osc"..i.."_pitch", "Pitch", controlspec.new(0,1,"lin",0,0))
+        params:add_control("osc"..i.."_pitch", "Pitch", controlspec.new(0,1,"lin",0,0.5))
         params:set_action("osc"..i.."_pitch", function(x)
             local deg = math.floor(x * 24)
             local hz = Scales.get_freq(deg, 0)
@@ -33,7 +35,7 @@ function Params.init(g_ref)
             hz = hz * (2 ^ (tune / 12))
             Bridge.set_freq(i, hz)
         end)
-        params:add_control("osc"..i.."_vol", "Vol", controlspec.new(0,1,"lin",0.01,0))
+        params:add_control("osc"..i.."_vol", "Vol", controlspec.new(0,1,"lin",0.01,0.8))
         params:set_action("osc"..i.."_vol", function(x) if Globals then Globals.voices[i].vol=x end; Bridge.set_param("vol"..i, x) end)
         params:add_control("osc"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0.01,0))
         params:set_action("osc"..i.."_pan", function(x) if Globals then Globals.voices[i].pan=x end; Bridge.set_param("pan"..i, x) end)
@@ -54,7 +56,7 @@ function Params.init(g_ref)
     params:add_binary("latch_mode", "Latch", "toggle", 0)
     params:set_action("latch_mode", function(x) if Globals then Globals.latch_mode=(x==1); Globals.dirty=true end end)
 
-    -- FILTERS
+    -- FILTERS (DEFAULTS AUDIBLES: Tone 0)
     params:add_group("FILTERS", 6)
     params:add_control("filt1_tone", "Filt 1 Tone", controlspec.new(-1,1,"lin",0.01,0))
     params:set_action("filt1_tone", function(x) Bridge.set_filter_tone(1, x) end)
@@ -77,12 +79,14 @@ function Params.init(g_ref)
     params:set_action("lfo1_depth", function(x) Bridge.set_param("lfo1_depth", x) end)
     params:add_control("lfo1_shape", "LFO1 Shape", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("lfo1_shape", function(x) Bridge.set_param("lfo1_shape", x) end)
+    
     params:add_control("lfo2_rate", "LFO2 Rate", controlspec.new(0.01,20,"exp",0.01,0.2))
     params:set_action("lfo2_rate", function(x) Bridge.set_param("lfo2_rate", x) end)
     params:add_control("lfo2_depth", "LFO2 Depth", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("lfo2_depth", function(x) Bridge.set_param("lfo2_depth", x) end)
     params:add_control("lfo2_shape", "LFO2 Shape", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("lfo2_shape", function(x) Bridge.set_param("lfo2_shape", x) end)
+    
     params:add_control("chaos_rate", "Chaos Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
     params:set_action("chaos_rate", function(x) Bridge.set_param("chaos_rate", x) end)
     params:add_control("chaos_slew", "Chaos Slew", controlspec.new(0,1,"lin",0.01,0.1))
@@ -135,7 +139,7 @@ function Params.init(g_ref)
         params:set_action("loop"..i.."_pre", function(x) if Globals then Globals.tracks[i].pre_fx = (x==1) end end)
     end
 
-    -- MATRIX (HIDDEN)
+    -- MATRIX
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
             local id = "mat_"..s_name.."_"..d_name
