@@ -1,6 +1,6 @@
--- code/ltra/lib/loopers.lua | v1.2
+-- code/ltra/lib/loopers.lua | v1.3 FIX
 -- LTRA: Softcut Manager
--- FIX: Audio Routing Activation
+-- FIX: Audio Routing Activation & Phase Polling
 
 local Loopers = {}
 local Globals
@@ -24,6 +24,9 @@ function Loopers.init(g_ref)
             softcut.rate(v, 1.0); softcut.fade_time(v, 0.05)
             softcut.post_filter_lp(v, 1.0); softcut.post_filter_dry(v, 0.0)
             softcut.post_filter_fc(v, 18000); softcut.post_filter_rq(v, 2.0)
+            
+            -- FIX: Polling correcto
+            softcut.phase_quant(v, 0.1) -- Reportar fase cada 0.1s aprox
         end
     end
     
@@ -33,11 +36,12 @@ function Loopers.init(g_ref)
             local bounds = Consts.LOOPER_BOUNDS[track_idx]
             local len = bounds.max - bounds.min
             local rel_pos = (pos - bounds.min) / len
-            Globals.visuals.tape_heads[track_idx] = util.clamp(rel_pos, 0, 1)
-            Globals.dirty = true
+            if Globals and Globals.visuals then
+                Globals.visuals.tape_heads[track_idx] = util.clamp(rel_pos, 0, 1)
+                Globals.dirty = true
+            end
         end
     end)
-    softcut.poll_start_phase()
 end
 
 function Loopers.configure_audio_routing(g_ref)
