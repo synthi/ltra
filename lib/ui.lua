@@ -1,6 +1,6 @@
--- code/ltra/lib/ui.lua | v1.2.1
+-- code/ltra/lib/ui.lua | v1.4.1 FIX
 -- LTRA: Screen Interface
--- FIX: Restored Latch Indicator (Regression Fix)
+-- FIX: Added Chaos/Outline menus & Crash Protection
 
 local UI = {}
 local Globals
@@ -42,6 +42,16 @@ local function draw_menu()
         screen.move(5,25); screen.text("E1 Shape: "..string.format("%.2f", params:get("lfo"..t.."_shape")))
         screen.move(5,35); screen.text("E2 Depth: "..string.format("%.2f", params:get("lfo"..t.."_depth")))
         screen.move(5,45); screen.text("E3 Rate: "..string.format("%.2f", params:get("lfo"..t.."_rate")))
+        
+    elseif mode == Consts.MENU.CHAOS then
+        screen.move(5,10); screen.text("CHAOS ENGINE")
+        screen.move(5,25); screen.text("E1 Rate: "..string.format("%.2f", params:get("chaos_rate")))
+        screen.move(5,35); screen.text("E2 Slew: "..string.format("%.2f", params:get("chaos_slew")))
+        
+    elseif mode == Consts.MENU.OUTLINE then
+        screen.move(5,10); screen.text("OUTLINE FOLLOWER")
+        local src = params:get("outline_src") == 1 and "INT GATE" or "EXT AUDIO"
+        screen.move(5,25); screen.text("Source: "..src)
         
     elseif mode == Consts.MENU.FILTER then
         screen.move(5,10); screen.text("FILTER EDIT")
@@ -99,20 +109,27 @@ function UI.redraw()
         end
         draw_ghost_arrows()
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.2")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.4.1")
         
-        -- INDICADOR DE LATCH (RECUPERADO)
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
         end
         
         screen.level(3)
-        local s_name = Consts.SCALES_A[Globals.scale.current_idx].name
-        if Globals.scale.current_idx > #Consts.SCALES_A then 
-            s_name = Consts.SCALES_B[Globals.scale.current_idx-#Consts.SCALES_A].name 
+        local s_name = "Unknown"
+        if Consts.SCALES_A[Globals.scale.current_idx] then
+            s_name = Consts.SCALES_A[Globals.scale.current_idx].name
+        elseif Consts.SCALES_B[Globals.scale.current_idx-#Consts.SCALES_A] then
+            s_name = Consts.SCALES_B[Globals.scale.current_idx-#Consts.SCALES_A].name
         end
         screen.move(0, 30); screen.text("Scl: "..s_name)
-        screen.move(0, 40); screen.text("Root: "..Consts.NOTE_NAMES[Globals.scale.root_note])
+        
+        -- FIX: Protección contra crash si NOTE_NAMES no existe o índice inválido
+        local root_name = "?"
+        if Consts.NOTE_NAMES and Consts.NOTE_NAMES[Globals.scale.root_note] then
+            root_name = Consts.NOTE_NAMES[Globals.scale.root_note]
+        end
+        screen.move(0, 40); screen.text("Root: "..root_name)
         
         local vu_l = util.clamp(Globals.visuals.amp_l * 40, 0, 40)
         local vu_r = util.clamp(Globals.visuals.amp_r * 40, 0, 40)
