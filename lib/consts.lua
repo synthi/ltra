@@ -1,4 +1,7 @@
--- code/ltra/lib/consts.lua | v1.0
+-- code/ltra/lib/consts.lua | v1.4.1 FIX
+-- LTRA: Constants & Definitions
+-- FIX: Added NOTE_NAMES (Critical) & Missing Menus
+
 local Consts = {}
 
 Consts.BRIGHT = {
@@ -25,19 +28,21 @@ Consts.DESTINATIONS = {
     FILT1=13, FILT2=14, DELAY_T=15, DELAY_F=16
 }
 
+-- FIX: Añadidos CHAOS y OUTLINE
 Consts.MENU = {
-    NONE=0, OSC=1, LFO=2, FILTER=3, 
-    DELAY=4, REVERB=5, LOOPER=6, MATRIX=7
+    NONE=0, OSC=1, LFO=2, CHAOS=3, OUTLINE=4, 
+    FILTER=5, DELAY=6, REVERB=7, LOOPER=8, MATRIX=9
 }
 
 Consts.LOOPER_PAIRS = { {1,2}, {3,4}, {5,6} }
 Consts.LOOPER_BOUNDS = { {min=0, max=40}, {min=40, max=80}, {min=80, max=120} }
 
--- Filtro para Snapshots (Fila 7)
--- Solo guardamos parámetros de sonido, no globales de sistema
 Consts.SNAPSHOT_PATTERNS = {
     "^osc", "^filt", "^lfo", "^chaos", "^delay", "^reverb", "^tape", "^system", "^dust", "^mat_", "^loop"
 }
+
+-- FIX: Tabla crítica para UI
+Consts.NOTE_NAMES = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
 
 Consts.SCALES_A = {
     {name="Major", intervals={0,2,4,5,7,9,11}},
