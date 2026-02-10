@@ -1,6 +1,6 @@
--- ltra.lua | v1.3.1
+-- ltra.lua | v1.4.2
 -- LTRA: Main Script
--- FIX: Boot Order (Params BEFORE Subsystems) & Removed illegal audio call
+-- FIX: Version Revert & Display CPU Fix
 
 engine.name = 'Ltra'
 
@@ -25,60 +25,56 @@ local g_state
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v1.3.1 (Fixed Order)...")
+    print("LTRA: Initializing v1.4.2 (Audit Fix)...")
     
-    -- 1. Directorios
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
     
-    -- 2. Estado Base
     g_state = Globals.new()
     g_state.tap_last = 0
     
-    -- 3. Lógica Pasiva
     Bridge.init(g_state)
     Scales.init(g_state)
     Matrix.init(g_state)
-    
-    -- 4. Grid Hardware (Buffer)
-    -- Pasamos GridPages aunque aún no esté init, es solo la referencia de la tabla
-    GridHW.init(g_state, 1, GridPages) 
-    
-    -- 5. PARÁMETROS (CRÍTICO: ANTES QUE ARP/LOOPERS)
-    -- Esto crea 'arp_div' para que Arp.lua no falle al arrancar
     Params.init(g_state)
-    
-    -- 6. Subsistemas Activos (Que leen params)
     Loopers.init(g_state)
     UI.init(g_state)
-    Arp.init(g_state) -- Ahora seguro porque Params ya existe
+    Arp.init(g_state)
     Enc.init(g_state)
     Keys.init(g_state)
     Storage.init(g_state)
     
-    -- 7. Inicializar Lógica de Grid
-    GridPages.init(g_state)
+    GridPages.init(g_state, nil)
+    GridHW.init(g_state, 1, GridPages)
     GridPages.set_hw(GridHW)
     
-    -- 8. Tareas Diferidas
     clock.run(function()
         clock.sleep(0.5)
         Midi16n.init(g_state, UI)
         Bridge.query_config()
-        params:bang() -- Forzar actualización inicial de valores
+        params:bang()
         g_state.dirty = true
     end)
     
-    -- 9. Defaults Audio
     Bridge.set_filter_tone(1, 0.0)
     Bridge.set_filter_tone(2, 0.0)
     Bridge.set_param("delay_send", 0.5)
     
-    -- 10. Metros
+    -- FIX: Screen Refresh Logic
+    -- Ya no forzamos redraw ciegamente. Solo si dirty.
     local fps = metro.init()
     fps.time = 1/15
     fps.event = function() 
-        if g_state.dirty then UI.redraw(); g_state.dirty = false end
+        -- Gestión de expiración de popups
+        if g_state.ui_popup.active and util.time() > g_state.ui_popup.deadline then
+            g_state.ui_popup.active = false
+            g_state.dirty = true
+        end
+        
+        if g_state.dirty then 
+            UI.redraw()
+            g_state.dirty = false 
+        end
     end
     fps:start()
     
@@ -93,4 +89,9 @@ end
 function key(n,z) Keys.event(n,z) end
 function enc(n,d) Enc.delta(n,d) end
 function redraw() UI.redraw() end
-function cleanup() print("LTRA: Cleanup") end
+
+function cleanup() 
+    print("LTRA: Cleanup")
+    metro.free_all()
+    softcut.buffer_clear()
+end
