@@ -1,5 +1,6 @@
--- code/ltra/lib/parameters.lua | v1.2
+-- code/ltra/lib/parameters.lua | v1.3 FIX
 -- LTRA: Parameters (Audible Defaults)
+-- FIX: Added hidden ARP CV params for persistence
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -8,7 +9,7 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.2")
+    params:add_separator("LTRA v1.3")
     
     -- GLOBAL
     params:add_group("GLOBAL", 5)
@@ -23,7 +24,7 @@ function Params.init(g_ref)
     params:add_control("loop_return", "Global Loop Return", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("loop_return", function(x) Bridge.set_param("loop_return_level", x) end)
 
-    -- VOICES (DEFAULTS AUDIBLES: Pitch 0.5, Vol 0.8)
+    -- VOICES
     params:add_group("VOICES", 28)
     for i=1,4 do
         params:add_separator("Voice "..i)
@@ -50,13 +51,20 @@ function Params.init(g_ref)
     end
     
     -- ARP
-    params:add_group("ARP", 4)
+    params:add_group("ARP", 8) -- Aumentado para incluir los ocultos
     params:add_option("arp_div", "Clock Div", {"1/4", "1/8", "1/16", "1/32"}, 2)
     params:add_control("arp_chaos", "Chaos Prob", controlspec.new(0,1,"lin",0.01,0.2))
     params:add_binary("latch_mode", "Latch", "toggle", 0)
     params:set_action("latch_mode", function(x) if Globals then Globals.latch_mode=(x==1); Globals.dirty=true end end)
+    
+    -- FIX: Parámetros ocultos para comunicación ARP -> Engine
+    for i=1,4 do
+        params:add_control("arp_cv"..i, "Arp CV "..i, controlspec.new(0,1,"lin",0,0))
+        params:hide("arp_cv"..i)
+        params:set_action("arp_cv"..i, function(x) Bridge.set_param("arp_cv"..i, x) end)
+    end
 
-    -- FILTERS (DEFAULTS AUDIBLES: Tone 0)
+    -- FILTERS
     params:add_group("FILTERS", 6)
     params:add_control("filt1_tone", "Filt 1 Tone", controlspec.new(-1,1,"lin",0.01,0))
     params:set_action("filt1_tone", function(x) Bridge.set_filter_tone(1, x) end)
