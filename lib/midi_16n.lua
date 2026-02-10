@@ -1,11 +1,9 @@
--- code/ltra/lib/midi_16n.lua | v1.2
+-- code/ltra/lib/midi_16n.lua | v1.4.2
 -- LTRA: 16n Control
--- FIX: Popups always visible (Ghost mode)
+-- FIX: Removed Ghost Locking (Immediate Response) & Safe Connect
 
 local Midi16n = {}
 local Globals
-local Bridge = require 'ltra/lib/engine_bridge'
-local Scales = require 'ltra/lib/scales'
 local UI_Ref = nil
 
 local FADER_FUNC = {
@@ -25,37 +23,21 @@ local function trigger_popup(text, val)
     end
 end
 
-local function check_takeover(id, val)
-    local virt = Globals.fader_virtual[id]
-    if Globals.fader_ghost[id] then
-        if math.abs(val - virt) < 0.05 then 
-            Globals.fader_ghost[id] = nil
-            return true 
-        end
-        return false
-    end
-    return true
-end
-
 local function process_fader(id, val)
     Globals.fader_values[id] = val
     local norm = val / 127
     
     local func = FADER_FUNC[id]
+    if not func then return end
+    
     local name = func:upper()
     
-    -- DISPARAR POPUP SIEMPRE (Para ver flechas si está bloqueado)
+    -- FIX: Respuesta inmediata (Sin Ghost Locking)
+    Globals.fader_virtual[id] = norm
     trigger_popup(name, norm)
     
-    if not check_takeover(id, norm) then 
-        Globals.dirty = true -- Forzar redraw para flechas
-        return 
-    end
-    
-    Globals.fader_virtual[id] = norm
-    
-    if func == "pitch1" then 
-        local deg = math.floor(norm*24); params:set("osc1_pitch", norm)
+    -- Mapeo Directo
+    if func == "pitch1" then params:set("osc1_pitch", norm)
     elseif func == "pitch2" then params:set("osc2_pitch", norm)
     elseif func == "pitch3" then params:set("osc3_pitch", norm)
     elseif func == "pitch4" then params:set("osc4_pitch", norm)
@@ -82,26 +64,26 @@ function Midi16n.init(g_ref, ui_ref)
     Globals = g_ref
     UI_Ref = ui_ref
     
-    -- Inicializar Ghosts al arrancar para forzar takeover suave desde el inicio
-    -- (Opcional: Si queremos "Snap" al inicio, quitar esto. Si queremos seguridad, dejarlo)
-    for i=1, 16 do
-        Globals.fader_ghost[i] = true 
-    end
-
-    clock.run(function()
-        midi.connect(); clock.sleep(0.2)
-        local dev = midi.connect(1)
-        if dev then
-            dev.event = function(d) 
+    -- Intentar conectar a todos los puertos MIDI activos
+    for i=1,4 do
+        local dev = midi.connect(i)
+        if dev and dev.name then
+            print("LTRA: Listening to MIDI port "..i.." ("..dev.name..")")
+            dev.event = function(d)
                 local m = midi.to_msg(d)
-                if m.type=="cc" then 
-                    local id = m.cc - 31 
-                    if id>=1 and id<=16 then process_fader(id, m.val) end 
-                end 
+                if m.type == "cc" then
+                    -- Asumimos canales 1-16. 16n suele enviar en CH1.
+                    -- Mapeo estándar 16n: CC 32-47 o similar.
+                    -- Ajuste: Si el usuario usa default 16n config (CC 32-47)
+                    local id = -1
+                    if m.cc >= 32 and m.cc <= 47 then id = m.cc - 31
+                    elseif m.cc >= 1 and m.cc <= 16 then id = m.cc end -- Fallback
+                    
+                    if id >= 1 and id <= 16 then process_fader(id, m.val) end
+                end
             end
-            pcall(function() midi.send(dev, {0xf0, 0x7d, 0x00, 0x00, 0x1f, 0xf7}) end)
         end
-    end)
+    end
 end
 
 return Midi16n
