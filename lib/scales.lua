@@ -1,4 +1,7 @@
--- code/ltra/lib/scales.lua | v1.1
+-- code/ltra/lib/scales.lua | v1.5.0
+-- LTRA: Scales Logic
+-- FIX: Sync with new Consts
+
 local Scales = {}
 local Consts = require 'ltra/lib/consts'
 local musicutil = require 'musicutil'
@@ -20,7 +23,6 @@ function Scales.get_freq(degree, octave)
     elseif idx <= #Consts.SCALES_A + #Consts.SCALES_B then
         def = Consts.SCALES_B[idx - #Consts.SCALES_A]
     else
-        -- Custom Scale
         local custom_idx = idx - (#Consts.SCALES_A + #Consts.SCALES_B)
         def = { type="TET", intervals=Globals.scale.custom_slots[custom_idx] }
     end
@@ -38,7 +40,7 @@ function Scales.get_freq(degree, octave)
         local root = 48 + (Globals.scale.root_note - 1)
         local ints = def.intervals
         local len = #ints
-        if len == 0 then return get_root_freq() end -- Safety for empty custom
+        if len == 0 then return get_root_freq() end 
         local oct_shift = math.floor(degree / len)
         local semi = ints[(degree % len) + 1]
         return musicutil.note_num_to_freq(root + semi + ((octave + oct_shift) * 12))
@@ -51,21 +53,14 @@ function Scales.get_freq_from_voltage(volts)
     return Scales.get_freq(degree, 0)
 end
 
--- Helper para saber si estamos en una escala editable
-function Scales.is_custom_idx(idx)
-    local total_fixed = #Consts.SCALES_A + #Consts.SCALES_B
-    return idx > total_fixed
-end
-
--- Edición de Escala Custom
 function Scales.toggle_custom_note(note_0_11)
     local idx = Globals.scale.current_idx
-    if not Scales.is_custom_idx(idx) then return end
+    local total_fixed = #Consts.SCALES_A + #Consts.SCALES_B
+    if idx <= total_fixed then return end
     
-    local custom_idx = idx - (#Consts.SCALES_A + #Consts.SCALES_B)
+    local custom_idx = idx - total_fixed
     local slot = Globals.scale.custom_slots[custom_idx]
     
-    -- Buscar si existe
     local found = false
     for i, n in ipairs(slot) do
         if n == note_0_11 then
@@ -79,22 +74,16 @@ function Scales.toggle_custom_note(note_0_11)
         table.insert(slot, note_0_11)
         table.sort(slot)
     end
-    
-    -- Safety: Si vacía, añadir Root (0)
     if #slot == 0 then table.insert(slot, 0) end
-    
     Globals.dirty = true
 end
 
--- Verificar si nota está activa (para Grid)
 function Scales.is_note_active(note_0_11)
     local idx = Globals.scale.current_idx
     local intervals = {}
     
     if idx <= #Consts.SCALES_A then intervals = Consts.SCALES_A[idx].intervals
     elseif idx <= #Consts.SCALES_A + #Consts.SCALES_B then 
-        -- JI scales don't map cleanly to 0-11 grid, skip visual or approx?
-        -- Approx: JI intervals are ratios. Skip for now.
         return false 
     else
         local custom_idx = idx - (#Consts.SCALES_A + #Consts.SCALES_B)
