@@ -1,21 +1,14 @@
--- code/ltra/lib/consts.lua | v1.4.1 FIX
--- LTRA: Constants & Definitions
--- FIX: Added NOTE_NAMES (Critical) & Missing Menus
+-- code/ltra/lib/consts.lua | v1.4.7
+-- LTRA: Constants
+-- FIX: Added NOTE_NAMES (Critical) & COL_TO_DEST_NAMES
 
 local Consts = {}
 
 Consts.BRIGHT = {
     OFF = 0,
-    BG_MATRIX_A = 1,   -- Pitch/Morph cols
-    BG_MATRIX_B = 3,   -- Amp/FX cols
-    BG_DASHBOARD = 4,
-    BG_TRIGGERS = 5,
-    BG_NAV = 2,
-    VAL_LOW = 5,
-    VAL_MED = 8,
-    VAL_HIGH = 11,
-    VAL_PEAK = 13,
-    TOUCH = 15
+    BG_MATRIX_A = 1, BG_MATRIX_B = 3,
+    BG_DASHBOARD = 4, BG_TRIGGERS = 5, BG_NAV = 2,
+    VAL_LOW = 5, VAL_MED = 8, VAL_HIGH = 11, VAL_PEAK = 13, TOUCH = 15
 }
 
 Consts.MATRIX_CYCLES = {1.0, 0.66, 0.33, 0.0}
@@ -28,7 +21,14 @@ Consts.DESTINATIONS = {
     FILT1=13, FILT2=14, DELAY_T=15, DELAY_F=16
 }
 
--- FIX: Añadidos CHAOS y OUTLINE
+-- FIX: Tabla inversa para UI de Matriz
+Consts.COL_TO_DEST_NAMES = {
+    [1]="PITCH1", [2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
+    [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",
+    [9]="MORPH1", [10]="MORPH2", [11]="MORPH3", [12]="MORPH4",
+    [13]="FILT1", [14]="FILT2",  [15]="DELAY T", [16]="DELAY F"
+}
+
 Consts.MENU = {
     NONE=0, OSC=1, LFO=2, CHAOS=3, OUTLINE=4, 
     FILTER=5, DELAY=6, REVERB=7, LOOPER=8, MATRIX=9
@@ -38,10 +38,10 @@ Consts.LOOPER_PAIRS = { {1,2}, {3,4}, {5,6} }
 Consts.LOOPER_BOUNDS = { {min=0, max=40}, {min=40, max=80}, {min=80, max=120} }
 
 Consts.SNAPSHOT_PATTERNS = {
-    "^osc", "^filt", "^lfo", "^chaos", "^delay", "^reverb", "^tape", "^system", "^dust", "^mat_", "^loop"
+    "^osc", "^filt", "^lfo", "^chaos", "^delay", "^reverb", "^tape", "^system", "^dust", "^mat_", "^loop", "^outline"
 }
 
--- FIX: Tabla crítica para UI
+-- FIX: Vital para evitar crash en UI
 Consts.NOTE_NAMES = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
 
 Consts.SCALES_A = {
