@@ -1,6 +1,6 @@
--- code/ltra/lib/ui.lua | v1.4.1 FIX
+-- code/ltra/lib/ui.lua | v1.4.7
 -- LTRA: Screen Interface
--- FIX: Added Chaos/Outline menus & Crash Protection
+-- FIX: Show Q/F status, Correct Labels, Scales Protection
 
 local UI = {}
 local Globals
@@ -51,7 +51,8 @@ local function draw_menu()
     elseif mode == Consts.MENU.OUTLINE then
         screen.move(5,10); screen.text("OUTLINE FOLLOWER")
         local src = params:get("outline_src") == 1 and "INT GATE" or "EXT AUDIO"
-        screen.move(5,25); screen.text("Source: "..src)
+        screen.move(5,25); screen.text("E1 Source: "..src)
+        screen.move(5,35); screen.text("E2 Gain: "..string.format("%.1f", params:get("outline_gain")))
         
     elseif mode == Consts.MENU.FILTER then
         screen.move(5,10); screen.text("FILTER EDIT")
@@ -70,7 +71,7 @@ local function draw_menu()
         
     elseif mode == Consts.MENU.REVERB then
         screen.move(5,10); screen.text("ATMOSPHERE / REV")
-        screen.move(5,25); screen.text("E1 Dirt: "..string.format("%.2f", params:get("system_dirt")))
+        screen.move(5,25); screen.text("E1 Mix: "..string.format("%.2f", params:get("reverb_mix")))
         screen.move(5,35); screen.text("E2 Decay: "..string.format("%.1fs", params:get("reverb_decay")))
         screen.move(5,45); screen.text("E3 Damp: "..string.format("%.2f", params:get("reverb_damp")))
         
@@ -88,8 +89,21 @@ local function draw_menu()
             screen.move(5,25); screen.text(t.src_name .. " > " .. t.dest_name)
             local id = "mat_"..t.src_name.."_"..t.dest_name
             local val = params:get(id)
-            screen.move(5,40); screen.text("AMOUNT: " .. string.format("%.2f", val))
-            screen.move(5,55); screen.text("E3: Adjust  K2: Invert")
+            
+            local src_idx = Consts.SOURCES[t.src_name]
+            local dst_idx = Consts.DESTINATIONS[t.dest_name]
+            local q_str = ""
+            if dst_idx <= 4 then 
+                q_str = (Globals.matrix_quant[src_idx][dst_idx] == 1) and "[Q]" or "[F]"
+            end
+            
+            screen.move(5,40); screen.text("AMT: " .. string.format("%.2f %s", val, q_str))
+            
+            if dst_idx <= 4 then
+                screen.move(5,55); screen.text("E2: Mode  E3: Amt")
+            else
+                screen.move(5,55); screen.text("E3: Adjust  K2: Inv")
+            end
         end
     end
 end
@@ -109,7 +123,7 @@ function UI.redraw()
         end
         draw_ghost_arrows()
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.4.1")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.4.7")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
@@ -117,17 +131,19 @@ function UI.redraw()
         
         screen.level(3)
         local s_name = "Unknown"
-        if Consts.SCALES_A[Globals.scale.current_idx] then
-            s_name = Consts.SCALES_A[Globals.scale.current_idx].name
-        elseif Consts.SCALES_B[Globals.scale.current_idx-#Consts.SCALES_A] then
-            s_name = Consts.SCALES_B[Globals.scale.current_idx-#Consts.SCALES_A].name
+        if Globals.scale and Globals.scale.current_idx then
+            local idx = Globals.scale.current_idx
+            if idx <= #Consts.SCALES_A then
+                s_name = Consts.SCALES_A[idx].name
+            elseif idx <= #Consts.SCALES_A + #Consts.SCALES_B then
+                s_name = Consts.SCALES_B[idx-#Consts.SCALES_A].name
+            end
         end
         screen.move(0, 30); screen.text("Scl: "..s_name)
         
-        -- FIX: Protección contra crash si NOTE_NAMES no existe o índice inválido
         local root_name = "?"
-        if Consts.NOTE_NAMES and Consts.NOTE_NAMES[Globals.scale.root_note] then
-            root_name = Consts.NOTE_NAMES[Globals.scale.root_note]
+        if Consts.NOTE_NAMES and Globals.scale and Globals.scale.root_note then
+            root_name = Consts.NOTE_NAMES[Globals.scale.root_note] or "?"
         end
         screen.move(0, 40); screen.text("Root: "..root_name)
         
