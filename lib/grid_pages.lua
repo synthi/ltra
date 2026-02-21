@@ -1,6 +1,6 @@
--- code/ltra/lib/grid_pages.lua | v1.4.1 FIX
+-- code/ltra/lib/grid_pages.lua | v1.4.7
 -- LTRA: Grid Views
--- FIX: Added logic for Chaos (8) and Outline (9) buttons
+-- FIX: Real Chaos Visuals & Correct Matrix Labels
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -55,10 +55,8 @@ local function check_hold()
     if held then
         if held <= 4 then Globals.menu_mode = Consts.MENU.OSC; Globals.menu_target = held
         elseif held == 6 or held == 7 then Globals.menu_mode = Consts.MENU.LFO; Globals.menu_target = (held==6 and 1 or 2)
-        -- FIX: Implementación de botones faltantes
         elseif held == 8 then Globals.menu_mode = Consts.MENU.CHAOS
         elseif held == 9 then Globals.menu_mode = Consts.MENU.OUTLINE
-        -- Botón 10 es VOID (Espacio físico)
         elseif held == 11 or held == 12 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = (held==11 and 1 or 2)
         elseif held == 13 then Globals.menu_mode = Consts.MENU.DELAY
         elseif held == 14 then Globals.menu_mode = Consts.MENU.REVERB
@@ -75,7 +73,8 @@ local function check_hold()
                     if util.time() - press_time > 0.3 then
                         Globals.menu_mode = Consts.MENU.MATRIX
                         local src_name = ({[1]="LFO1",[2]="LFO2",[3]="CHAOS",[4]="OUTLINE"})[y]
-                        Globals.menu_target = {x=x, y=y, src_name=src_name, dest_name="DST"} 
+                        local dest_name = Consts.COL_TO_DEST_NAMES[x] or "UNK"
+                        Globals.menu_target = {x=x, y=y, src_name=src_name, dest_name=dest_name} 
                         Globals.dirty = true
                         return
                     end
@@ -92,14 +91,12 @@ end
 local function draw_loopers()
     local heads = Globals.visuals.tape_heads
     local now = util.time()
-    
     for t=1, 3 do
         local offset = (t-1)*5
         local pos_float = (heads[t] or 0) * 5
         local idx = math.floor(pos_float)
         local frac = pos_float - idx
         local y_tape = (t-1)*2 + 1
-        
         for c=1, 5 do
             local x = c + offset
             local b = Consts.BRIGHT.BG_NAV
@@ -107,16 +104,13 @@ local function draw_loopers()
             if c == idx + 2 then b = math.floor(2 + (13 * frac)) end
             led_safe(x, y_tape, b)
         end
-        
         local x_sel = (t-1)*5 + 1
         local state = Globals.tracks[t].state
         local b_sel = Consts.BRIGHT.BG_DASHBOARD
-        
         if state == 2 then b_sel = math.floor(util.linlin(-1, 1, 5, 15, math.sin(now * 5)))
         elseif state == 3 then b_sel = Consts.BRIGHT.VAL_HIGH
         elseif state == 4 then b_sel = math.floor(util.linlin(-1, 1, 5, 15, math.sin(now * 15)))
         elseif state == 5 then b_sel = Consts.BRIGHT.VAL_MED end
-        
         led_safe(x_sel, 6, b_sel)
     end
 end
@@ -140,10 +134,12 @@ function Pages.redraw()
         led_safe(6, 6, lfo1); local lfo2 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.lfo_vals[2] or 0))
         led_safe(7, 6, lfo2)
         
-        -- Chaos & Outline (8, 9)
-        led_safe(8, 6, Consts.BRIGHT.BG_DASHBOARD)
-        led_safe(9, 6, Consts.BRIGHT.BG_DASHBOARD)
-        -- 10 is VOID
+        local chaos_raw = Globals.visuals.chaos_val or 0
+        local chaos_led = math.floor(util.linlin(-1, 1, 2, 13, chaos_raw))
+        led_safe(8, 6, chaos_led)
+        
+        local outline_val = math.floor(util.linlin(0, 1, 2, 13, Globals.visuals.amp_l or 0))
+        led_safe(9, 6, outline_val)
         
         for i=11, 14 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
         draw_snapshots() 
@@ -228,7 +224,26 @@ function Pages.key(x, y, z)
     end
     
     if Globals.page == 1 then
-        if y <= 4 then Matrix.key(x, y, z) end
+        if y <= 4 then 
+            Matrix.key(x, y, z) 
+            if z == 1 then
+                local src_name = ({[1]="LFO1",[2]="LFO2",[3]="CHAOS",[4]="OUTLINE"})[y]
+                local dest_name = Consts.COL_TO_DEST_NAMES[x] or "UNK"
+                local src_idx = Consts.SOURCES[src_name]
+                local val = Globals.matrix[src_idx][x]
+                
+                local q_str = ""
+                if x <= 4 then -- Pitch cols
+                    q_str = (Globals.matrix_quant[src_idx][x] == 1) and "[Q]" or "[F]"
+                end
+                
+                Globals.ui_popup.active = true
+                Globals.ui_popup.text = src_name.." > "..dest_name
+                Globals.ui_popup.val = string.format("%.2f %s", val, q_str)
+                Globals.ui_popup.deadline = util.time() + 1.5
+                Globals.dirty = true
+            end
+        end
         if y == 7 and x <= 6 then
             if z == 1 then Storage.load_snapshot(x)
             else
