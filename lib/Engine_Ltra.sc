@@ -1,6 +1,7 @@
-// lib/Engine_Ltra.sc | v1.5.0
-// LTRA Audio Engine - SOUND FIX
-// Changes: VCA Logic simplified (Removed Trig), Fixed Var Order.
+// lib/Engine_Ltra.sc | v1.4.7
+// LTRA Audio Engine
+// FIX: Modulation Gain (*10) applied BEFORE quantization split.
+// FIX: Per-point Q/F selection logic.
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -17,7 +18,7 @@ Engine_Ltra : CroneEngine {
                 // OSCILLATORS
                 freq1=110, freq2=150, freq3=220, freq4=330,
                 shape1=0, shape2=0, shape3=0, shape4=0,
-                vol1=0.5, vol2=0.5, vol3=0.5, vol4=0.5, // Default vol > 0
+                vol1=0.5, vol2=0.5, vol3=0.5, vol4=0.5,
                 pan1=0, pan2=0, pan3=0, pan4=0,
                 
                 // GATES
@@ -31,7 +32,7 @@ Engine_Ltra : CroneEngine {
                 lfo1_rate=0.5, lfo1_shape=0, lfo1_depth=1,
                 lfo2_rate=0.2, lfo2_shape=2, lfo2_depth=1,
                 chaos_rate=0.5, chaos_slew=0.1,
-                outline_source=0, 
+                outline_source=0, outline_gain=1.0,
 
                 // FILTERS
                 filt1_tone=0, filt2_tone=0, 
@@ -69,6 +70,10 @@ Engine_Ltra : CroneEngine {
             var s_freq1, s_freq2, s_freq3, s_freq4;
             var s_vol1, s_vol2, s_vol3, s_vol4;
             var s_filt1, s_filt2, s_dtime;
+            
+            // Gain Factor for Pitch Modulation (10.0 = ~10 Octaves range for full modulation)
+            // This ensures even subtle LFOs survive quantization.
+            var pitch_scale = 10.0; 
 
             // --- FUNCTIONS ---
             var mk_osc = { |f, s| 
@@ -80,7 +85,6 @@ Engine_Ltra : CroneEngine {
                 SelectX.ar(s, [noise, saw_fm, tri, pul, sin]) 
             };
             
-            // FIX: VCA Simplificado (Sin Trig, solo Gate + Lag)
             var mk_vactrol = { |g, t| 
                 var combined = (g + t).clip(0, 1);
                 LagUD.kr(combined, 0.01, 0.2) 
@@ -105,6 +109,27 @@ Engine_Ltra : CroneEngine {
                 (outline_sig * NamedControl.kr(("mod_outline_" ++ dest_name).asSymbol, 0)) +
                 (arp_val * NamedControl.kr(("mod_arp_" ++ dest_name).asSymbol, 0));
             };
+            
+            // FIX: Pitch Mod Calculation with Gain & Q/F Selector
+            var calc_mod_pitch = { |dest_name, arp_val|
+                // 1. Calculate Raw Modulation with Gain applied immediately
+                var raw_lfo1 = lfo1 * NamedControl.kr(("mod_lfo1_" ++ dest_name).asSymbol, 0) * pitch_scale;
+                var raw_lfo2 = lfo2 * NamedControl.kr(("mod_lfo2_" ++ dest_name).asSymbol, 0) * pitch_scale;
+                var raw_chaos = chaos_sig * NamedControl.kr(("mod_chaos_" ++ dest_name).asSymbol, 0) * pitch_scale;
+                var raw_outline = outline_sig * NamedControl.kr(("mod_outline_" ++ dest_name).asSymbol, 0) * pitch_scale;
+                var raw_arp = arp_val * NamedControl.kr(("mod_arp_" ++ dest_name).asSymbol, 0) * pitch_scale;
+                
+                // 2. Select between Raw (Free) and Quantized (Stepped)
+                // Quantized logic: (val * 12).round / 12 -> Steps of 1/12 (Semitones)
+                var q_lfo1 = Select.kr(NamedControl.kr(("quant_lfo1_" ++ dest_name).asSymbol, 1), [raw_lfo1, (raw_lfo1 * 12).round/12]);
+                var q_lfo2 = Select.kr(NamedControl.kr(("quant_lfo2_" ++ dest_name).asSymbol, 1), [raw_lfo2, (raw_lfo2 * 12).round/12]);
+                var q_chaos = Select.kr(NamedControl.kr(("quant_chaos_" ++ dest_name).asSymbol, 1), [raw_chaos, (raw_chaos * 12).round/12]);
+                var q_outline = Select.kr(NamedControl.kr(("quant_outline_" ++ dest_name).asSymbol, 1), [raw_outline, (raw_outline * 12).round/12]);
+                var q_arp = Select.kr(NamedControl.kr(("quant_arp_" ++ dest_name).asSymbol, 1), [raw_arp, (raw_arp * 12).round/12]);
+                
+                // 3. Sum
+                q_lfo1 + q_lfo2 + q_chaos + q_outline + q_arp
+            };
 
             // --- LOGIC ---
             s_freq1 = Lag.kr(freq1, lag); s_freq2 = Lag.kr(freq2, lag);
@@ -123,10 +148,15 @@ Engine_Ltra : CroneEngine {
 
             env_int = LagUD.kr((gate1+gate2+gate3+gate4).clip(0,1), 0.01, 0.5);
             env_ext = Amplitude.kr(SoundIn.ar(0)); 
-            outline_sig = Select.kr(outline_source, [env_int, env_ext]);
+            outline_sig = Select.kr(outline_source, [env_int, env_ext]) * outline_gain;
 
-            m_pitch1 = calc_mod.("pitch1", arp_cv1); m_pitch2 = calc_mod.("pitch2", arp_cv2);
-            m_pitch3 = calc_mod.("pitch3", arp_cv3); m_pitch4 = calc_mod.("pitch4", arp_cv4);
+            // PITCH MODULATION (Using new calc_mod_pitch)
+            m_pitch1 = calc_mod_pitch.("pitch1", arp_cv1);
+            m_pitch2 = calc_mod_pitch.("pitch2", arp_cv2);
+            m_pitch3 = calc_mod_pitch.("pitch3", arp_cv3);
+            m_pitch4 = calc_mod_pitch.("pitch4", arp_cv4);
+
+            // STANDARD MODULATION
             m_amp1 = calc_mod.("amp1", arp_cv1); m_amp2 = calc_mod.("amp2", arp_cv2);
             m_amp3 = calc_mod.("amp3", arp_cv3); m_amp4 = calc_mod.("amp4", arp_cv4);
             m_shape1 = calc_mod.("shape1", arp_cv1); m_shape2 = calc_mod.("shape2", arp_cv2);
@@ -134,7 +164,7 @@ Engine_Ltra : CroneEngine {
             m_filt1 = calc_mod.("filt1", arp_cv1); m_filt2 = calc_mod.("filt2", arp_cv1);
             m_delay_t = calc_mod.("delay_t", arp_cv1); m_delay_f = calc_mod.("delay_f", arp_cv1);
 
-            // OSCILLATORS (With simplified VCA)
+            // OSCILLATORS
             o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1)), (shape1 + (m_shape1*4)).clip(0,4)) * s_vol1 * mk_vactrol.(gate1, t_arp1);
             o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2)), (shape2 + (m_shape2*4)).clip(0,4)) * s_vol2 * mk_vactrol.(gate2, t_arp2);
             o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3)), (shape3 + (m_shape3*4)).clip(0,4)) * s_vol3 * mk_vactrol.(gate3, t_arp3);
@@ -181,7 +211,7 @@ Engine_Ltra : CroneEngine {
             osc_trig = Impulse.kr(15);
             amp_l = Amplitude.kr(sig_post[0]);
             amp_r = Amplitude.kr(sig_post[1]);
-            SendReply.kr(osc_trig, '/ltra/visuals', [amp_l, amp_r, lfo1, lfo2]);
+            SendReply.kr(osc_trig, '/ltra/visuals', [amp_l, amp_r, lfo1, lfo2, chaos_sig]);
 
         }).add;
 
