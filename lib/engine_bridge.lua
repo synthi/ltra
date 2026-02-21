@@ -1,4 +1,7 @@
--- code/ltra/lib/engine_bridge.lua | v1.0
+-- code/ltra/lib/engine_bridge.lua | v1.4.7
+-- LTRA: OSC Bridge
+-- FIX: Send Quantization Flags & Anti-Hijack
+
 local Bridge = {}
 local Globals
 local Loopers = require 'ltra/lib/loopers'
@@ -8,11 +11,21 @@ function Bridge.init(g_ref) Globals = g_ref end
 
 function Bridge.handle_osc(path, args)
     if not Globals then return end
+    
     if path == "/ltra/visuals" then
         if Globals.visuals then
-            Globals.visuals.amp_l = args[1]; Globals.visuals.amp_r = args[2]
-            Globals.visuals.lfo_vals[1] = args[3]; Globals.visuals.lfo_vals[2] = args[4]
-            Globals.dirty = true 
+            Globals.visuals.amp_l = args[1]
+            Globals.visuals.amp_r = args[2]
+            Globals.visuals.lfo_vals[1] = args[3]
+            Globals.visuals.lfo_vals[2] = args[4]
+            Globals.visuals.chaos_val = args[5] or 0
+            
+            -- ANTI-SECUESTRO: Solo dirty si estamos en páginas visuales y sin menú
+            if Globals.menu_mode == Consts.MENU.NONE then
+                if Globals.page == 1 or Globals.page == 3 then
+                    Globals.dirty = true
+                end
+            end
         end
     elseif path == "/ltra/config" then
         Globals.engine_bus_id = args[1]
@@ -25,14 +38,22 @@ function Bridge.sync_matrix()
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
             local val = Globals.matrix[s_idx][d_idx]
-            if val > 0 then
+            local quant = Globals.matrix_quant[s_idx][d_idx] or 1
+            
+            if val > 0 or quant ~= 1 then 
                 local idx = string.match(d_name, "(%d+)$") or ""
                 local dest = d_name:lower():gsub("%d", "")
                 if dest == "delay_t" then dest = "delay_time" end
                 if dest == "delay_f" then dest = "delay_fb" end
                 if dest == "filt" then dest = "filt" end 
-                local param_id = "mod_" .. s_name:lower() .. "_" .. dest .. idx
-                engine.param(param_id, val)
+                
+                -- Enviar Valor
+                engine.param("mod_" .. s_name:lower() .. "_" .. dest .. idx, val)
+                
+                -- Enviar Quant Flag (Solo relevante para Pitch)
+                if dest == "pitch" then
+                    engine.param("quant_" .. s_name:lower() .. "_" .. dest .. idx, quant)
+                end
             end
         end
     end
@@ -49,7 +70,14 @@ function Bridge.set_filter_tone(idx, val)
     local tone = util.linlin(0, 1, -1.0, 1.0, val)
     engine.param("filt"..idx.."_tone", tone)
 end
+
 function Bridge.set_matrix(src, dest, idx, val)
     engine.param("mod_"..src.."_"..dest..idx, val)
 end
+
+-- FIX: Nueva función para enviar flag Q/F
+function Bridge.set_matrix_quant(src, dest, idx, val)
+    engine.param("quant_"..src.."_"..dest..idx, val)
+end
+
 return Bridge
