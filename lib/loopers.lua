@@ -1,6 +1,6 @@
--- code/ltra/lib/loopers.lua | v1.3 FIX
+-- code/ltra/lib/loopers.lua | v1.4.7
 -- LTRA: Softcut Manager
--- FIX: Audio Routing Activation & Phase Polling
+-- FIX: Anti-Hijack (Conditional Dirty Flag)
 
 local Loopers = {}
 local Globals
@@ -25,8 +25,7 @@ function Loopers.init(g_ref)
             softcut.post_filter_lp(v, 1.0); softcut.post_filter_dry(v, 0.0)
             softcut.post_filter_fc(v, 18000); softcut.post_filter_rq(v, 2.0)
             
-            -- FIX: Polling correcto
-            softcut.phase_quant(v, 0.1) -- Reportar fase cada 0.1s aprox
+            softcut.phase_quant(v, 0.1) 
         end
     end
     
@@ -36,18 +35,22 @@ function Loopers.init(g_ref)
             local bounds = Consts.LOOPER_BOUNDS[track_idx]
             local len = bounds.max - bounds.min
             local rel_pos = (pos - bounds.min) / len
+            
             if Globals and Globals.visuals then
                 Globals.visuals.tape_heads[track_idx] = util.clamp(rel_pos, 0, 1)
-                Globals.dirty = true
+                
+                -- FIX CRÍTICO: Solo marcar dirty si estamos viendo los loopers (Página 3)
+                -- Esto evita que el movimiento de la cinta secuestre el menú del sistema.
+                if Globals.page == 3 and Globals.menu_mode == Consts.MENU.NONE then
+                    Globals.dirty = true
+                end
             end
         end
     end)
 end
 
 function Loopers.configure_audio_routing(g_ref)
-    -- ACTIVAR RUTEO GLOBAL SOFTCUT -> ENGINE
     audio.level_cut_eng(1.0) 
-    -- Mantener salida directa también (Dry)
     audio.level_cut_dac(1.0)
     print("LTRA: Audio Routing Active (Cut->Eng)")
 end
