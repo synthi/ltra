@@ -1,6 +1,6 @@
--- ltra.lua | v1.4.2
+-- ltra.lua | v1.4.7
 -- LTRA: Main Script
--- FIX: Version Revert & Display CPU Fix
+-- FIX: Final Unified Version (Q/F, Anti-Hijack, 16n)
 
 engine.name = 'Ltra'
 
@@ -25,7 +25,7 @@ local g_state
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v1.4.2 (Audit Fix)...")
+    print("LTRA: Initializing v1.4.7 (Unified)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
@@ -60,17 +60,13 @@ function init()
     Bridge.set_filter_tone(2, 0.0)
     Bridge.set_param("delay_send", 0.5)
     
-    -- FIX: Screen Refresh Logic
-    -- Ya no forzamos redraw ciegamente. Solo si dirty.
     local fps = metro.init()
-    fps.time = 1/15
+    fps.time = 1/15 
     fps.event = function() 
-        -- Gestión de expiración de popups
         if g_state.ui_popup.active and util.time() > g_state.ui_popup.deadline then
             g_state.ui_popup.active = false
             g_state.dirty = true
         end
-        
         if g_state.dirty then 
             UI.redraw()
             g_state.dirty = false 
