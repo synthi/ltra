@@ -1,6 +1,6 @@
--- code/ltra/lib/midi_16n.lua | v1.4.2
+-- code/ltra/lib/midi_16n.lua | v1.4.7
 -- LTRA: 16n Control
--- FIX: Removed Ghost Locking (Immediate Response) & Safe Connect
+-- FIX: Name Detection + Jitter Filter
 
 local Midi16n = {}
 local Globals
@@ -24,6 +24,11 @@ local function trigger_popup(text, val)
 end
 
 local function process_fader(id, val)
+    -- FIX: Jitter Filter (Hysteresis)
+    -- Only process if change is > 1 (out of 127)
+    local old_val = Globals.fader_values[id] or -1
+    if math.abs(val - old_val) <= 1 then return end
+    
     Globals.fader_values[id] = val
     local norm = val / 127
     
@@ -32,11 +37,9 @@ local function process_fader(id, val)
     
     local name = func:upper()
     
-    -- FIX: Respuesta inmediata (Sin Ghost Locking)
     Globals.fader_virtual[id] = norm
     trigger_popup(name, norm)
     
-    -- Mapeo Directo
     if func == "pitch1" then params:set("osc1_pitch", norm)
     elseif func == "pitch2" then params:set("osc2_pitch", norm)
     elseif func == "pitch3" then params:set("osc3_pitch", norm)
@@ -64,26 +67,45 @@ function Midi16n.init(g_ref, ui_ref)
     Globals = g_ref
     UI_Ref = ui_ref
     
-    -- Intentar conectar a todos los puertos MIDI activos
-    for i=1,4 do
-        local dev = midi.connect(i)
-        if dev and dev.name then
-            print("LTRA: Listening to MIDI port "..i.." ("..dev.name..")")
-            dev.event = function(d)
-                local m = midi.to_msg(d)
-                if m.type == "cc" then
-                    -- Asumimos canales 1-16. 16n suele enviar en CH1.
-                    -- Mapeo estándar 16n: CC 32-47 o similar.
-                    -- Ajuste: Si el usuario usa default 16n config (CC 32-47)
-                    local id = -1
-                    if m.cc >= 32 and m.cc <= 47 then id = m.cc - 31
-                    elseif m.cc >= 1 and m.cc <= 16 then id = m.cc end -- Fallback
-                    
-                    if id >= 1 and id <= 16 then process_fader(id, m.val) end
+    for i=1, 16 do Globals.fader_ghost[i] = true end
+
+    clock.run(function()
+        -- FIX: Name Detection Strategy (Ncoco style)
+        local found = false
+        for _, dev in pairs(midi.devices) do
+            if dev.name and (string.find(string.lower(dev.name), "16n") or string.find(string.lower(dev.name), "fade")) then
+                print("LTRA: Found 16n/Faderbank: " .. dev.name)
+                local m = midi.connect(dev.port)
+                m.event = function(d)
+                    local msg = midi.to_msg(d)
+                    if msg.type == "cc" then
+                        local id = msg.cc - 31
+                        if id < 1 then id = msg.cc end -- Fallback for CC 1-16
+                        if id >= 1 and id <= 16 then process_fader(id, msg.val) end
+                    end
+                end
+                found = true
+            end
+        end
+        
+        -- Fallback: Connect to all ports if no specific device found
+        if not found then
+            print("LTRA: 16n not detected by name. Listening on all ports.")
+            for i = 1, 4 do
+                local dev = midi.connect(i)
+                if dev and dev.name then
+                    dev.event = function(d) 
+                        local m = midi.to_msg(d)
+                        if m.type=="cc" then 
+                            local id = m.cc - 31 
+                            if id < 1 then id = m.cc end
+                            if id>=1 and id<=16 then process_fader(id, m.val) end 
+                        end 
+                    end
                 end
             end
         end
-    end
+    end)
 end
 
 return Midi16n
