@@ -1,6 +1,6 @@
--- code/ltra/lib/parameters.lua | v1.3 FIX
--- LTRA: Parameters (Audible Defaults)
--- FIX: Added hidden ARP CV params for persistence
+-- code/ltra/lib/parameters.lua | v1.4.7
+-- LTRA: Parameters
+-- FIX: Group Organization (Folders)
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,7 +9,7 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.3")
+    params:add_separator("LTRA v1.4.7")
     
     -- GLOBAL
     params:add_group("GLOBAL", 5)
@@ -24,13 +24,12 @@ function Params.init(g_ref)
     params:add_control("loop_return", "Global Loop Return", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("loop_return", function(x) Bridge.set_param("loop_return_level", x) end)
 
-    -- VOICES
-    params:add_group("VOICES", 28)
+    -- VOICES (Individual Groups)
     for i=1,4 do
-        params:add_separator("Voice "..i)
+        params:add_group("VOICE "..i, 7)
         params:add_control("osc"..i.."_pitch", "Pitch", controlspec.new(0,1,"lin",0,0.5))
         params:set_action("osc"..i.."_pitch", function(x)
-            local deg = math.floor(x * 24)
+            local deg = math.floor(x * 60) -- FIX: 60 semitones range
             local hz = Scales.get_freq(deg, 0)
             local tune = params:get("osc"..i.."_tune") or 0
             hz = hz * (2 ^ (tune / 12))
@@ -51,13 +50,11 @@ function Params.init(g_ref)
     end
     
     -- ARP
-    params:add_group("ARP", 8) -- Aumentado para incluir los ocultos
+    params:add_group("ARP", 8)
     params:add_option("arp_div", "Clock Div", {"1/4", "1/8", "1/16", "1/32"}, 2)
     params:add_control("arp_chaos", "Chaos Prob", controlspec.new(0,1,"lin",0.01,0.2))
     params:add_binary("latch_mode", "Latch", "toggle", 0)
     params:set_action("latch_mode", function(x) if Globals then Globals.latch_mode=(x==1); Globals.dirty=true end end)
-    
-    -- FIX: Parámetros ocultos para comunicación ARP -> Engine
     for i=1,4 do
         params:add_control("arp_cv"..i, "Arp CV "..i, controlspec.new(0,1,"lin",0,0))
         params:hide("arp_cv"..i)
@@ -80,7 +77,7 @@ function Params.init(g_ref)
     params:set_action("filt_type", function(x) Bridge.set_param("filt_type", x) end)
 
     -- MODULATION
-    params:add_group("MODULATION", 9)
+    params:add_group("MODULATION", 10)
     params:add_control("lfo1_rate", "LFO1 Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
     params:set_action("lfo1_rate", function(x) Bridge.set_param("lfo1_rate", x) end)
     params:add_control("lfo1_depth", "LFO1 Depth", controlspec.new(0,1,"lin",0.01,1))
@@ -101,6 +98,8 @@ function Params.init(g_ref)
     params:set_action("chaos_slew", function(x) Bridge.set_param("chaos_slew", x) end)
     params:add_option("outline_src", "Outline Source", {"Internal Gates", "External Audio"}, 1)
     params:set_action("outline_src", function(x) Bridge.set_param("outline_source", x-1) end)
+    params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0.1, 1))
+    params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
 
     -- SPACE
     params:add_group("SPACE", 12)
