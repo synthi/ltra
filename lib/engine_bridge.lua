@@ -1,6 +1,6 @@
--- code/ltra/lib/engine_bridge.lua | v1.4.7
+-- code/ltra/lib/engine_bridge.lua | v1.4.9
 -- LTRA: OSC Bridge
--- FIX: Send Quantization Flags & Anti-Hijack
+-- FIX: Safe OSC Command Name (set_engine_param)
 
 local Bridge = {}
 local Globals
@@ -20,7 +20,6 @@ function Bridge.handle_osc(path, args)
             Globals.visuals.lfo_vals[2] = args[4]
             Globals.visuals.chaos_val = args[5] or 0
             
-            -- ANTI-SECUESTRO: Solo dirty si estamos en páginas visuales y sin menú
             if Globals.menu_mode == Consts.MENU.NONE then
                 if Globals.page == 1 or Globals.page == 3 then
                     Globals.dirty = true
@@ -47,12 +46,11 @@ function Bridge.sync_matrix()
                 if dest == "delay_f" then dest = "delay_fb" end
                 if dest == "filt" then dest = "filt" end 
                 
-                -- Enviar Valor
-                engine.param("mod_" .. s_name:lower() .. "_" .. dest .. idx, val)
+                -- FIX 3.1: Usar set_engine_param
+                engine.set_engine_param("mod_" .. s_name:lower() .. "_" .. dest .. idx, val)
                 
-                -- Enviar Quant Flag (Solo relevante para Pitch)
                 if dest == "pitch" then
-                    engine.param("quant_" .. s_name:lower() .. "_" .. dest .. idx, quant)
+                    engine.set_engine_param("quant_" .. s_name:lower() .. "_" .. dest .. idx, quant)
                 end
             end
         end
@@ -60,24 +58,25 @@ function Bridge.sync_matrix()
 end
 
 function Bridge.query_config() engine.query_config() end
-function Bridge.set_param(name, value) engine.param(name, value) end
-function Bridge.set_freq(idx, hz) engine.param("freq"..idx, hz) end
-function Bridge.set_gate(idx, val) engine.param("gate"..idx, val) end
-function Bridge.trigger_arp(idx) engine.param("t_arp"..idx, 1) end
-function Bridge.reset_lfo() engine.param("t_reset", 1) end
+
+-- FIX 3.1: Enrutamiento a set_engine_param
+function Bridge.set_param(name, value) engine.set_engine_param(name, value) end
+function Bridge.set_freq(idx, hz) engine.set_engine_param("freq"..idx, hz) end
+function Bridge.set_gate(idx, val) engine.set_engine_param("gate"..idx, val) end
+function Bridge.trigger_arp(idx) engine.set_engine_param("t_arp"..idx, 1) end
+function Bridge.reset_lfo() engine.set_engine_param("t_reset", 1) end
 
 function Bridge.set_filter_tone(idx, val)
     local tone = util.linlin(0, 1, -1.0, 1.0, val)
-    engine.param("filt"..idx.."_tone", tone)
+    engine.set_engine_param("filt"..idx.."_tone", tone)
 end
 
 function Bridge.set_matrix(src, dest, idx, val)
-    engine.param("mod_"..src.."_"..dest..idx, val)
+    engine.set_engine_param("mod_"..src.."_"..dest..idx, val)
 end
 
--- FIX: Nueva función para enviar flag Q/F
 function Bridge.set_matrix_quant(src, dest, idx, val)
-    engine.param("quant_"..src.."_"..dest..idx, val)
+    engine.set_engine_param("quant_"..src.."_"..dest..idx, val)
 end
 
 return Bridge
