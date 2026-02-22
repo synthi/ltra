@@ -1,6 +1,6 @@
--- code/ltra/lib/loopers.lua | v1.4.7
+-- code/ltra/lib/loopers.lua | v1.4.10
 -- LTRA: Softcut Manager
--- FIX: Anti-Hijack (Conditional Dirty Flag)
+-- FIX: Removed non-existent API call (level_cut_eng) to prevent Maiden Crash
 
 local Loopers = {}
 local Globals
@@ -10,7 +10,6 @@ local held_keys = { {}, {}, {} }
 function Loopers.init(g_ref)
     Globals = g_ref
     
-    -- Configuración Inicial Softcut
     audio.level_adc_cut(1) 
     
     for i=1, 3 do
@@ -39,8 +38,6 @@ function Loopers.init(g_ref)
             if Globals and Globals.visuals then
                 Globals.visuals.tape_heads[track_idx] = util.clamp(rel_pos, 0, 1)
                 
-                -- FIX CRÍTICO: Solo marcar dirty si estamos viendo los loopers (Página 3)
-                -- Esto evita que el movimiento de la cinta secuestre el menú del sistema.
                 if Globals.page == 3 and Globals.menu_mode == Consts.MENU.NONE then
                     Globals.dirty = true
                 end
@@ -50,9 +47,10 @@ function Loopers.init(g_ref)
 end
 
 function Loopers.configure_audio_routing(g_ref)
-    audio.level_cut_eng(1.0) 
+    -- FIX CRÍTICO: Eliminada la llamada a audio.level_cut_eng(1.0) que no existe en Norns.
+    -- Mantenemos el ruteo legal hacia el DAC para que Softcut sea audible.
     audio.level_cut_dac(1.0)
-    print("LTRA: Audio Routing Active (Cut->Eng)")
+    print("LTRA: Audio Routing Active (Cut->DAC)")
 end
 
 function Loopers.handle_grid_input(track_idx, x, z)
