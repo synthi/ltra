@@ -1,6 +1,6 @@
--- code/ltra/lib/grid_pages.lua | v1.4.7
+-- code/ltra/lib/grid_pages.lua | v1.4.8
 -- LTRA: Grid Views
--- FIX: Real Chaos Visuals & Correct Matrix Labels
+-- FIX: Added Scales.update_all_voices() calls on Grid interactions
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -233,7 +233,7 @@ function Pages.key(x, y, z)
                 local val = Globals.matrix[src_idx][x]
                 
                 local q_str = ""
-                if x <= 4 then -- Pitch cols
+                if x <= 4 then 
                     q_str = (Globals.matrix_quant[src_idx][x] == 1) and "[Q]" or "[F]"
                 end
                 
@@ -254,11 +254,20 @@ function Pages.key(x, y, z)
     end
     
     if Globals.page == 2 then
-        if y == 1 and z == 1 then Globals.scale.current_idx = x; Globals.dirty=true end
-        if y == 6 and z == 1 and x>=3 and x<=14 then Globals.scale.root_note = x - 2; Globals.dirty=true end
+        if y == 1 and z == 1 then 
+            Globals.scale.current_idx = x
+            Globals.dirty=true 
+            Scales.update_all_voices() -- FIX 3.1
+        end
+        if y == 6 and z == 1 and x>=3 and x<=14 then 
+            Globals.scale.root_note = x - 2
+            Globals.dirty=true 
+            Scales.update_all_voices() -- FIX 3.1
+        end
         if z == 1 and (y == 4 or y == 5) and x >= 3 and x <= 14 then
             local note = x - 3 
             Scales.toggle_custom_note(note)
+            Scales.update_all_voices() -- FIX 3.1
         end
     end
     
