@@ -1,6 +1,6 @@
--- ltra.lua | v1.4.8
+-- ltra.lua | v1.4.9
 -- LTRA: Main Script
--- FIX: 3.1 Boot Protection, Hardware Isolation & State Sync
+-- FIX: Final Architecture (Pitch Math, Safe OSC, Boot Protection)
 
 engine.name = 'Ltra'
 
@@ -25,14 +25,14 @@ local g_state
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v1.4.8 (Core 3.1 Fixes)...")
+    print("LTRA: Initializing v1.4.9 (Final Architecture)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
     
     g_state = Globals.new()
     g_state.tap_last = 0
-    g_state.loaded = false -- FIX 3.1: Boot Flag
+    g_state.loaded = false 
     
     Bridge.init(g_state)
     Scales.init(g_state)
@@ -53,10 +53,12 @@ function init()
         clock.sleep(0.5)
         Midi16n.init(g_state, UI)
         Bridge.query_config()
+        
+        -- FIX 3.1: params:bang() ahora es seguro porque parameters.lua verifica g_state.loaded
         params:bang()
         g_state.dirty = true
         
-        -- FIX 3.1: Sistema 100% Listo. Desbloquear hardware.
+        -- Sistema 100% Listo. Desbloquear hardware y actualizaciones de escala.
         g_state.loaded = true
         print("LTRA: System Ready.")
     end)
@@ -73,7 +75,6 @@ function init()
             g_state.dirty = true
         end
         if g_state.dirty then 
-            -- FIX 3.1: pcall en redraw para evitar crash loops
             local status, err = pcall(UI.redraw)
             if not status then print("Redraw Fault: " .. tostring(err)) end
             g_state.dirty = false 
@@ -89,7 +90,6 @@ function init()
     grid_fps:start()
 end
 
--- FIX 3.1: Aislamiento total de interrupciones asíncronas
 function key(n,z) 
     if not g_state or not g_state.loaded then return end
     pcall(Keys.event, n, z) 
