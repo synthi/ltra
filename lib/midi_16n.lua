@@ -1,6 +1,6 @@
--- code/ltra/lib/midi_16n.lua | v1.4.7
+-- code/ltra/lib/midi_16n.lua | v1.4.8
 -- LTRA: 16n Control
--- FIX: Name Detection + Jitter Filter
+-- FIX: Removed destructive mathematical hysteresis. Restored 128-step resolution.
 
 local Midi16n = {}
 local Globals
@@ -24,10 +24,9 @@ local function trigger_popup(text, val)
 end
 
 local function process_fader(id, val)
-    -- FIX: Jitter Filter (Hysteresis)
-    -- Only process if change is > 1 (out of 127)
-    local old_val = Globals.fader_values[id] or -1
-    if math.abs(val - old_val) <= 1 then return end
+    -- FIX 3.1: Filtro seguro. Si el valor es exactamente el mismo, ignorar.
+    -- Eliminar matemática absoluta que destruía los fades lentos.
+    if Globals.fader_values[id] == val then return end
     
     Globals.fader_values[id] = val
     local norm = val / 127
@@ -70,7 +69,6 @@ function Midi16n.init(g_ref, ui_ref)
     for i=1, 16 do Globals.fader_ghost[i] = true end
 
     clock.run(function()
-        -- FIX: Name Detection Strategy (Ncoco style)
         local found = false
         for _, dev in pairs(midi.devices) do
             if dev.name and (string.find(string.lower(dev.name), "16n") or string.find(string.lower(dev.name), "fade")) then
@@ -80,7 +78,7 @@ function Midi16n.init(g_ref, ui_ref)
                     local msg = midi.to_msg(d)
                     if msg.type == "cc" then
                         local id = msg.cc - 31
-                        if id < 1 then id = msg.cc end -- Fallback for CC 1-16
+                        if id < 1 then id = msg.cc end 
                         if id >= 1 and id <= 16 then process_fader(id, msg.val) end
                     end
                 end
@@ -88,7 +86,6 @@ function Midi16n.init(g_ref, ui_ref)
             end
         end
         
-        -- Fallback: Connect to all ports if no specific device found
         if not found then
             print("LTRA: 16n not detected by name. Listening on all ports.")
             for i = 1, 4 do
