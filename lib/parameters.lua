@@ -1,6 +1,6 @@
--- code/ltra/lib/parameters.lua | v1.4.8
+-- code/ltra/lib/parameters.lua | v1.4.9
 -- LTRA: Parameters
--- FIX: Forced Scales.update_all_voices() on scale/root change
+-- FIX: Boot Protection & Default Triangle Wave
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,7 +9,7 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.4.8")
+    params:add_separator("LTRA v1.4.9")
     
     params:add_group("GLOBAL", 5)
     params:add_control("output_level", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
@@ -20,8 +20,8 @@ function Params.init(g_ref)
         if Globals then 
             Globals.scale.current_idx = x; 
             Globals.dirty=true 
-            -- FIX 3.1: Actualizar voces inmediatamente
-            Scales.update_all_voices()
+            -- FIX 3.1: Boot Protection. Evita crash en params:bang()
+            if Globals.loaded then Scales.update_all_voices() end
         end 
     end)
     
@@ -30,8 +30,7 @@ function Params.init(g_ref)
         if Globals then 
             Globals.scale.root_note = x; 
             Globals.dirty=true 
-            -- FIX 3.1: Actualizar voces inmediatamente
-            Scales.update_all_voices()
+            if Globals.loaded then Scales.update_all_voices() end
         end 
     end)
     
@@ -54,10 +53,16 @@ function Params.init(g_ref)
         params:set_action("osc"..i.."_vol", function(x) if Globals then Globals.voices[i].vol=x end; Bridge.set_param("vol"..i, x) end)
         params:add_control("osc"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0.01,0))
         params:set_action("osc"..i.."_pan", function(x) if Globals then Globals.voices[i].pan=x end; Bridge.set_param("pan"..i, x) end)
-        params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,4,"lin",0.01,0))
+        
+        -- FIX 3.1: Default Shape = 2 (Triangle) para que el pitch sea audible
+        params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,4,"lin",0.01,2))
         params:set_action("osc"..i.."_shape", function(x) if Globals then Globals.voices[i].shape=x end; Bridge.set_param("shape"..i, x) end)
+        
         params:add_control("osc"..i.."_tune", "Fine Tune", controlspec.new(-1,1,"lin",0.01,0))
-        params:set_action("osc"..i.."_tune", function(x) if Globals then Globals.voices[i].tune=x end; Scales.update_all_voices() end)
+        params:set_action("osc"..i.."_tune", function(x) 
+            if Globals then Globals.voices[i].tune=x end
+            if Globals and Globals.loaded then Scales.update_all_voices() end
+        end)
         params:add_binary("osc"..i.."_arp", "Arp Mode", "toggle", 0)
         params:set_action("osc"..i.."_arp", function(x) if Globals then Globals.voices[i].arp_enabled=(x==1) end end)
         params:add_binary("osc"..i.."_route", "To Looper", "toggle", 1)
