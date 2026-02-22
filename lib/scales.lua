@@ -1,10 +1,11 @@
--- code/ltra/lib/scales.lua | v1.4.7
+-- code/ltra/lib/scales.lua | v1.4.8
 -- LTRA: Scales Logic
--- FIX: Robustness against nil tables & Increased Fader Range (5 Octaves)
+-- FIX: Added update_all_voices() for live syncing
 
 local Scales = {}
 local Consts = require 'ltra/lib/consts'
 local musicutil = require 'musicutil'
+local Bridge = require 'ltra/lib/engine_bridge'
 local Globals 
 
 function Scales.init(g_ref) Globals = g_ref end
@@ -55,10 +56,22 @@ function Scales.get_freq(degree, octave)
 end
 
 function Scales.get_freq_from_voltage(volts)
-    -- FIX: Rango aumentado a 60 semitonos (5 Octavas)
     local range = 60 
     local degree = math.floor(volts * range)
     return Scales.get_freq(degree, 0)
+end
+
+-- FIX 3.1: Actualizar todos los osciladores activos si la escala cambia
+function Scales.update_all_voices()
+    if not Globals or not Globals.voices then return end
+    for i=1, 4 do
+        local pitch_val = params:get("osc"..i.."_pitch") or 0.5
+        local deg = math.floor(pitch_val * 60)
+        local hz = Scales.get_freq(deg, 0)
+        local tune = params:get("osc"..i.."_tune") or 0
+        hz = hz * (2 ^ (tune / 12))
+        Bridge.set_freq(i, hz)
+    end
 end
 
 function Scales.toggle_custom_note(note_0_11)
