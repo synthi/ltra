@@ -1,6 +1,6 @@
--- code/ltra/lib/parameters.lua | v1.4.9
+-- code/ltra/lib/parameters.lua | v1.4.10
 -- LTRA: Parameters
--- FIX: Boot Protection & Default Triangle Wave
+-- FIX: Norns API Syntax (_norns.audio removed) to prevent Maiden Crash
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,18 +9,18 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.4.9")
+    params:add_separator("LTRA v1.4.10")
     
     params:add_group("GLOBAL", 5)
     params:add_control("output_level", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
-    params:set_action("output_level", function(x) _norns.audio.level_dac(x) end)
+    -- FIX CRÍTICO: Uso de la API correcta de Norns
+    params:set_action("output_level", function(x) audio.level_dac(x) end)
     
     params:add_number("scale_idx", "Scale", 1, 30, 1)
     params:set_action("scale_idx", function(x) 
         if Globals then 
             Globals.scale.current_idx = x; 
             Globals.dirty=true 
-            -- FIX 3.1: Boot Protection. Evita crash en params:bang()
             if Globals.loaded then Scales.update_all_voices() end
         end 
     end)
@@ -35,7 +35,9 @@ function Params.init(g_ref)
     end)
     
     params:add_control("monitor_level", "Monitor In", controlspec.new(0,1,"lin",0.01,0))
-    params:set_action("monitor_level", function(x) _norns.audio.level_adc(x) end)
+    -- FIX CRÍTICO: Uso de la API correcta de Norns
+    params:set_action("monitor_level", function(x) audio.level_adc(x) end)
+    
     params:add_control("loop_return", "Global Loop Return", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("loop_return", function(x) Bridge.set_param("loop_return_level", x) end)
 
@@ -54,7 +56,6 @@ function Params.init(g_ref)
         params:add_control("osc"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0.01,0))
         params:set_action("osc"..i.."_pan", function(x) if Globals then Globals.voices[i].pan=x end; Bridge.set_param("pan"..i, x) end)
         
-        -- FIX 3.1: Default Shape = 2 (Triangle) para que el pitch sea audible
         params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,4,"lin",0.01,2))
         params:set_action("osc"..i.."_shape", function(x) if Globals then Globals.voices[i].shape=x end; Bridge.set_param("shape"..i, x) end)
         
