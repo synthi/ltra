@@ -1,7 +1,6 @@
-// lib/Engine_Ltra.sc | v1.4.7
+// lib/Engine_Ltra.sc | v1.4.9
 // LTRA Audio Engine
-// FIX: Modulation Gain (*10) applied BEFORE quantization split.
-// FIX: Per-point Q/F selection logic.
+// FIX: OSC Command Rename, Pitch Mod Math (*60), Default Shape=2
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -15,9 +14,9 @@ Engine_Ltra : CroneEngine {
 
         SynthDef(\ltra_core, {
             arg out, looper_bus,
-                // OSCILLATORS
+                // OSCILLATORS (FIX: Default shape to 2 = Triangle)
                 freq1=110, freq2=150, freq3=220, freq4=330,
-                shape1=0, shape2=0, shape3=0, shape4=0,
+                shape1=2, shape2=2, shape3=2, shape4=2,
                 vol1=0.5, vol2=0.5, vol3=0.5, vol4=0.5,
                 pan1=0, pan2=0, pan3=0, pan4=0,
                 
@@ -70,10 +69,6 @@ Engine_Ltra : CroneEngine {
             var s_freq1, s_freq2, s_freq3, s_freq4;
             var s_vol1, s_vol2, s_vol3, s_vol4;
             var s_filt1, s_filt2, s_dtime;
-            
-            // Gain Factor for Pitch Modulation (10.0 = ~10 Octaves range for full modulation)
-            // This ensures even subtle LFOs survive quantization.
-            var pitch_scale = 10.0; 
 
             // --- FUNCTIONS ---
             var mk_osc = { |f, s| 
@@ -110,25 +105,24 @@ Engine_Ltra : CroneEngine {
                 (arp_val * NamedControl.kr(("mod_arp_" ++ dest_name).asSymbol, 0));
             };
             
-            // FIX: Pitch Mod Calculation with Gain & Q/F Selector
+            // FIX 3.1: Pitch Mod Calculation (Math Corrected)
             var calc_mod_pitch = { |dest_name, arp_val|
-                // 1. Calculate Raw Modulation with Gain applied immediately
-                var raw_lfo1 = lfo1 * NamedControl.kr(("mod_lfo1_" ++ dest_name).asSymbol, 0) * pitch_scale;
-                var raw_lfo2 = lfo2 * NamedControl.kr(("mod_lfo2_" ++ dest_name).asSymbol, 0) * pitch_scale;
-                var raw_chaos = chaos_sig * NamedControl.kr(("mod_chaos_" ++ dest_name).asSymbol, 0) * pitch_scale;
-                var raw_outline = outline_sig * NamedControl.kr(("mod_outline_" ++ dest_name).asSymbol, 0) * pitch_scale;
-                var raw_arp = arp_val * NamedControl.kr(("mod_arp_" ++ dest_name).asSymbol, 0) * pitch_scale;
+                // 1. Multiply by 60.0 (5 Octaves in semitones) BEFORE quantization
+                var raw_lfo1 = lfo1 * NamedControl.kr(("mod_lfo1_" ++ dest_name).asSymbol, 0) * 60.0;
+                var raw_lfo2 = lfo2 * NamedControl.kr(("mod_lfo2_" ++ dest_name).asSymbol, 0) * 60.0;
+                var raw_chaos = chaos_sig * NamedControl.kr(("mod_chaos_" ++ dest_name).asSymbol, 0) * 60.0;
+                var raw_outline = outline_sig * NamedControl.kr(("mod_outline_" ++ dest_name).asSymbol, 0) * 60.0;
+                var raw_arp = arp_val * NamedControl.kr(("mod_arp_" ++ dest_name).asSymbol, 0) * 60.0;
                 
-                // 2. Select between Raw (Free) and Quantized (Stepped)
-                // Quantized logic: (val * 12).round / 12 -> Steps of 1/12 (Semitones)
-                var q_lfo1 = Select.kr(NamedControl.kr(("quant_lfo1_" ++ dest_name).asSymbol, 1), [raw_lfo1, (raw_lfo1 * 12).round/12]);
-                var q_lfo2 = Select.kr(NamedControl.kr(("quant_lfo2_" ++ dest_name).asSymbol, 1), [raw_lfo2, (raw_lfo2 * 12).round/12]);
-                var q_chaos = Select.kr(NamedControl.kr(("quant_chaos_" ++ dest_name).asSymbol, 1), [raw_chaos, (raw_chaos * 12).round/12]);
-                var q_outline = Select.kr(NamedControl.kr(("quant_outline_" ++ dest_name).asSymbol, 1), [raw_outline, (raw_outline * 12).round/12]);
-                var q_arp = Select.kr(NamedControl.kr(("quant_arp_" ++ dest_name).asSymbol, 1), [raw_arp, (raw_arp * 12).round/12]);
+                // 2. Select Q/F. .round quantizes to nearest integer (semitone)
+                var q_lfo1 = Select.kr(NamedControl.kr(("quant_lfo1_" ++ dest_name).asSymbol, 1), [raw_lfo1, raw_lfo1.round]);
+                var q_lfo2 = Select.kr(NamedControl.kr(("quant_lfo2_" ++ dest_name).asSymbol, 1), [raw_lfo2, raw_lfo2.round]);
+                var q_chaos = Select.kr(NamedControl.kr(("quant_chaos_" ++ dest_name).asSymbol, 1), [raw_chaos, raw_chaos.round]);
+                var q_outline = Select.kr(NamedControl.kr(("quant_outline_" ++ dest_name).asSymbol, 1), [raw_outline, raw_outline.round]);
+                var q_arp = Select.kr(NamedControl.kr(("quant_arp_" ++ dest_name).asSymbol, 1), [raw_arp, raw_arp.round]);
                 
-                // 3. Sum
-                q_lfo1 + q_lfo2 + q_chaos + q_outline + q_arp
+                // 3. Sum and divide by 12 to convert semitones back to octaves for 2.pow()
+                (q_lfo1 + q_lfo2 + q_chaos + q_outline + q_arp) / 12.0;
             };
 
             // --- LOGIC ---
@@ -150,7 +144,7 @@ Engine_Ltra : CroneEngine {
             env_ext = Amplitude.kr(SoundIn.ar(0)); 
             outline_sig = Select.kr(outline_source, [env_int, env_ext]) * outline_gain;
 
-            // PITCH MODULATION (Using new calc_mod_pitch)
+            // PITCH MODULATION
             m_pitch1 = calc_mod_pitch.("pitch1", arp_cv1);
             m_pitch2 = calc_mod_pitch.("pitch2", arp_cv2);
             m_pitch3 = calc_mod_pitch.("pitch3", arp_cv3);
@@ -219,7 +213,10 @@ Engine_Ltra : CroneEngine {
         synth = Synth.new(\ltra_core, [\out, context.out_b, \looper_bus, bus_looper_in], context.xg);
         
         osc_bridge = OSCFunc({ |msg| NetAddr("127.0.0.1", 10111).sendMsg("/ltra/visuals", *msg.drop(3)); }, '/ltra/visuals', context.server.addr).fix;
-        this.addCommand("param", "sf", { arg msg; synth.set(msg[1].asSymbol, msg[2]); });
+        
+        // FIX 3.1: Renombrado de comando para evitar colisión con API de Norns
+        this.addCommand("set_engine_param", "sf", { arg msg; synth.set(msg[1].asSymbol, msg[2]); });
+        
         this.addCommand("query_config", "", { NetAddr("127.0.0.1", 10111).sendMsg("/ltra/config", bus_looper_in.index); });
         NetAddr("127.0.0.1", 10111).sendMsg("/ltra/config", bus_looper_in.index);
     }
