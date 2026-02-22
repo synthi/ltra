@@ -1,6 +1,6 @@
--- ltra.lua | v1.4.7
+-- ltra.lua | v1.4.8
 -- LTRA: Main Script
--- FIX: Final Unified Version (Q/F, Anti-Hijack, 16n)
+-- FIX: 3.1 Boot Protection, Hardware Isolation & State Sync
 
 engine.name = 'Ltra'
 
@@ -25,13 +25,14 @@ local g_state
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v1.4.7 (Unified)...")
+    print("LTRA: Initializing v1.4.8 (Core 3.1 Fixes)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
     
     g_state = Globals.new()
     g_state.tap_last = 0
+    g_state.loaded = false -- FIX 3.1: Boot Flag
     
     Bridge.init(g_state)
     Scales.init(g_state)
@@ -54,6 +55,10 @@ function init()
         Bridge.query_config()
         params:bang()
         g_state.dirty = true
+        
+        -- FIX 3.1: Sistema 100% Listo. Desbloquear hardware.
+        g_state.loaded = true
+        print("LTRA: System Ready.")
     end)
     
     Bridge.set_filter_tone(1, 0.0)
@@ -68,7 +73,9 @@ function init()
             g_state.dirty = true
         end
         if g_state.dirty then 
-            UI.redraw()
+            -- FIX 3.1: pcall en redraw para evitar crash loops
+            local status, err = pcall(UI.redraw)
+            if not status then print("Redraw Fault: " .. tostring(err)) end
             g_state.dirty = false 
         end
     end
@@ -76,15 +83,22 @@ function init()
     
     local grid_fps = metro.init()
     grid_fps.time = 1/30
-    grid_fps.event = function() GridHW.redraw() end
+    grid_fps.event = function() 
+        if g_state.loaded then GridHW.redraw() end 
+    end
     grid_fps:start()
-    
-    print("LTRA: System Ready.")
 end
 
-function key(n,z) Keys.event(n,z) end
-function enc(n,d) Enc.delta(n,d) end
-function redraw() UI.redraw() end
+-- FIX 3.1: Aislamiento total de interrupciones asíncronas
+function key(n,z) 
+    if not g_state or not g_state.loaded then return end
+    pcall(Keys.event, n, z) 
+end
+
+function enc(n,d) 
+    if not g_state or not g_state.loaded then return end
+    pcall(Enc.delta, n, d) 
+end
 
 function cleanup() 
     print("LTRA: Cleanup")
