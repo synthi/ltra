@@ -1,31 +1,33 @@
--- ltra.lua | v1.4.9
+-- ltra.lua | v1.4.11
 -- LTRA: Main Script
--- FIX: Final Architecture (Pitch Math, Safe OSC, Boot Protection)
+-- FIX: Unified Memory Space (require) & OS Screen Hijack Fix
 
 engine.name = 'Ltra'
 
-local Globals = include('lib/globals')
-local Consts = include('lib/consts')
-local Bridge = include('lib/engine_bridge')
-local Scales = include('lib/scales')
-local GridHW = include('lib/grid_hw')
-local GridPages = include('lib/grid_pages')
-local Matrix = include('lib/mod_matrix')
-local Midi16n = include('lib/midi_16n')
-local Loopers = include('lib/loopers')
-local UI = include('lib/ui')
-local Params = include('lib/parameters')
-local Arp = include('lib/arp')
-local Enc = include('lib/controls_enc')
-local Keys = include('lib/controls_key')
-local Storage = include('lib/storage')
+-- FIX CRÍTICO: Usar 'require' en lugar de 'include' para unificar la memoria RAM.
+-- Ahora todos los archivos del script comparten la misma instancia de las librerías.
+local Globals = require('ltra/lib/globals')
+local Consts = require('ltra/lib/consts')
+local Bridge = require('ltra/lib/engine_bridge')
+local Scales = require('ltra/lib/scales')
+local GridHW = require('ltra/lib/grid_hw')
+local GridPages = require('ltra/lib/grid_pages')
+local Matrix = require('ltra/lib/mod_matrix')
+local Midi16n = require('ltra/lib/midi_16n')
+local Loopers = require('ltra/lib/loopers')
+local UI = require('ltra/lib/ui')
+local Params = require('ltra/lib/parameters')
+local Arp = require('ltra/lib/arp')
+local Enc = require('ltra/lib/controls_enc')
+local Keys = require('ltra/lib/controls_key')
+local Storage = require('ltra/lib/storage')
 
 local g_state
 
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v1.4.9 (Final Architecture)...")
+    print("LTRA: Initializing v1.4.11 (Core Architecture Fix)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
@@ -54,11 +56,9 @@ function init()
         Midi16n.init(g_state, UI)
         Bridge.query_config()
         
-        -- FIX 3.1: params:bang() ahora es seguro porque parameters.lua verifica g_state.loaded
         params:bang()
         g_state.dirty = true
         
-        -- Sistema 100% Listo. Desbloquear hardware y actualizaciones de escala.
         g_state.loaded = true
         print("LTRA: System Ready.")
     end)
@@ -75,8 +75,8 @@ function init()
             g_state.dirty = true
         end
         if g_state.dirty then 
-            local status, err = pcall(UI.redraw)
-            if not status then print("Redraw Fault: " .. tostring(err)) end
+            -- FIX CRÍTICO: Llamar a la función global redraw() para respetar el menú de Norns
+            redraw() 
             g_state.dirty = false 
         end
     end
@@ -98,6 +98,12 @@ end
 function enc(n,d) 
     if not g_state or not g_state.loaded then return end
     pcall(Enc.delta, n, d) 
+end
+
+-- FIX CRÍTICO: Función global redraw() requerida por el sistema operativo de Norns
+function redraw()
+    if not g_state or not g_state.loaded then return end
+    pcall(UI.redraw)
 end
 
 function cleanup() 
