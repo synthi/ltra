@@ -1,6 +1,5 @@
--- code/ltra/lib/ui.lua | v1.4.7
--- LTRA: Screen Interface
--- FIX: Show Q/F status, Correct Labels, Scales Protection
+-- lib/ui.lua | v1.5.0
+-- FIX: Removed Loopers UI
 
 local UI = {}
 local Globals
@@ -32,10 +31,10 @@ local function draw_menu()
     if mode == Consts.MENU.OSC then
         screen.move(5,10); screen.text("OSC "..t.." EDIT")
         screen.move(5,25); screen.text("E1 Shape: "..string.format("%.2f", params:get("osc"..t.."_shape")))
-        screen.move(5,35); screen.text("E2 Pan: "..string.format("%.2f", params:get("osc"..t.."_pan")))
+        screen.move(5,35); screen.text("E2 Octave: "..string.format("%+d", params:get("osc"..t.."_octave")))
         screen.move(5,45); screen.text("E3 Tune: "..string.format("%.2f", params:get("osc"..t.."_tune")))
         local arp_state = params:get("osc"..t.."_arp") == 1 and "ON" or "OFF"
-        screen.move(5,58); screen.text("K2: ARP ["..arp_state.."]")
+        screen.move(5,58); screen.text("K2: ARP["..arp_state.."]")
         
     elseif mode == Consts.MENU.LFO then
         screen.move(5,10); screen.text("LFO "..t.." EDIT")
@@ -74,14 +73,6 @@ local function draw_menu()
         screen.move(5,25); screen.text("E1 Mix: "..string.format("%.2f", params:get("reverb_mix")))
         screen.move(5,35); screen.text("E2 Decay: "..string.format("%.1fs", params:get("reverb_decay")))
         screen.move(5,45); screen.text("E3 Damp: "..string.format("%.2f", params:get("reverb_damp")))
-        
-    elseif mode == Consts.MENU.LOOPER then
-        screen.move(5,10); screen.text("LOOPER "..t)
-        screen.move(5,25); screen.text("E1 Send: "..string.format("%.2f", params:get("loop"..t.."_send")))
-        screen.move(5,35); screen.text("E2 Fdbk: "..string.format("%.2f", params:get("loop"..t.."_feedback")))
-        screen.move(5,45); screen.text("E3 Vol: "..string.format("%.2f", params:get("loop"..t.."_vol")))
-        local pre_str = params:get("loop"..t.."_pre") == 1 and "PRE" or "POST"
-        screen.move(5,58); screen.text("K2: ROUTE ["..pre_str.."]")
         
     elseif mode == Consts.MENU.MATRIX then
         screen.move(5,10); screen.text("MATRIX EDIT")
@@ -123,7 +114,7 @@ function UI.redraw()
         end
         draw_ghost_arrows()
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.4.7")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.0")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
