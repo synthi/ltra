@@ -1,6 +1,5 @@
--- code/ltra/lib/storage.lua | v1.4.7
--- LTRA: Storage Manager
--- FIX: Save/Load Matrix Quantization State
+-- lib/storage.lua | v1.5.0
+-- FIX: Removed Softcut, Added Clear Delay on Load
 
 local Storage = {}
 local Globals
@@ -25,17 +24,11 @@ function Storage.save_sidecar(pset_number)
     local data = {
         custom_scales = Globals.scale.custom_slots,
         snapshots = Globals.snapshots,
-        matrix_quant = Globals.matrix_quant -- FIX: Guardar estado Q/F
+        matrix_quant = Globals.matrix_quant
     }
     
     local data_path = _path.data .. "ltra/pset_" .. pset_number .. ".data"
     tab.save(data, data_path)
-    
-    local audio_path_L = _path.audio .. "ltra/snapshots/pset_" .. pset_number .. "_L.wav"
-    local audio_path_R = _path.audio .. "ltra/snapshots/pset_" .. pset_number .. "_R.wav"
-    
-    softcut.buffer_write_mono(audio_path_L, 0, -1, 1)
-    softcut.buffer_write_mono(audio_path_R, 0, -1, 2)
     
     print("LTRA: Save Complete.")
 end
@@ -49,23 +42,13 @@ function Storage.load_sidecar(pset_number)
         if data then
             if data.custom_scales then Globals.scale.custom_slots = data.custom_scales end
             if data.snapshots then Globals.snapshots = data.snapshots end
-            if data.matrix_quant then Globals.matrix_quant = data.matrix_quant end -- FIX: Cargar Q/F
+            if data.matrix_quant then Globals.matrix_quant = data.matrix_quant end
         end
     else
         print("LTRA: No sidecar data found (New PSET?)")
     end
     
-    local audio_path_L = _path.audio .. "ltra/snapshots/pset_" .. pset_number .. "_L.wav"
-    local audio_path_R = _path.audio .. "ltra/snapshots/pset_" .. pset_number .. "_R.wav"
-    
-    if util.file_exists(audio_path_L) then
-        softcut.buffer_read_mono(audio_path_L, 0, 0, -1, 1, 1)
-        softcut.buffer_read_mono(audio_path_R, 0, 0, -1, 1, 2)
-    else
-        print("LTRA: No audio found for this PSET.")
-        softcut.buffer_clear()
-    end
-    
+    Bridge.clear_delay()
     Bridge.sync_matrix()
     Globals.dirty = true
 end
