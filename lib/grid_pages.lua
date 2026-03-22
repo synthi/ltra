@@ -1,10 +1,8 @@
--- code/ltra/lib/grid_pages.lua | v1.4.8
--- LTRA: Grid Views
--- FIX: Added Scales.update_all_voices() calls on Grid interactions
+-- lib/grid_pages.lua | v1.5.0
+-- FIX: Removed Page 3 (Loopers)
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
-local Loopers = require 'ltra/lib/loopers'
 local Storage = require 'ltra/lib/storage'
 local Scales = require 'ltra/lib/scales'
 local Globals
@@ -37,8 +35,9 @@ local function draw_nav_bar()
     local latch_b = Globals.latch_mode and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
     led_safe(5, y, latch_b)
     led_safe(12, y, Consts.BRIGHT.BG_NAV)
-    local page_map = {[13]=1, [14]=2, [15]=3}
-    for x=13, 15 do
+    
+    local page_map = {[14]=1, [15]=2}
+    for x=14, 15 do
         local p = page_map[x]
         local b = (Globals.page == p) and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
         led_safe(x, y, b)
@@ -83,35 +82,8 @@ local function check_hold()
         end
     end
 
-    if Globals.menu_mode ~= Consts.MENU.NONE and Globals.menu_mode ~= Consts.MENU.LOOPER then 
+    if Globals.menu_mode ~= Consts.MENU.NONE then 
         Globals.menu_mode = Consts.MENU.NONE; Globals.dirty = true 
-    end
-end
-
-local function draw_loopers()
-    local heads = Globals.visuals.tape_heads
-    local now = util.time()
-    for t=1, 3 do
-        local offset = (t-1)*5
-        local pos_float = (heads[t] or 0) * 5
-        local idx = math.floor(pos_float)
-        local frac = pos_float - idx
-        local y_tape = (t-1)*2 + 1
-        for c=1, 5 do
-            local x = c + offset
-            local b = Consts.BRIGHT.BG_NAV
-            if c == idx + 1 then b = math.floor(2 + (13 * (1.0 - frac))) end
-            if c == idx + 2 then b = math.floor(2 + (13 * frac)) end
-            led_safe(x, y_tape, b)
-        end
-        local x_sel = (t-1)*5 + 1
-        local state = Globals.tracks[t].state
-        local b_sel = Consts.BRIGHT.BG_DASHBOARD
-        if state == 2 then b_sel = math.floor(util.linlin(-1, 1, 5, 15, math.sin(now * 5)))
-        elseif state == 3 then b_sel = Consts.BRIGHT.VAL_HIGH
-        elseif state == 4 then b_sel = math.floor(util.linlin(-1, 1, 5, 15, math.sin(now * 15)))
-        elseif state == 5 then b_sel = Consts.BRIGHT.VAL_MED end
-        led_safe(x_sel, 6, b_sel)
     end
 end
 
@@ -164,20 +136,6 @@ function Pages.redraw()
         led_safe(Globals.scale.root_note + 2, 6, 11)
     end
     
-    if Globals.page == 3 then
-        draw_loopers()
-        local held_looper = nil
-        for t=1,3 do 
-            local x = (t-1)*5 + 1
-            if Globals.button_state[x] and Globals.button_state[x][6] then held_looper = t end
-        end
-        if held_looper then
-            Globals.menu_mode = Consts.MENU.LOOPER; Globals.menu_target = held_looper; Globals.dirty=true
-        elseif Globals.menu_mode == Consts.MENU.LOOPER then
-            Globals.menu_mode = Consts.MENU.NONE; Globals.dirty=true
-        end
-    end
-    
     draw_nav_bar()
 end
 
@@ -216,8 +174,8 @@ function Pages.key(x, y, z)
             end
             return
         end
-        if x >= 13 and z == 1 then
-            local page_map = {[13]=1, [14]=2, [15]=3}
+        if x >= 14 and z == 1 then
+            local page_map = {[14]=1, [15]=2}
             if page_map[x] then Globals.page = page_map[x]; Globals.dirty = true end
             return
         end
@@ -257,28 +215,17 @@ function Pages.key(x, y, z)
         if y == 1 and z == 1 then 
             Globals.scale.current_idx = x
             Globals.dirty=true 
-            Scales.update_all_voices() -- FIX 3.1
+            Scales.update_all_voices()
         end
         if y == 6 and z == 1 and x>=3 and x<=14 then 
             Globals.scale.root_note = x - 2
             Globals.dirty=true 
-            Scales.update_all_voices() -- FIX 3.1
+            Scales.update_all_voices()
         end
         if z == 1 and (y == 4 or y == 5) and x >= 3 and x <= 14 then
             local note = x - 3 
             Scales.toggle_custom_note(note)
-            Scales.update_all_voices() -- FIX 3.1
-        end
-    end
-    
-    if Globals.page == 3 then
-        if y == 1 then Loopers.handle_grid_input(1, x, z) end
-        if y == 3 then Loopers.handle_grid_input(2, x, z) end
-        if y == 5 then Loopers.handle_grid_input(3, x, z) end
-        if y == 6 and z == 1 then
-            if x == 1 then Loopers.transport_action(1, "press") end
-            if x == 6 then Loopers.transport_action(2, "press") end
-            if x == 11 then Loopers.transport_action(3, "press") end
+            Scales.update_all_voices()
         end
     end
 end
