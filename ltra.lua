@@ -1,11 +1,9 @@
--- ltra.lua | v1.4.11
+-- ltra.lua | v1.5.0
 -- LTRA: Main Script
--- FIX: Unified Memory Space (require) & OS Screen Hijack Fix
+-- FIX: Removed Loopers, Added Garbage Collection
 
 engine.name = 'Ltra'
 
--- FIX CRÍTICO: Usar 'require' en lugar de 'include' para unificar la memoria RAM.
--- Ahora todos los archivos del script comparten la misma instancia de las librerías.
 local Globals = require('ltra/lib/globals')
 local Consts = require('ltra/lib/consts')
 local Bridge = require('ltra/lib/engine_bridge')
@@ -14,7 +12,6 @@ local GridHW = require('ltra/lib/grid_hw')
 local GridPages = require('ltra/lib/grid_pages')
 local Matrix = require('ltra/lib/mod_matrix')
 local Midi16n = require('ltra/lib/midi_16n')
-local Loopers = require('ltra/lib/loopers')
 local UI = require('ltra/lib/ui')
 local Params = require('ltra/lib/parameters')
 local Arp = require('ltra/lib/arp')
@@ -27,7 +24,7 @@ local g_state
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v1.4.11 (Core Architecture Fix)...")
+    print("LTRA: Initializing v1.5.0 (Golden Master)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
@@ -40,7 +37,6 @@ function init()
     Scales.init(g_state)
     Matrix.init(g_state)
     Params.init(g_state)
-    Loopers.init(g_state)
     UI.init(g_state)
     Arp.init(g_state)
     Enc.init(g_state)
@@ -75,7 +71,6 @@ function init()
             g_state.dirty = true
         end
         if g_state.dirty then 
-            -- FIX CRÍTICO: Llamar a la función global redraw() para respetar el menú de Norns
             redraw() 
             g_state.dirty = false 
         end
@@ -100,7 +95,6 @@ function enc(n,d)
     pcall(Enc.delta, n, d) 
 end
 
--- FIX CRÍTICO: Función global redraw() requerida por el sistema operativo de Norns
 function redraw()
     if not g_state or not g_state.loaded then return end
     pcall(UI.redraw)
@@ -108,6 +102,7 @@ end
 
 function cleanup() 
     print("LTRA: Cleanup")
+    Arp.stop()
+    Midi16n.stop()
     metro.free_all()
-    softcut.buffer_clear()
 end
