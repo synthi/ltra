@@ -1,5 +1,5 @@
--- lib/parameters.lua | v1.5.0
--- FIX: 24 Semitones Pitch, Octave Param, Removed Loopers
+-- lib/parameters.lua | v1.5.1
+-- FIX: System Param Collisions, Exact Group Counting
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -8,11 +8,12 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.5.0")
+    params:add_separator("LTRA v1.5.1")
     
+    -- GLOBAL: 4 params
     params:add_group("GLOBAL", 4)
-    params:add_control("output_level", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
-    params:set_action("output_level", function(x) audio.level_dac(x) end)
+    params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
+    params:set_action("master_vol", function(x) audio.level_dac(x) end)
     
     params:add_number("scale_idx", "Scale", 1, 30, 1)
     params:set_action("scale_idx", function(x) 
@@ -32,9 +33,10 @@ function Params.init(g_ref)
         end 
     end)
     
-    params:add_control("monitor_level", "Monitor In", controlspec.new(0,1,"lin",0.01,0))
-    params:set_action("monitor_level", function(x) audio.level_adc(x) end)
+    params:add_control("monitor_vol", "Monitor In", controlspec.new(0,1,"lin",0.01,0))
+    params:set_action("monitor_vol", function(x) audio.level_adc(x) end)
 
+    -- VOICES: 6 params each
     for i=1,4 do
         params:add_group("VOICE "..i, 6)
         
@@ -47,7 +49,7 @@ function Params.init(g_ref)
         
         params:add_control("osc"..i.."_pitch", "Pitch", controlspec.new(0,1,"lin",0,0.5))
         params:set_action("osc"..i.."_pitch", function(x)
-            local deg = math.floor(x * 24) -- FIX: 2 Octaves
+            local deg = math.floor(x * 24)
             local hz = Scales.get_freq(deg, params:get("osc"..i.."_octave") or 0)
             local tune = params:get("osc"..i.."_tune") or 0
             hz = hz * (2 ^ (tune / 12))
@@ -69,7 +71,6 @@ function Params.init(g_ref)
         params:add_binary("osc"..i.."_arp", "Arp Mode", "toggle", 0)
         params:set_action("osc"..i.."_arp", function(x) 
             if Globals then Globals.voices[i].arp_enabled=(x==1) end 
-            -- FIX: Restore fader pitch when Arp is turned off
             if x == 0 then
                 local p = params:get("osc"..i.."_pitch")
                 local action = params:lookup_param("osc"..i.."_pitch").action
@@ -78,7 +79,8 @@ function Params.init(g_ref)
         end)
     end
     
-    params:add_group("ARP", 8)
+    -- ARP: 7 params
+    params:add_group("ARP", 7)
     params:add_option("arp_div", "Clock Div", {"1/4", "1/8", "1/16", "1/32"}, 2)
     params:add_control("arp_chaos", "Chaos Prob", controlspec.new(0,1,"lin",0.01,0.2))
     params:add_binary("latch_mode", "Latch", "toggle", 0)
@@ -89,6 +91,7 @@ function Params.init(g_ref)
         params:set_action("arp_cv"..i, function(x) Bridge.set_param("arp_cv"..i, x) end)
     end
 
+    -- FILTERS: 6 params
     params:add_group("FILTERS", 6)
     params:add_control("filt1_tone", "Filt 1 Tone", controlspec.new(-1,1,"lin",0.01,0))
     params:set_action("filt1_tone", function(x) Bridge.set_filter_tone(1, x) end)
@@ -103,6 +106,7 @@ function Params.init(g_ref)
     params:add_binary("filt_type", "Type", "toggle", 0)
     params:set_action("filt_type", function(x) Bridge.set_param("filt_type", x) end)
 
+    -- MODULATION: 10 params
     params:add_group("MODULATION", 10)
     params:add_control("lfo1_rate", "LFO1 Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
     params:set_action("lfo1_rate", function(x) Bridge.set_param("lfo1_rate", x) end)
@@ -127,6 +131,7 @@ function Params.init(g_ref)
     params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0.1, 1))
     params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
 
+    -- SPACE: 12 params
     params:add_group("SPACE", 12)
     params:add_control("system_dirt", "Dirt", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("system_dirt", function(x) Bridge.set_param("system_dirt", x) end)
