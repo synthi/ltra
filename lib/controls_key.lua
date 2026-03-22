@@ -1,6 +1,5 @@
--- code/ltra/lib/controls_key.lua | v1.4.7
--- LTRA: Key Logic
--- FIX: K1 Isolation to prevent Screen Hijack
+-- lib/controls_key.lua | v1.5.0
+-- FIX: Removed Loopers
 
 local Keys = {}
 local Globals
@@ -10,9 +9,7 @@ local Bridge = require 'ltra/lib/engine_bridge'
 function Keys.init(g_ref) Globals = g_ref end
 
 function Keys.event(n, z)
-    -- FIX CRÍTICO: Ignorar K1 para que el sistema gestione el menú
     if n == 1 then return end
-    
     if z == 0 then return end
     
     Globals.dirty = true
@@ -24,25 +21,12 @@ function Keys.event(n, z)
             if n==2 then 
                 local curr = params:get("osc"..t.."_arp")
                 params:set("osc"..t.."_arp", 1-curr)
-            elseif n==3 then 
-                local curr = params:get("osc"..t.."_route")
-                params:set("osc"..t.."_route", 1-curr)
             end
             
         elseif Globals.menu_mode == Consts.MENU.FILTER then
             if n==2 then 
                 local curr = params:get("filt_type")
                 params:set("filt_type", 1-curr)
-            end
-            
-        elseif Globals.menu_mode == Consts.MENU.LOOPER then
-            if n==2 then 
-                local curr = params:get("loop"..t.."_pre")
-                params:set("loop"..t.."_pre", 1-curr)
-            elseif n==3 then 
-                local curr = params:get("loop"..t.."_speed")
-                if math.abs(curr) == 0.5 then params:set("loop"..t.."_speed", 1.0)
-                else params:set("loop"..t.."_speed", 0.5) end
             end
             
         elseif Globals.menu_mode == Consts.MENU.MATRIX then
