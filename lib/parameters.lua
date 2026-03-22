@@ -1,6 +1,5 @@
--- code/ltra/lib/parameters.lua | v1.4.10
--- LTRA: Parameters
--- FIX: Norns API Syntax (_norns.audio removed) to prevent Maiden Crash
+-- lib/parameters.lua | v1.5.0
+-- FIX: 24 Semitones Pitch, Octave Param, Removed Loopers
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,11 +8,10 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.4.10")
+    params:add_separator("LTRA v1.5.0")
     
-    params:add_group("GLOBAL", 5)
+    params:add_group("GLOBAL", 4)
     params:add_control("output_level", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
-    -- FIX CRÍTICO: Uso de la API correcta de Norns
     params:set_action("output_level", function(x) audio.level_dac(x) end)
     
     params:add_number("scale_idx", "Scale", 1, 30, 1)
@@ -35,26 +33,29 @@ function Params.init(g_ref)
     end)
     
     params:add_control("monitor_level", "Monitor In", controlspec.new(0,1,"lin",0.01,0))
-    -- FIX CRÍTICO: Uso de la API correcta de Norns
     params:set_action("monitor_level", function(x) audio.level_adc(x) end)
-    
-    params:add_control("loop_return", "Global Loop Return", controlspec.new(0,1,"lin",0.01,1))
-    params:set_action("loop_return", function(x) Bridge.set_param("loop_return_level", x) end)
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 7)
+        params:add_group("VOICE "..i, 6)
+        
+        params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
+        params:set_action("osc"..i.."_octave", function(x)
+            local p = params:get("osc"..i.."_pitch")
+            local action = params:lookup_param("osc"..i.."_pitch").action
+            if action then action(p) end
+        end)
+        
         params:add_control("osc"..i.."_pitch", "Pitch", controlspec.new(0,1,"lin",0,0.5))
         params:set_action("osc"..i.."_pitch", function(x)
-            local deg = math.floor(x * 60)
-            local hz = Scales.get_freq(deg, 0)
+            local deg = math.floor(x * 24) -- FIX: 2 Octaves
+            local hz = Scales.get_freq(deg, params:get("osc"..i.."_octave") or 0)
             local tune = params:get("osc"..i.."_tune") or 0
             hz = hz * (2 ^ (tune / 12))
             Bridge.set_freq(i, hz)
         end)
+        
         params:add_control("osc"..i.."_vol", "Vol", controlspec.new(0,1,"lin",0.01,0.8))
         params:set_action("osc"..i.."_vol", function(x) if Globals then Globals.voices[i].vol=x end; Bridge.set_param("vol"..i, x) end)
-        params:add_control("osc"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0.01,0))
-        params:set_action("osc"..i.."_pan", function(x) if Globals then Globals.voices[i].pan=x end; Bridge.set_param("pan"..i, x) end)
         
         params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,4,"lin",0.01,2))
         params:set_action("osc"..i.."_shape", function(x) if Globals then Globals.voices[i].shape=x end; Bridge.set_param("shape"..i, x) end)
@@ -64,10 +65,17 @@ function Params.init(g_ref)
             if Globals then Globals.voices[i].tune=x end
             if Globals and Globals.loaded then Scales.update_all_voices() end
         end)
+        
         params:add_binary("osc"..i.."_arp", "Arp Mode", "toggle", 0)
-        params:set_action("osc"..i.."_arp", function(x) if Globals then Globals.voices[i].arp_enabled=(x==1) end end)
-        params:add_binary("osc"..i.."_route", "To Looper", "toggle", 1)
-        params:set_action("osc"..i.."_route", function(x) if Globals then Globals.voices[i].to_looper=(x==1) end end)
+        params:set_action("osc"..i.."_arp", function(x) 
+            if Globals then Globals.voices[i].arp_enabled=(x==1) end 
+            -- FIX: Restore fader pitch when Arp is turned off
+            if x == 0 then
+                local p = params:get("osc"..i.."_pitch")
+                local action = params:lookup_param("osc"..i.."_pitch").action
+                if action then action(p) end
+            end
+        end)
     end
     
     params:add_group("ARP", 8)
@@ -144,23 +152,6 @@ function Params.init(g_ref)
     params:set_action("reverb_decay", function(x) Bridge.set_param("reverb_time", x) end)
     params:add_control("reverb_damp", "Reverb Damp", controlspec.new(0,1,"lin",0.01,0.5))
     params:set_action("reverb_damp", function(x) Bridge.set_param("reverb_damp", x) end)
-
-    params:add_group("LOOPERS", 18)
-    for i=1,3 do
-        params:add_separator("Looper "..i)
-        params:add_control("loop"..i.."_vol", "Vol", controlspec.new(0,1,"lin",0.01,0.8))
-        params:set_action("loop"..i.."_vol", function(x) if Globals then Globals.tracks[i].vol = x end end)
-        params:add_control("loop"..i.."_speed", "Speed", controlspec.new(-2,2,"lin",0.01,1))
-        params:set_action("loop"..i.."_speed", function(x) if Globals then Globals.tracks[i].speed = x end end)
-        params:add_control("loop"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0.01,0))
-        params:set_action("loop"..i.."_pan", function(x) if Globals then Globals.tracks[i].pan = x end end)
-        params:add_control("loop"..i.."_feedback", "Feedback", controlspec.new(0,1,"lin",0.01,1))
-        params:set_action("loop"..i.."_feedback", function(x) if Globals then Globals.tracks[i].feedback = x end end)
-        params:add_control("loop"..i.."_send", "Send Space", controlspec.new(0,1,"lin",0.01,0))
-        params:set_action("loop"..i.."_send", function(x) if Globals then Globals.tracks[i].send_space = x end end)
-        params:add_binary("loop"..i.."_pre", "Pre/Post", "toggle", 0)
-        params:set_action("loop"..i.."_pre", function(x) if Globals then Globals.tracks[i].pre_fx = (x==1) end end)
-    end
 
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
