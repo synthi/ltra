@@ -1,6 +1,5 @@
--- code/ltra/lib/midi_16n.lua | v1.4.8
--- LTRA: 16n Control
--- FIX: Removed destructive mathematical hysteresis. Restored 128-step resolution.
+-- lib/midi_16n.lua | v1.5.0
+-- FIX: Real Soft Takeover & Memory Leak
 
 local Midi16n = {}
 local Globals
@@ -24,38 +23,44 @@ local function trigger_popup(text, val)
 end
 
 local function process_fader(id, val)
-    -- FIX 3.1: Filtro seguro. Si el valor es exactamente el mismo, ignorar.
-    -- Eliminar matemática absoluta que destruía los fades lentos.
+    local norm = val / 127
+    
+    -- FIX: Real Soft Takeover Logic
+    if Globals.fader_ghost[id] then
+        local virt = Globals.fader_virtual[id] or 0
+        if math.abs(norm - virt) < 0.05 then
+            Globals.fader_ghost[id] = false
+        else
+            Globals.fader_values[id] = val 
+            Globals.dirty = true
+            return 
+        end
+    end
+    
     if Globals.fader_values[id] == val then return end
     
     Globals.fader_values[id] = val
-    local norm = val / 127
+    Globals.fader_virtual[id] = norm
     
     local func = FADER_FUNC[id]
     if not func then return end
     
     local name = func:upper()
-    
-    Globals.fader_virtual[id] = norm
     trigger_popup(name, norm)
     
     if func == "pitch1" then params:set("osc1_pitch", norm)
     elseif func == "pitch2" then params:set("osc2_pitch", norm)
     elseif func == "pitch3" then params:set("osc3_pitch", norm)
     elseif func == "pitch4" then params:set("osc4_pitch", norm)
-    
     elseif func == "amp1" then params:set("osc1_vol", norm)
     elseif func == "amp2" then params:set("osc2_vol", norm)
     elseif func == "amp3" then params:set("osc3_vol", norm)
     elseif func == "amp4" then params:set("osc4_vol", norm)
-    
     elseif func == "filt1" then params:set("filt1_tone", norm*2-1)
     elseif func == "filt2" then params:set("filt2_tone", norm*2-1)
-    
     elseif func == "chaos" then params:set("chaos_rate", norm)
     elseif func == "lfo1" then params:set("lfo1_rate", norm)
     elseif func == "lfo2" then params:set("lfo2_rate", norm)
-    
     elseif func == "delay_t" then params:set("delay_time", norm)
     elseif func == "delay_fb" then params:set("delay_fb", norm)
     elseif func == "delay_send" then params:set("delay_send", norm)
@@ -68,7 +73,7 @@ function Midi16n.init(g_ref, ui_ref)
     
     for i=1, 16 do Globals.fader_ghost[i] = true end
 
-    clock.run(function()
+    Midi16n.clock_id = clock.run(function()
         local found = false
         for _, dev in pairs(midi.devices) do
             if dev.name and (string.find(string.lower(dev.name), "16n") or string.find(string.lower(dev.name), "fade")) then
@@ -103,6 +108,10 @@ function Midi16n.init(g_ref, ui_ref)
             end
         end
     end)
+end
+
+function Midi16n.stop()
+    if Midi16n.clock_id then clock.cancel(Midi16n.clock_id) end
 end
 
 return Midi16n
