@@ -1,6 +1,5 @@
--- code/ltra/lib/controls_enc.lua | v1.4.7
--- LTRA: Encoder Logic
--- FIX: Matrix E2 Quantize Toggle & Correct Mappings
+-- lib/controls_enc.lua | v1.5.0
+-- FIX: Added Octave Control, Removed Loopers
 
 local Enc = {}
 local Globals
@@ -18,7 +17,7 @@ function Enc.delta(n, d)
         
         if m == Consts.MENU.OSC then
             if n==1 then params:delta("osc"..t.."_shape", d)
-            elseif n==2 then params:delta("osc"..t.."_pan", d)
+            elseif n==2 then params:delta("osc"..t.."_octave", d)
             elseif n==3 then params:delta("osc"..t.."_tune", d) end
             
         elseif m == Consts.MENU.LFO then
@@ -54,17 +53,11 @@ function Enc.delta(n, d)
             elseif n==2 then params:delta("reverb_decay", d)
             elseif n==3 then params:delta("reverb_damp", d) end
             
-        elseif m == Consts.MENU.LOOPER then
-            if n==1 then params:delta("loop"..t.."_send", d)
-            elseif n==2 then params:delta("loop"..t.."_feedback", d)
-            elseif n==3 then params:delta("loop"..t.."_vol", d) end
-            
         elseif m == Consts.MENU.MATRIX then
             local src_idx = Consts.SOURCES[Globals.menu_target.src_name]
             local dst_idx = Consts.DESTINATIONS[Globals.menu_target.dest_name]
             
             if src_idx and dst_idx then
-                -- FIX: E2 Toggle Quantize (Solo si es destino Pitch 1-4)
                 if n==2 and dst_idx <= 4 then
                     if d > 0 or d < 0 then 
                         local current_q = Globals.matrix_quant[src_idx][dst_idx]
@@ -76,7 +69,6 @@ function Enc.delta(n, d)
                     end
                 end
                 
-                -- E3: Amount
                 if n==3 then
                     local current = Globals.matrix[src_idx][dst_idx]
                     local new_val = util.clamp(current + d*0.01, 0, 1)
