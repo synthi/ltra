@@ -1,10 +1,8 @@
--- code/ltra/lib/engine_bridge.lua | v1.4.9
--- LTRA: OSC Bridge
--- FIX: Safe OSC Command Name (set_engine_param)
+-- lib/engine_bridge.lua | v1.5.0
+-- FIX: Clear Delay Command, Removed Loopers
 
 local Bridge = {}
 local Globals
-local Loopers = require 'ltra/lib/loopers'
 local Consts = require 'ltra/lib/consts'
 
 function Bridge.init(g_ref) Globals = g_ref end
@@ -20,15 +18,11 @@ function Bridge.handle_osc(path, args)
             Globals.visuals.lfo_vals[2] = args[4]
             Globals.visuals.chaos_val = args[5] or 0
             
-            if Globals.menu_mode == Consts.MENU.NONE then
-                if Globals.page == 1 or Globals.page == 3 then
-                    Globals.dirty = true
-                end
-            end
+            -- FIX: Always update dirty to prevent UI deadlocks
+            Globals.dirty = true
         end
     elseif path == "/ltra/config" then
         Globals.engine_bus_id = args[1]
-        Loopers.configure_audio_routing(Globals)
         Globals.dirty = true
     end
 end
@@ -46,7 +40,6 @@ function Bridge.sync_matrix()
                 if dest == "delay_f" then dest = "delay_fb" end
                 if dest == "filt" then dest = "filt" end 
                 
-                -- FIX 3.1: Usar set_engine_param
                 engine.set_engine_param("mod_" .. s_name:lower() .. "_" .. dest .. idx, val)
                 
                 if dest == "pitch" then
@@ -58,8 +51,8 @@ function Bridge.sync_matrix()
 end
 
 function Bridge.query_config() engine.query_config() end
+function Bridge.clear_delay() engine.clear_delay() end
 
--- FIX 3.1: Enrutamiento a set_engine_param
 function Bridge.set_param(name, value) engine.set_engine_param(name, value) end
 function Bridge.set_freq(idx, hz) engine.set_engine_param("freq"..idx, hz) end
 function Bridge.set_gate(idx, val) engine.set_engine_param("gate"..idx, val) end
