@@ -1,5 +1,5 @@
--- lib/parameters.lua | v1.5.2
--- FIX: Vadim/DFM1 Params, Default Silent State
+-- lib/parameters.lua | v1.5.3
+-- FIX: Matrix Controlspec (-1 to 1), Delay Naming
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -8,13 +8,13 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.5.2")
+    params:add_separator("LTRA v1.5.3")
     
     params:add_group("GLOBAL", 4)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("master_vol", function(x) audio.level_dac(x) end)
     
-    params:add_number("scale_idx", "Scale", 1, 30, 1)
+    params:add_number("scale_idx", "Scale", 1, 32, 1)
     params:set_action("scale_idx", function(x) 
         if Globals then 
             Globals.scale.current_idx = x; 
@@ -54,7 +54,7 @@ function Params.init(g_ref)
             Bridge.set_freq(i, hz)
         end)
         
-        params:add_control("osc"..i.."_vol", "Vol", controlspec.new(0,1,"lin",0.01,0.0)) -- FIX: Default 0
+        params:add_control("osc"..i.."_vol", "Vol", controlspec.new(0,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_vol", function(x) if Globals then Globals.voices[i].vol=x end; Bridge.set_param("vol"..i, x) end)
         
         params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,4,"lin",0.01,2))
@@ -80,7 +80,7 @@ function Params.init(g_ref)
     params:add_group("ARP", 7)
     params:add_option("arp_div", "Clock Div", {"1/4", "1/8", "1/16", "1/32"}, 2)
     params:add_control("arp_chaos", "Chaos Prob", controlspec.new(0,1,"lin",0.01,0.2))
-    params:add_binary("latch_mode", "Latch", "toggle", 0) -- FIX: Default OFF
+    params:add_binary("latch_mode", "Latch", "toggle", 0)
     params:set_action("latch_mode", function(x) if Globals then Globals.latch_mode=(x==1); Globals.dirty=true end end)
     for i=1,4 do
         params:add_control("arp_cv"..i, "Arp CV "..i, controlspec.new(0,1,"lin",0,0))
@@ -88,19 +88,18 @@ function Params.init(g_ref)
         params:set_action("arp_cv"..i, function(x) Bridge.set_param("arp_cv"..i, x) end)
     end
 
-    -- FIX: VadimFilter and DFM1 Params
     params:add_group("FILTERS", 8)
-    params:add_control("filt1_cutoff", "Filt 1 Cutoff", controlspec.new(20,18000,"exp",1,32)) -- Default HP 32Hz
+    params:add_control("filt1_cutoff", "Filt 1 Cutoff", controlspec.new(20,18000,"exp",1,32))
     params:set_action("filt1_cutoff", function(x) Bridge.set_param("filt1_cutoff", x) end)
-    params:add_control("filt2_cutoff", "Filt 2 Cutoff", controlspec.new(20,18000,"exp",1,14200)) -- Default LP 14.2kHz
+    params:add_control("filt2_cutoff", "Filt 2 Cutoff", controlspec.new(20,18000,"exp",1,14200))
     params:set_action("filt2_cutoff", function(x) Bridge.set_param("filt2_cutoff", x) end)
     params:add_control("filt1_res", "Filt 1 Res", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("filt1_res", function(x) Bridge.set_param("filt1_res", x) end)
     params:add_control("filt2_res", "Filt 2 Res", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("filt2_res", function(x) Bridge.set_param("filt2_res", x) end)
-    params:add_binary("filt1_type", "Filt 1 Type (LP/HP)", "toggle", 1) -- Default HP
+    params:add_binary("filt1_type", "Filt 1 Type (LP/HP)", "toggle", 1)
     params:set_action("filt1_type", function(x) Bridge.set_param("filt1_type", x) end)
-    params:add_binary("filt2_type", "Filt 2 Type (LP/HP)", "toggle", 0) -- Default LP
+    params:add_binary("filt2_type", "Filt 2 Type (LP/HP)", "toggle", 0)
     params:set_action("filt2_type", function(x) Bridge.set_param("filt2_type", x) end)
     params:add_control("filt1_drive", "Filt 1 Drive", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("filt1_drive", function(x) Bridge.set_param("filt1_drive", x) end)
@@ -160,14 +159,14 @@ function Params.init(g_ref)
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
             local id = "mat_"..s_name.."_"..d_name
-            params:add_control(id, id, controlspec.new(0,1,"lin",0,0))
+            -- FIX: Controlspec -1 to 1 for proper inversion
+            params:add_control(id, id, controlspec.new(-1,1,"lin",0,0))
             params:hide(id)
             params:set_action(id, function(x) 
                 if Globals then Globals.matrix[s_idx][d_idx] = x end
                 local idx = string.match(d_name, "(%d+)$") or ""
                 local bridge_dest = d_name:lower():gsub("%d", "")
-                if bridge_dest == "delay_t" then bridge_dest = "delay_time" end
-                if bridge_dest == "delay_f" then bridge_dest = "delay_fb" end
+                -- FIX: Removed delay_t translation to match SC NamedControl
                 if bridge_dest == "filt" then bridge_dest = "filt" end 
                 Bridge.set_matrix(s_name:lower(), bridge_dest, idx, x)
             end)
