@@ -1,5 +1,5 @@
--- lib/midi_16n.lua | v1.5.0
--- FIX: Real Soft Takeover & Memory Leak
+-- lib/midi_16n.lua | v1.5.1
+-- FIX: Advanced Soft Takeover UI (Arrows and Target Values)
 
 local Midi16n = {}
 local Globals
@@ -8,15 +8,15 @@ local UI_Ref = nil
 local FADER_FUNC = {
     [1]="pitch1", [2]="pitch2", [3]="pitch3", [4]="pitch4",
     [5]="amp1",   [6]="amp2",   [7]="amp3",   [8]="amp4",
-    [9]="filt1",  [10]="filt2", [11]="chaos", [12]="lfo1",
+    [9]="filt1",  [10]="filt2", [11]="chaos",[12]="lfo1",
     [13]="lfo2",  [14]="delay_t",[15]="delay_fb",[16]="delay_send"
 }
 
-local function trigger_popup(text, val)
+local function trigger_popup(text, val_str)
     if Globals.ui_popup then
         Globals.ui_popup.active = true
         Globals.ui_popup.text = text
-        Globals.ui_popup.val = string.format("%.2f", val)
+        Globals.ui_popup.val = val_str
         Globals.ui_popup.deadline = util.time() + 2
         Globals.dirty = true
     end
@@ -24,15 +24,20 @@ end
 
 local function process_fader(id, val)
     local norm = val / 127
+    local func = FADER_FUNC[id]
+    if not func then return end
+    local name = func:upper()
     
-    -- FIX: Real Soft Takeover Logic
+    -- FIX: Real Soft Takeover Logic with UI Feedback
     if Globals.fader_ghost[id] then
         local virt = Globals.fader_virtual[id] or 0
         if math.abs(norm - virt) < 0.05 then
             Globals.fader_ghost[id] = false
         else
+            local arrow = (norm < virt) and "->" or "<-"
+            local display_str = string.format("%.2f %s %.2f", norm, arrow, virt)
+            trigger_popup(name, display_str)
             Globals.fader_values[id] = val 
-            Globals.dirty = true
             return 
         end
     end
@@ -42,11 +47,7 @@ local function process_fader(id, val)
     Globals.fader_values[id] = val
     Globals.fader_virtual[id] = norm
     
-    local func = FADER_FUNC[id]
-    if not func then return end
-    
-    local name = func:upper()
-    trigger_popup(name, norm)
+    trigger_popup(name, string.format("%.2f", norm))
     
     if func == "pitch1" then params:set("osc1_pitch", norm)
     elseif func == "pitch2" then params:set("osc2_pitch", norm)
