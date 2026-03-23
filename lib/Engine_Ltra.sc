@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.4
-// FIX: Analog Drift, -12dB Headroom, Delay Mod /10
+// lib/Engine_Ltra.sc | v1.5.5
+// FIX: Delay Mod Strings, Analog Drift/Spread, Chaos Amp, VCO Volume Curve
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -14,12 +14,14 @@ Engine_Ltra : CroneEngine {
                 shape1=2, shape2=2, shape3=2, shape4=2,
                 vol1=0.0, vol2=0.0, vol3=0.0, vol4=0.0,
                 pan1=0, pan2=0, pan3=0, pan4=0,
+                drift1=0, drift2=0, drift3=0, drift4=0, // FIX: Drift Params
+                spread1=0, spread2=0, spread3=0, spread4=0, // FIX: Spread Params
                 gate1=0, gate2=0, gate3=0, gate4=0,
                 t_arp1=0, t_arp2=0, t_arp3=0, t_arp4=0,
                 arp_cv1=0, arp_cv2=0, arp_cv3=0, arp_cv4=0,
                 lfo1_rate=0.5, lfo1_shape=0, lfo1_depth=1,
                 lfo2_rate=0.2, lfo2_shape=2, lfo2_depth=1,
-                chaos_rate=0.5, chaos_slew=0.1,
+                chaos_rate=0.5, chaos_slew=0.1, chaos_amp=1.0, // FIX: Chaos Amp
                 outline_source=0, outline_gain=1.0,
                 filt1_cutoff=32, filt2_cutoff=14200, 
                 filt1_res=0, filt2_res=0,
@@ -50,10 +52,11 @@ Engine_Ltra : CroneEngine {
             var vca1, vca2, vca3, vca4;
             
             // FIX: Analog Drift Generators (Temp Drift + Fast Spread)
-            var drift1 = (LFNoise2.kr(0.01) * 0.005) + (LFNoise2.kr(3.1) * (3/1200));
-            var drift2 = (LFNoise2.kr(0.012) * 0.005) + (LFNoise2.kr(3.4) * (3/1200));
-            var drift3 = (LFNoise2.kr(0.008) * 0.005) + (LFNoise2.kr(2.9) * (3/1200));
-            var drift4 = (LFNoise2.kr(0.011) * 0.005) + (LFNoise2.kr(3.2) * (3/1200));
+            // Drift: Slow (0.01Hz), max 6 cents. Spread: Fast (3Hz), max 3 cents.
+            var d_sig1 = (LFNoise2.kr(0.01) * drift1 * (6/1200)) + (LFNoise2.kr(3.1) * spread1 * (3/1200));
+            var d_sig2 = (LFNoise2.kr(0.012) * drift2 * (6/1200)) + (LFNoise2.kr(3.4) * spread2 * (3/1200));
+            var d_sig3 = (LFNoise2.kr(0.008) * drift3 * (6/1200)) + (LFNoise2.kr(2.9) * spread3 * (3/1200));
+            var d_sig4 = (LFNoise2.kr(0.011) * drift4 * (6/1200)) + (LFNoise2.kr(3.2) * spread4 * (3/1200));
             
             var scale_map =[
                 NamedControl.kr(\scale_map_0, 0), NamedControl.kr(\scale_map_1, 1),
@@ -134,7 +137,8 @@ Engine_Ltra : CroneEngine {
             
             rungler_clk = Impulse.kr(chaos_rate * 4);
             rungler_val = Latch.kr(WhiteNoise.kr, rungler_clk); 
-            chaos_sig = Slew.kr(rungler_val, chaos_slew * 10, chaos_slew * 10);
+            // FIX: Chaos Amp applied
+            chaos_sig = Slew.kr(rungler_val, chaos_slew * 10, chaos_slew * 10) * chaos_amp;
 
             env_int = LagUD.kr((gate1+gate2+gate3+gate4).clip(0,1), 0.01, 0.5);
             env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); 
@@ -153,23 +157,23 @@ Engine_Ltra : CroneEngine {
             m_filt1 = calc_mod.("filt1", arp_cv1) * 5000; 
             m_filt2 = calc_mod.("filt2", arp_cv1) * 5000;
             
-            // FIX: Delay Time Mod / 10
-            m_delay_t = calc_mod.("delay_t", arp_cv1) * 0.1; 
-            m_delay_f = calc_mod.("delay_f", arp_cv1);
+            // FIX: Correct Delay Strings matching Lua
+            m_delay_t = calc_mod.("delay_time", arp_cv1) * 0.1; 
+            m_delay_f = calc_mod.("delay_fb", arp_cv1);
 
-            vca1 = (s_vol1 + m_amp1).clip(0, 1);
-            vca2 = (s_vol2 + m_amp2).clip(0, 1);
-            vca3 = (s_vol3 + m_amp3).clip(0, 1);
-            vca4 = (s_vol4 + m_amp4).clip(0, 1);
+            // FIX: Exponential Volume Curve (.squared)
+            vca1 = (s_vol1.squared + m_amp1).clip(0, 1);
+            vca2 = (s_vol2.squared + m_amp2).clip(0, 1);
+            vca3 = (s_vol3.squared + m_amp3).clip(0, 1);
+            vca4 = (s_vol4.squared + m_amp4).clip(0, 1);
 
-            // FIX: Apply Analog Drift to Pitch
-            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + drift1)), (shape1 + (m_shape1*4)).clip(0,4)) * vca1 * mk_vactrol.(gate1, t_arp1);
-            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + drift2)), (shape2 + (m_shape2*4)).clip(0,4)) * vca2 * mk_vactrol.(gate2, t_arp2);
-            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + drift3)), (shape3 + (m_shape3*4)).clip(0,4)) * vca3 * mk_vactrol.(gate3, t_arp3);
-            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + drift4)), (shape4 + (m_shape4*4)).clip(0,4)) * vca4 * mk_vactrol.(gate4, t_arp4);
+            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1)), (shape1 + (m_shape1*4)).clip(0,4)) * vca1 * mk_vactrol.(gate1, t_arp1);
+            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2)), (shape2 + (m_shape2*4)).clip(0,4)) * vca2 * mk_vactrol.(gate2, t_arp2);
+            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3)), (shape3 + (m_shape3*4)).clip(0,4)) * vca3 * mk_vactrol.(gate3, t_arp3);
+            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4)), (shape4 + (m_shape4*4)).clip(0,4)) * vca4 * mk_vactrol.(gate4, t_arp4);
 
-            // FIX: -12dB Headroom (* 0.25)
-            sig_mix = (Pan2.ar(o1, pan1.clip(-1,1)) + Pan2.ar(o2, pan2.clip(-1,1)) + Pan2.ar(o3, pan3.clip(-1,1)) + Pan2.ar(o4, pan4.clip(-1,1))) * 0.25;
+            // FIX: -18dB Headroom (* 0.125)
+            sig_mix = (Pan2.ar(o1, pan1.clip(-1,1)) + Pan2.ar(o2, pan2.clip(-1,1)) + Pan2.ar(o3, pan3.clip(-1,1)) + Pan2.ar(o4, pan4.clip(-1,1))) * 0.125;
 
             sig_filt1 = DFM1.ar(sig_mix, (s_filt1 + m_filt1).clip(20, 18000), filt1_res.clip(0, 1.2), 1.0 + (filt1_drive * 3), filt1_type, 0.0003);
             sig_filt2 = DFM1.ar(sig_filt1, (s_filt2 + m_filt2).clip(20, 18000), filt2_res.clip(0, 1.2), 1.0 + (filt2_drive * 3), filt2_type, 0.0003);
