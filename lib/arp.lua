@@ -1,4 +1,4 @@
--- lib/arp.lua | v1.5.8
+-- lib/arp.lua | v1.5.9
 -- FIX: True Cross-Voice Arpeggiator
 
 local Arp = {}
