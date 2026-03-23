@@ -5,6 +5,7 @@ local Arp = {}
 local Globals
 local Scales = require 'ltra/lib/scales'
 local Bridge = require 'ltra/lib/engine_bridge'
+local Consts = require 'ltra/lib/consts'
 
 function Arp.init(g_ref)
     Globals = g_ref
@@ -12,13 +13,12 @@ function Arp.init(g_ref)
     
     Arp.clock_id = clock.run(function()
         while true do
-            local div_idx = params:get("arp_div") or 2
-            local sync_val = 1/4
-            if div_idx == 2 then sync_val = 1/8
-            elseif div_idx == 3 then sync_val = 1/16
-            elseif div_idx == 4 then sync_val = 1/32 end
+            local div_idx = params:get("arp_div") or 10
+            local div_val = Consts.SYNC_DIVS[div_idx].v
+            local bpm = params:get("clock_tempo") or 120
+            local sync_val = (60 / bpm) * div_val
             
-            clock.sync(sync_val)
+            clock.sleep(sync_val)
             Arp.tick()
         end
     end)
@@ -36,7 +36,6 @@ function Arp.tick()
     
     if #active_voices == 0 then return end
     
-    -- FIX: Cycle through active voices
     Globals.arp.current_step = (Globals.arp.current_step % #active_voices) + 1
     local target_voice = active_voices[Globals.arp.current_step]
 
