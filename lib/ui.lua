@@ -1,5 +1,5 @@
--- lib/ui.lua | v1.5.11
--- FIX: ENV Menu, Matrix Menu K2
+-- lib/ui.lua | v1.5.12
+-- FIX: Version String Update
 
 local UI = {}
 local Globals
@@ -173,7 +173,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.11")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.12")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
