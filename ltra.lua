@@ -1,5 +1,5 @@
--- ltra.lua | v1.5.12
--- FIX: Version String Update
+-- lib/ltra.lua | v1.5.14
+-- FIX: Init sustained state for voices
 
 engine.name = 'Ltra'
 
@@ -24,7 +24,7 @@ local g_state
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v1.5.12 (Golden Master 6)...")
+    print("LTRA: Initializing v1.5.14 (Golden Master 7)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
@@ -34,7 +34,10 @@ function init()
     g_state.loaded = false 
     
     g_state.latch_mode = false
-    for i=1, 4 do g_state.voices[i].latched = false end
+    for i=1, 4 do 
+        g_state.voices[i].latched = false 
+        g_state.voices[i].sustained = false -- FIX: Init sustained state
+    end
     
     Bridge.init(g_state)
     Scales.init(g_state)
