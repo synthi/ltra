@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.10
-// FIX: Namespace Isolation (tapecho_*, blossomverb_*) to prevent Norns Mod collisions
+// lib/Engine_Ltra.sc | v1.5.11
+// FIX: Variable Envelopes (Replaced Vactrol), FxTape Filter
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -17,7 +17,11 @@ Engine_Ltra : CroneEngine {
                 drift1=0, drift2=0, drift3=0, drift4=0, 
                 spread1=0, spread2=0, spread3=0, spread4=0, 
                 gate1=0, gate2=0, gate3=0, gate4=0,
-                t_arp1=0, t_arp2=0, t_arp3=0, t_arp4=0,
+                
+                // FIX: Variable Envelopes
+                env_atk1=0.01, env_atk2=0.01, env_atk3=0.01, env_atk4=0.01,
+                env_rel1=0.5, env_rel2=0.5, env_rel3=0.5, env_rel4=0.5,
+                
                 arp_cv1=0, arp_cv2=0, arp_cv3=0, arp_cv4=0,
                 
                 mod1_lfo_rate=0.5, mod1_lfo_shape=0, mod1_depth=1,
@@ -35,11 +39,10 @@ Engine_Ltra : CroneEngine {
                 filt1_type=1, filt2_type=0, 
                 filt1_drive=0, filt2_drive=0, 
                 
-                // FIX: Isolated Namespace for Tape Echo
+                // FIX: Added tapecho_filter
                 tapecho_time=0.3, tapecho_feedback=0.4, tapecho_wow_flutter=0.1,
-                tapecho_erosion=0.0, tapecho_drive=1.0, tapecho_tone=1, delay_send=0.5,
+                tapecho_erosion=0.0, tapecho_drive=1.0, tapecho_filter=8000, delay_send=0.5,
                 
-                // FIX: Isolated Namespace for Blossom Reverb
                 blossomverb_decay=4.75, blossomverb_bloom=1.80, blossomverb_damp=3500,
                 blossomverb_predelay=0.110, blossomverb_mod_rate=0.300, blossomverb_mod_depth=0.002, reverb_mix=0.0,
                 
@@ -65,13 +68,14 @@ Engine_Ltra : CroneEngine {
             var s_vol1, s_vol2, s_vol3, s_vol4;
             var s_filt1, s_filt2;
             var vca1, vca2, vca3, vca4;
+            var env1, env2, env3, env4;
             
             var tape_in, local_in, shared_wow, shared_flutter, shared_mod;
             var shared_dust_trig, shared_dropout_env, dt_mono, tape_del_mono;
-            var sat_mono, ero_lpf_freq, ero_bass_cut, filt_mono, tone_freq, tone_filt_mono, final_mono;
+            var sat_mono, ero_lpf_freq, ero_bass_cut, filt_mono, tone_filt_mono, final_mono;
             var skew_lfo, skew_l, skew_r, cross_l, cross_r, eq_var_l, eq_var_r;
             var tape_sig_l, tape_sig_r;
-            var time_kr, fb_kr, wf_kr, ero_kr, drive_kr, tone_kr;
+            var time_kr, fb_kr, wf_kr, ero_kr, drive_kr, filter_kr;
 
             var rev_in, lfo_l, lfo_r, combs_l, combs_r, cross_l_rev, cross_r_rev;
             var ap_l, ap_r, rev_filt_l, rev_filt_r, rev_out_l, rev_out_r;
@@ -103,12 +107,6 @@ Engine_Ltra : CroneEngine {
                 var pul = Pulse.ar(f.clip(20, 20000), 0.5);
                 var sin = SinOsc.ar(f.clip(20, 20000));
                 SelectX.ar(s.clip(0,4),[noise, blurred_saw, tri, pul, sin]) 
-            };
-            
-            var mk_vactrol = { |g, t| 
-                var arp_env = Decay2.kr(Trig.kr(t, 0.01), 0.005, 0.2);
-                var combined = (g + arp_env).clip(0, 1);
-                LagUD.kr(combined, 0.01, 0.2) 
             };
 
             var calc_mod = { |dest_name, arp_val|
@@ -192,7 +190,6 @@ Engine_Ltra : CroneEngine {
             m_filt1 = calc_mod.("filt1", arp_cv1) * 5000; 
             m_filt2 = calc_mod.("filt2", arp_cv1) * 5000;
             
-            // FIX: Matrix Modulation targets the new isolated namespace strings
             m_delay_t = calc_mod.("tapecho_time", arp_cv1) * 0.1; 
             m_delay_f = calc_mod.("tapecho_feedback", arp_cv1);
 
@@ -201,10 +198,16 @@ Engine_Ltra : CroneEngine {
             vca3 = (s_vol3.squared + m_amp3).clip(0, 1);
             vca4 = (s_vol4.squared + m_amp4).clip(0, 1);
 
-            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1)), (shape1 + (m_shape1*4)).clip(0,4)) * vca1 * mk_vactrol.(gate1, t_arp1);
-            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2)), (shape2 + (m_shape2*4)).clip(0,4)) * vca2 * mk_vactrol.(gate2, t_arp2);
-            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3)), (shape3 + (m_shape3*4)).clip(0,4)) * vca3 * mk_vactrol.(gate3, t_arp3);
-            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4)), (shape4 + (m_shape4*4)).clip(0,4)) * vca4 * mk_vactrol.(gate4, t_arp4);
+            // FIX: Variable Envelopes (ASR)
+            env1 = EnvGen.kr(Env.asr(env_atk1, 1.0, env_rel1), gate1);
+            env2 = EnvGen.kr(Env.asr(env_atk2, 1.0, env_rel2), gate2);
+            env3 = EnvGen.kr(Env.asr(env_atk3, 1.0, env_rel3), gate3);
+            env4 = EnvGen.kr(Env.asr(env_atk4, 1.0, env_rel4), gate4);
+
+            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1)), (shape1 + (m_shape1*4)).clip(0,4)) * vca1 * env1;
+            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2)), (shape2 + (m_shape2*4)).clip(0,4)) * vca2 * env2;
+            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3)), (shape3 + (m_shape3*4)).clip(0,4)) * vca3 * env3;
+            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4)), (shape4 + (m_shape4*4)).clip(0,4)) * vca4 * env4;
 
             sig_mix = (Pan2.ar(o1, pan1.clip(-1,1)) + Pan2.ar(o2, pan2.clip(-1,1)) + Pan2.ar(o3, pan3.clip(-1,1)) + Pan2.ar(o4, pan4.clip(-1,1))) * 0.125;
 
@@ -218,13 +221,12 @@ Engine_Ltra : CroneEngine {
             dust_sig = Decay2.ar(Dust.ar([dust_dens, dust_dens]), 0.001, 0.01) * PinkNoise.ar * system_dirt;
             dirt_sig = hiss + hum + dust_sig;
 
-            // FIX: Read from isolated namespace
             time_kr = Lag.kr(tapecho_time, 0.1);
             fb_kr = Lag.kr(tapecho_feedback, 0.1);
             wf_kr = Lag.kr(tapecho_wow_flutter, 0.1);
             ero_kr = Lag.kr(tapecho_erosion, 0.1);
             drive_kr = Lag.kr(tapecho_drive, 0.1);
-            tone_kr = tapecho_tone;
+            filter_kr = Lag.kr(tapecho_filter, 0.1); // FIX: Continuous Filter
 
             local_in = LocalIn.ar(1);
             local_in = local_in * (1.0 - Trig.kr(clear_trig, 0.05));
@@ -249,8 +251,8 @@ Engine_Ltra : CroneEngine {
             filt_mono = LPF.ar(sat_mono, ero_lpf_freq);
             filt_mono = BLowShelf.ar(filt_mono, 120, 1.0, ero_bass_cut);
 
-            tone_freq = Select.kr((tone_kr - 1).round,[15000, 8000, 4000, 1600]);
-            tone_filt_mono = LPF.ar(filt_mono, tone_freq);
+            // FIX: Continuous Filter applied to repeats
+            tone_filt_mono = LPF.ar(filt_mono, filter_kr.clip(20, 18000));
 
             final_mono = tone_filt_mono * (1.0 - (shared_dropout_env * ero_kr).clip(0.0, 0.9));
 
@@ -269,7 +271,6 @@ Engine_Ltra : CroneEngine {
             tape_sig_l = LeakDC.ar(eq_var_l);
             tape_sig_r = LeakDC.ar(eq_var_r);
 
-            // FIX: Read from isolated namespace
             decay_kr = Lag.kr(blossomverb_decay, 0.1);
             bloom_kr = Lag.kr(blossomverb_bloom, 0.1);
             damp_kr = Lag.kr(blossomverb_damp, 0.1);
