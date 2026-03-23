@@ -1,5 +1,5 @@
--- lib/midi_16n.lua | v1.5.10
--- FIX: Write to isolated namespace (tapecho_*)
+-- lib/midi_16n.lua | v1.5.14
+-- FIX: Fader Mappings (9-11 MODs, 12-13 Filters)
 
 local Midi16n = {}
 local Globals
@@ -7,9 +7,9 @@ local Consts = require 'ltra/lib/consts'
 local UI_Ref = nil
 
 local FADER_FUNC = {
-    [1]="pitch1",[2]="pitch2", [3]="pitch3",[4]="pitch4",
-    [5]="amp1",[6]="amp2",   [7]="amp3",   [8]="amp4",
-    [9]="filt1",[10]="filt2", [11]="mod1",[12]="mod2",[13]="mod3",  [14]="tape_time",[15]="tape_fb",[16]="delay_send"
+    [1]="pitch1",[2]="pitch2", [3]="pitch3",[4]="pitch4",[5]="amp1",  [6]="amp2",   [7]="amp3",  [8]="amp4",
+    [9]="mod1",  [10]="mod2",  [11]="mod3", [12]="filt1",
+    [13]="filt2",[14]="tape_time",[15]="tape_fb",[16]="delay_send"
 }
 
 local function trigger_popup(text, val_str)
@@ -89,11 +89,9 @@ local function process_fader(id, val)
         end
     elseif func == "tape_time" then 
         local t = util.linexp(0, 1, 0.01, 2.0, norm)
-        -- FIX: Write to isolated namespace
         params:set("tapecho_time", t); trigger_popup("TAPE TIME", string.format("%.2f s", t))
     elseif func == "tape_fb" then 
         local fb = util.linlin(0, 1, 0.0, 1.2, norm)
-        -- FIX: Write to isolated namespace
         params:set("tapecho_feedback", fb); trigger_popup("TAPE FB", string.format("%.2f", fb))
     elseif func == "delay_send" then 
         params:set("delay_send", norm); trigger_popup(name, string.format("%.2f", norm))
