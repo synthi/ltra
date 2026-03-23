@@ -1,5 +1,5 @@
--- lib/consts.lua | v1.5.6
--- FIX: Added ARP Menu and SYNC_DIVS
+-- lib/consts.lua | v1.5.7
+-- FIX: MOD1-3 Architecture, Sync Divisions (Dotted/Triplets)
 
 local Consts = {}
 
@@ -12,7 +12,8 @@ Consts.BRIGHT = {
 
 Consts.MATRIX_CYCLES = {1.0, 0.66, 0.33, 0.0}
 
-Consts.SOURCES = { LFO1=1, LFO2=2, CHAOS=3, OUTLINE=4, ARP=5 }
+-- FIX: Unified MOD Architecture
+Consts.SOURCES = { MOD1=1, MOD2=2, MOD3=3, OUTLINE=4, ARP=5 }
 Consts.DESTINATIONS = {
     PITCH1=1, PITCH2=2, PITCH3=3, PITCH4=4,
     AMP1=5,   AMP2=6,   AMP3=7,   AMP4=8,
@@ -23,23 +24,21 @@ Consts.DESTINATIONS = {
 Consts.COL_TO_DEST_NAMES = {
     [1]="PITCH1", [2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
     [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",
-    [9]="MORPH1", [10]="MORPH2", [11]="MORPH3", [12]="MORPH4",
-    [13]="FILT1", [14]="FILT2",  [15]="DELAY_T", [16]="DELAY_F"
+    [9]="MORPH1", [10]="MORPH2", [11]="MORPH3", [12]="MORPH4",[13]="FILT1", [14]="FILT2",  [15]="DELAY_T",[16]="DELAY_F"
 }
 
 Consts.MENU = {
-    NONE=0, OSC=1, LFO=2, CHAOS=3, OUTLINE=4, 
+    NONE=0, OSC=1, MOD=2, OUTLINE=4, 
     FILTER=5, DELAY=6, REVERB=7, LOOPER=8, MATRIX=9, ARP=10
 }
 
+-- FIX: 15 Sync Divisions including Dotted (D) and Triplets (T)
 Consts.SYNC_DIVS = {
-    {name="4 bars", v=16}, {name="2 bars", v=8}, {name="1 bar", v=4},
-    {name="1/2", v=2}, {name="1/4", v=1}, {name="1/8", v=0.5},
-    {name="1/16", v=0.25}, {name="1/32", v=0.125}
-}
-
-Consts.SNAPSHOT_PATTERNS = {
-    "^osc", "^filt", "^lfo", "^chaos", "^delay", "^reverb", "^fx_", "^system", "^dust", "^mat_", "^outline", "^arp"
+    {name="1/1 D", v=6}, {name="1/1", v=4}, {name="1/1 T", v=2.6667},
+    {name="1/2 D", v=3}, {name="1/2", v=2}, {name="1/2 T", v=1.3333},
+    {name="1/4 D", v=1.5}, {name="1/4", v=1}, {name="1/4 T", v=0.6667},
+    {name="1/8 D", v=0.75}, {name="1/8", v=0.5}, {name="1/8 T", v=0.3333},
+    {name="1/16 D", v=0.375}, {name="1/16", v=0.25}, {name="1/16 T", v=0.1667}
 }
 
 Consts.NOTE_NAMES = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
