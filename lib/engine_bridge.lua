@@ -1,4 +1,4 @@
--- lib/engine_bridge.lua | v1.5.10
+-- lib/engine_bridge.lua | v1.5.11
 -- FIX: Matrix translation to isolated namespace (tapecho_*)
 
 local Bridge = {}
@@ -59,7 +59,6 @@ function Bridge.clear_delay() engine.clear_delay() end
 function Bridge.set_param(name, value) engine.set_engine_param(name, value) end
 function Bridge.set_freq(idx, hz) engine.set_engine_param("freq"..idx, hz) end
 function Bridge.set_gate(idx, val) engine.set_engine_param("gate"..idx, val) end
-function Bridge.trigger_arp(idx) engine.set_engine_param("t_arp"..idx, 1) end
 function Bridge.reset_lfo() engine.set_engine_param("t_reset", 1) end
 
 function Bridge.set_matrix(src, dest, idx, val)
