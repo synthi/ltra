@@ -1,11 +1,14 @@
--- lib/ui.lua | v1.5.2
--- FIX: Logarithmic VU Meters, Output Menu, Filter Menu
+-- lib/ui.lua | v1.5.5
+-- FIX: OSC Menu Pages (Drift/Spread), Chaos Amp
 
 local UI = {}
 local Globals
 local Consts = require 'ltra/lib/consts'
 
-function UI.init(g_ref) Globals = g_ref end
+function UI.init(g_ref) 
+    Globals = g_ref 
+    Globals.osc_menu_page = Globals.osc_menu_page or 1
+end
 
 local function draw_menu()
     screen.level(15); screen.rect(0,0,128,64); screen.fill(); screen.level(0)
@@ -13,12 +16,20 @@ local function draw_menu()
     local mode = Globals.menu_mode
     
     if mode == Consts.MENU.OSC then
-        screen.move(5,10); screen.text("OSC "..t.." EDIT")
-        screen.move(5,25); screen.text("E1 Octave: "..string.format("%+d", params:get("osc"..t.."_octave")))
-        screen.move(5,35); screen.text("E2 Shape: "..string.format("%.2f", params:get("osc"..t.."_shape")))
-        screen.move(5,45); screen.text("E3 Tune: "..string.format("%.2f", params:get("osc"..t.."_tune")))
+        -- FIX: 2 Pages for OSC Menu
+        if Globals.osc_menu_page == 1 then
+            screen.move(5,10); screen.text("OSC "..t.." EDIT (1/2)")
+            screen.move(5,25); screen.text("E1 Octave: "..string.format("%+d", params:get("osc"..t.."_octave")))
+            screen.move(5,35); screen.text("E2 Shape: "..string.format("%.2f", params:get("osc"..t.."_shape")))
+            screen.move(5,45); screen.text("E3 Tune: "..string.format("%.2f", params:get("osc"..t.."_tune")))
+        else
+            screen.move(5,10); screen.text("OSC "..t.." EDIT (2/2)")
+            screen.move(5,25); screen.text("E1 Drift: "..string.format("%.2f", params:get("osc"..t.."_drift")))
+            screen.move(5,35); screen.text("E2 Spread: "..string.format("%.2f", params:get("osc"..t.."_spread")))
+            screen.move(5,45); screen.text("E3 Vol: "..string.format("%.2f", params:get("osc"..t.."_vol")))
+        end
         local arp_state = params:get("osc"..t.."_arp") == 1 and "ON" or "OFF"
-        screen.move(5,58); screen.text("K2: ARP["..arp_state.."]")
+        screen.move(5,58); screen.text("K2: ARP["..arp_state.."]  K3: PAGE")
         
     elseif mode == Consts.MENU.LFO then
         screen.move(5,10); screen.text("LFO "..t.." EDIT")
@@ -30,6 +41,7 @@ local function draw_menu()
         screen.move(5,10); screen.text("CHAOS ENGINE")
         screen.move(5,25); screen.text("E1 Rate: "..string.format("%.2f", params:get("chaos_rate")))
         screen.move(5,35); screen.text("E2 Slew: "..string.format("%.2f", params:get("chaos_slew")))
+        screen.move(5,45); screen.text("E3 Amp: "..string.format("%.2f", params:get("chaos_amp"))) -- FIX: Chaos Amp
         
     elseif mode == Consts.MENU.OUTLINE then
         screen.move(5,10); screen.text("OUTLINE FOLLOWER")
@@ -44,7 +56,7 @@ local function draw_menu()
         screen.move(5,35); screen.text("E2 Cutoff: "..string.format("%.0f Hz", params:get("filt"..t.."_cutoff")))
         screen.move(5,45); screen.text("E3 Res: "..string.format("%.2f", params:get("filt"..t.."_res")))
         local type_str = params:get("filt"..t.."_type") == 0 and "LP" or "HP"
-        screen.move(5,58); screen.text("K2: TYPE ["..type_str.."]")
+        screen.move(5,58); screen.text("K2: TYPE["..type_str.."]")
 
     elseif mode == Consts.MENU.DELAY then
         screen.move(5,10); screen.text("TAPE DELAY")
@@ -58,7 +70,7 @@ local function draw_menu()
         screen.move(5,35); screen.text("E2 Decay: "..string.format("%.1fs", params:get("reverb_decay")))
         screen.move(5,45); screen.text("E3 Damp: "..string.format("%.2f", params:get("reverb_damp")))
         
-    elseif mode == Consts.MENU.LOOPER then -- Re-purposed as OUTPUT MENU
+    elseif mode == Consts.MENU.LOOPER then 
         screen.move(5,10); screen.text("OUTPUT & SYSTEM")
         screen.move(5,25); screen.text("E1 Monitor: "..string.format("%.2f", params:get("monitor_vol")))
         screen.move(5,35); screen.text("E2 Master: "..string.format("%.2f", params:get("master_vol")))
@@ -104,7 +116,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.2")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.5")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
@@ -128,7 +140,6 @@ function UI.redraw()
         end
         screen.move(0, 40); screen.text("Root: "..root_name)
         
-        -- FIX: Logarithmic VU Meters
         local db_l = 20 * math.log10(math.max(0.0001, Globals.visuals.amp_l))
         local db_r = 20 * math.log10(math.max(0.0001, Globals.visuals.amp_r))
         local vu_l = util.clamp(util.linlin(-48, 0, 0, 40, db_l), 0, 40)
