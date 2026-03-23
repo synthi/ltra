@@ -1,5 +1,5 @@
--- lib/arp.lua | v1.5.0
--- FIX: Memory Leak, API Crash, and Pitch Hijack
+-- lib/arp.lua | v1.5.6
+-- FIX: Length and Octaves Params
 
 local Arp = {}
 local Globals
@@ -29,13 +29,18 @@ end
 
 function Arp.tick()
     local chaos_prob = params:get("arp_chaos") or 0.1
+    local len = params:get("arp_length") or 8
+    local oct_range = params:get("arp_octaves") or 1
 
     for i=1, 4 do
         if Globals.voices[i].arp_enabled then
             local reg = Globals.arp.register[i]
             
-            local last_bit = reg[8]
-            local prev_bit = reg[7]
+            -- FIX: Shift register respects length
+            local last_bit = reg[len]
+            local prev_bit = reg[len-1]
+            if prev_bit == nil then prev_bit = 0 end
+            
             local new_bit = (last_bit ~= prev_bit) and 1 or 0 
             
             if math.random() < chaos_prob then new_bit = 1 - new_bit end
@@ -49,14 +54,16 @@ function Arp.tick()
             
             Bridge.set_param("arp_cv"..i, norm_val)
             
-            -- FIX: 24 degrees (2 octaves) + Octave Param
             local deg = math.floor(norm_val * 24)
-            local hz = Scales.get_freq(deg, params:get("osc"..i.."_octave") or 0)
+            local oct_offset = math.floor(norm_val * oct_range)
+            local hz = Scales.get_freq(deg, (params:get("osc"..i.."_octave") or 0) + oct_offset)
             local tune = params:get("osc"..i.."_tune") or 0
             hz = hz * (2 ^ (tune / 12))
             
             Bridge.set_freq(i, hz)
-            Bridge.trigger_arp(i)
+            
+            -- FIX: Gate Length Param
+            Bridge.set_param("t_arp"..i, params:get("arp_gate_len") or 0.5)
         end
     end
 end
