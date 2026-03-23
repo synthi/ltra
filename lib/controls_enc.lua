@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v1.5.11
--- FIX: ENV Menu, MOD Menu Layout, Matrix E2 removed
+-- lib/controls_enc.lua | v1.5.13
+-- FIX: Added Pan to ENV Menu
 
 local Enc = {}
 local Globals
@@ -27,7 +27,9 @@ function Enc.delta(n, d)
             end
             
         elseif m == Consts.MENU.ENV then
-            if n==2 then params:delta("env_atk"..t, d)
+            -- FIX: E1 controls Pan
+            if n==1 then params:delta("osc"..t.."_pan", d)
+            elseif n==2 then params:delta("env_atk"..t, d)
             elseif n==3 then params:delta("env_rel"..t, d) end
             
         elseif m == Consts.MENU.MOD then
