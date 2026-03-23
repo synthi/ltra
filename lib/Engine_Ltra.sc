@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.3
-// FIX: DFM1 Filters, Unipolar LFOs, Scale Quantization Map, Blurred Saw
+// lib/Engine_Ltra.sc | v1.5.4
+// FIX: Analog Drift, -12dB Headroom, Delay Mod /10
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -23,7 +23,7 @@ Engine_Ltra : CroneEngine {
                 outline_source=0, outline_gain=1.0,
                 filt1_cutoff=32, filt2_cutoff=14200, 
                 filt1_res=0, filt2_res=0,
-                filt1_type=1, filt2_type=0, // 0=LP, 1=HP
+                filt1_type=1, filt2_type=0, 
                 filt1_drive=0, filt2_drive=0, 
                 delay_time=0.5, delay_fb=0.0, delay_send=0.5, delay_spread=0.0,
                 tape_wow=0, tape_flutter=0, tape_erosion=0,
@@ -49,7 +49,12 @@ Engine_Ltra : CroneEngine {
             var s_filt1, s_filt2, s_dtime;
             var vca1, vca2, vca3, vca4;
             
-            // Scale Quantization Map from Lua
+            // FIX: Analog Drift Generators (Temp Drift + Fast Spread)
+            var drift1 = (LFNoise2.kr(0.01) * 0.005) + (LFNoise2.kr(3.1) * (3/1200));
+            var drift2 = (LFNoise2.kr(0.012) * 0.005) + (LFNoise2.kr(3.4) * (3/1200));
+            var drift3 = (LFNoise2.kr(0.008) * 0.005) + (LFNoise2.kr(2.9) * (3/1200));
+            var drift4 = (LFNoise2.kr(0.011) * 0.005) + (LFNoise2.kr(3.2) * (3/1200));
+            
             var scale_map =[
                 NamedControl.kr(\scale_map_0, 0), NamedControl.kr(\scale_map_1, 1),
                 NamedControl.kr(\scale_map_2, 2), NamedControl.kr(\scale_map_3, 3),
@@ -61,7 +66,6 @@ Engine_Ltra : CroneEngine {
 
             var mk_osc = { |f, s| 
                 var noise = PinkNoise.ar;
-                // FIX: Blurred Saw (Phase Modulation via Noise)
                 var phase = Phasor.ar(0, f.clip(20, 20000) * SampleDur.ir, 0, 1) + (noise * 0.15);
                 var blurred_saw = (phase.wrap(0, 1) * 2) - 1;
                 var tri = LFTri.ar(f.clip(20, 20000));
@@ -114,7 +118,6 @@ Engine_Ltra : CroneEngine {
             s_filt1 = Lag.kr(filt1_cutoff, lag); s_filt2 = Lag.kr(filt2_cutoff, lag);
             s_dtime = Lag.kr(delay_time, 0.2); 
 
-            // FIX: Strict Unipolar LFOs (0.0 to 1.0)
             lfo1 = SelectX.kr(lfo1_shape * 3,[
                 LFPulse.kr(lfo1_rate, 0, 0.5), 
                 (LFSaw.kr(lfo1_rate, 0) + 1) * 0.5, 
@@ -131,7 +134,7 @@ Engine_Ltra : CroneEngine {
             
             rungler_clk = Impulse.kr(chaos_rate * 4);
             rungler_val = Latch.kr(WhiteNoise.kr, rungler_clk); 
-            chaos_sig = Slew.kr(rungler_val, chaos_slew * 10, chaos_slew * 10); // 0 to 1 approx
+            chaos_sig = Slew.kr(rungler_val, chaos_slew * 10, chaos_slew * 10);
 
             env_int = LagUD.kr((gate1+gate2+gate3+gate4).clip(0,1), 0.01, 0.5);
             env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); 
@@ -150,22 +153,24 @@ Engine_Ltra : CroneEngine {
             m_filt1 = calc_mod.("filt1", arp_cv1) * 5000; 
             m_filt2 = calc_mod.("filt2", arp_cv1) * 5000;
             
-            m_delay_t = calc_mod.("delay_t", arp_cv1); m_delay_f = calc_mod.("delay_f", arp_cv1);
+            // FIX: Delay Time Mod / 10
+            m_delay_t = calc_mod.("delay_t", arp_cv1) * 0.1; 
+            m_delay_f = calc_mod.("delay_f", arp_cv1);
 
-            // FIX: Unipolar VCA Modulation (Adds or subtracts from fader)
             vca1 = (s_vol1 + m_amp1).clip(0, 1);
             vca2 = (s_vol2 + m_amp2).clip(0, 1);
             vca3 = (s_vol3 + m_amp3).clip(0, 1);
             vca4 = (s_vol4 + m_amp4).clip(0, 1);
 
-            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1)), (shape1 + (m_shape1*4)).clip(0,4)) * vca1 * mk_vactrol.(gate1, t_arp1);
-            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2)), (shape2 + (m_shape2*4)).clip(0,4)) * vca2 * mk_vactrol.(gate2, t_arp2);
-            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3)), (shape3 + (m_shape3*4)).clip(0,4)) * vca3 * mk_vactrol.(gate3, t_arp3);
-            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4)), (shape4 + (m_shape4*4)).clip(0,4)) * vca4 * mk_vactrol.(gate4, t_arp4);
+            // FIX: Apply Analog Drift to Pitch
+            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + drift1)), (shape1 + (m_shape1*4)).clip(0,4)) * vca1 * mk_vactrol.(gate1, t_arp1);
+            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + drift2)), (shape2 + (m_shape2*4)).clip(0,4)) * vca2 * mk_vactrol.(gate2, t_arp2);
+            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + drift3)), (shape3 + (m_shape3*4)).clip(0,4)) * vca3 * mk_vactrol.(gate3, t_arp3);
+            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + drift4)), (shape4 + (m_shape4*4)).clip(0,4)) * vca4 * mk_vactrol.(gate4, t_arp4);
 
-            sig_mix = Pan2.ar(o1, pan1.clip(-1,1)) + Pan2.ar(o2, pan2.clip(-1,1)) + Pan2.ar(o3, pan3.clip(-1,1)) + Pan2.ar(o4, pan4.clip(-1,1));
+            // FIX: -12dB Headroom (* 0.25)
+            sig_mix = (Pan2.ar(o1, pan1.clip(-1,1)) + Pan2.ar(o2, pan2.clip(-1,1)) + Pan2.ar(o3, pan3.clip(-1,1)) + Pan2.ar(o4, pan4.clip(-1,1))) * 0.25;
 
-            // FIX: Both filters are DFM1
             sig_filt1 = DFM1.ar(sig_mix, (s_filt1 + m_filt1).clip(20, 18000), filt1_res.clip(0, 1.2), 1.0 + (filt1_drive * 3), filt1_type, 0.0003);
             sig_filt2 = DFM1.ar(sig_filt1, (s_filt2 + m_filt2).clip(20, 18000), filt2_res.clip(0, 1.2), 1.0 + (filt2_drive * 3), filt2_type, 0.0003);
             
