@@ -1,5 +1,5 @@
--- lib/ui.lua | v1.5.9
--- FIX: Delay Menu Pagination, FxTape Tone
+-- lib/ui.lua | v1.5.10
+-- FIX: Read from isolated namespace (tapecho_*, blossomverb_*)
 
 local UI = {}
 local Globals
@@ -92,36 +92,35 @@ local function draw_menu()
         screen.move(5,58); screen.text("K2: TYPE["..type_str.."]")
 
     elseif mode == Consts.MENU.DELAY then
+        -- FIX: Read from isolated namespace
         if Globals.delay_menu_page == 1 then
-            screen.move(5,10); screen.text("FX TAPE (1/3)")
-            screen.move(5,25); screen.text("E1 Time: "..string.format("%.2f s", params:get("fx_tape_time")))
-            screen.move(5,35); screen.text("E2 Fdbk: "..string.format("%.2f", params:get("fx_tape_feedback")))
+            screen.move(5,10); screen.text("FX TAPE (1/2)")
+            screen.move(5,25); screen.text("E1 Time: "..string.format("%.2f s", params:get("tapecho_time")))
+            screen.move(5,35); screen.text("E2 Fdbk: "..string.format("%.2f", params:get("tapecho_feedback")))
             screen.move(5,45); screen.text("E3 Send: "..string.format("%.2f", params:get("delay_send")))
-        elseif Globals.delay_menu_page == 2 then
-            screen.move(5,10); screen.text("FX TAPE (2/3)")
-            screen.move(5,25); screen.text("E1 Drive: "..string.format("%.2f", params:get("fx_tape_drive")))
-            screen.move(5,35); screen.text("E2 Erosion: "..string.format("%.2f", params:get("fx_tape_erosion")))
-            screen.move(5,45); screen.text("E3 Wow/Flut: "..string.format("%.2f", params:get("fx_tape_wow_flutter")))
         else
-            screen.move(5,10); screen.text("FX TAPE (3/3)")
-            screen.move(5,25); screen.text("E1 Tone: "..string.format("%.0f", params:get("fx_tape_tone")))
+            screen.move(5,10); screen.text("FX TAPE (2/2)")
+            screen.move(5,25); screen.text("E1 Drive: "..string.format("%.2f", params:get("tapecho_drive")))
+            screen.move(5,35); screen.text("E2 Erosion: "..string.format("%.2f", params:get("tapecho_erosion")))
+            screen.move(5,45); screen.text("E3 Wow/Flut: "..string.format("%.2f", params:get("tapecho_wow_flutter")))
         end
         screen.move(5,58); screen.text("K3: PAGE")
         
     elseif mode == Consts.MENU.REVERB then
+        -- FIX: Read from isolated namespace
         if Globals.reverb_menu_page == 1 then
             screen.move(5,10); screen.text("FX BLOSSOM (1/3)")
             screen.move(5,25); screen.text("E1 Mix: "..string.format("%.2f", params:get("reverb_mix")))
-            screen.move(5,35); screen.text("E2 Decay: "..string.format("%.1fs", params:get("fx_blossom_decay")))
-            screen.move(5,45); screen.text("E3 Bloom: "..string.format("%.2f", params:get("fx_blossom_bloom")))
+            screen.move(5,35); screen.text("E2 Decay: "..string.format("%.1fs", params:get("blossomverb_decay")))
+            screen.move(5,45); screen.text("E3 Bloom: "..string.format("%.2f", params:get("blossomverb_bloom")))
         elseif Globals.reverb_menu_page == 2 then
             screen.move(5,10); screen.text("FX BLOSSOM (2/3)")
-            screen.move(5,25); screen.text("E1 Damp: "..string.format("%.0f Hz", params:get("fx_blossom_damp")))
-            screen.move(5,35); screen.text("E2 Predelay: "..string.format("%.2fs", params:get("fx_blossom_predelay")))
-            screen.move(5,45); screen.text("E3 Mod Rate: "..string.format("%.2f Hz", params:get("fx_blossom_mod_rate")))
+            screen.move(5,25); screen.text("E1 Damp: "..string.format("%.0f Hz", params:get("blossomverb_damp")))
+            screen.move(5,35); screen.text("E2 Predelay: "..string.format("%.2fs", params:get("blossomverb_predelay")))
+            screen.move(5,45); screen.text("E3 Mod Rate: "..string.format("%.2f Hz", params:get("blossomverb_mod_rate")))
         else
             screen.move(5,10); screen.text("FX BLOSSOM (3/3)")
-            screen.move(5,25); screen.text("E1 Mod Depth: "..string.format("%.4f", params:get("fx_blossom_mod_depth")))
+            screen.move(5,25); screen.text("E1 Mod Depth: "..string.format("%.4f", params:get("blossomverb_mod_depth")))
         end
         screen.move(5,58); screen.text("K3: PAGE")
         
@@ -171,7 +170,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.9")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.10")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
