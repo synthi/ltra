@@ -1,5 +1,7 @@
--- lib/grid_pages.lua | v1.5.14
+-- lib/grid_pages.lua | v1.5.15
 -- FIX: Triggers, Sustain, Loopers, Snapshots, Shift Logic
+-- lib/grid_pages.lua
+-- FIX: Initialized 'press_time' table to prevent nil index crash on Loopers
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -15,7 +17,8 @@ function Pages.init(g_ref, hw_ref)
     HW = hw_ref 
     Matrix.init(g_ref)
     Globals.snap_state = { last_click_time = {}, defer_id = {} }
-    Globals.looper_state = { last_click_time = {}, defer_id = {} }
+    -- FIX: Added press_time = {} to prevent crash
+    Globals.looper_state = { last_click_time = {}, defer_id = {}, press_time = {} }
 end
 
 function Pages.set_hw(h) HW = h end
@@ -33,7 +36,7 @@ local function draw_nav_bar()
     for i=1, 4 do 
         local b = Consts.BRIGHT.BG_TRIGGERS
         if Globals.voices[i].latched then b = Consts.BRIGHT.VAL_HIGH 
-        elseif Globals.voices[i].sustained then b = Consts.BRIGHT.VAL_MED -- FIX: Sustain Visuals
+        elseif Globals.voices[i].sustained then b = Consts.BRIGHT.VAL_MED 
         elseif Globals.button_state[i] and Globals.button_state[i][8] then b = Consts.BRIGHT.TOUCH end
         led_safe(i, y, b) 
     end
@@ -244,7 +247,6 @@ function Pages.key(x, y, z)
             end
         end
         
-        -- FIX: Triggers and Sustain Logic
         if x <= 4 then
             local Bridge = require 'ltra/lib/engine_bridge'
             if z == 1 then
@@ -276,7 +278,6 @@ function Pages.key(x, y, z)
             return
         end
         
-        -- FIX: Loopers Logic (Shift/Double Click = Clear, Hold = Stop)
         if x >= 7 and x <= 10 then
             local idx = x - 6
             if z == 1 then
@@ -350,7 +351,6 @@ function Pages.key(x, y, z)
                 end
             end
         end
-        -- FIX: Snapshot Shift Logic
         if y == 7 and x >= 6 and x <= 11 then
             if z == 0 then
                 local snap_idx = x - 5
