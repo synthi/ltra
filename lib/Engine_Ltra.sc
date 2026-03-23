@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.7
-// FIX: MOD1-3 Architecture, Unipolar Chaos
+// lib/Engine_Ltra.sc | v1.5.8
+// FIX: Purged old FX params, +12dB Reverb Gain
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -20,7 +20,6 @@ Engine_Ltra : CroneEngine {
                 t_arp1=0, t_arp2=0, t_arp3=0, t_arp4=0,
                 arp_cv1=0, arp_cv2=0, arp_cv3=0, arp_cv4=0,
                 
-                // FIX: MOD1, MOD2, MOD3 Params
                 mod1_lfo_rate=0.5, mod1_lfo_shape=0, mod1_depth=1,
                 mod1_chaos_rate=0.5, mod1_chaos_slew=0.1, mod1_mix=0.0,
                 
@@ -35,10 +34,14 @@ Engine_Ltra : CroneEngine {
                 filt1_res=0, filt2_res=0,
                 filt1_type=1, filt2_type=0, 
                 filt1_drive=0, filt2_drive=0, 
+                
+                // FIX: Only FxTape and FxBlossom params remain
                 fx_tape_time=0.3, fx_tape_feedback=0.4, fx_tape_wow_flutter=0.1,
-                fx_tape_erosion=0.0, fx_tape_drive=1.0, fx_tape_tone=1, delay_send=0.5,
+                fx_tape_erosion=0.0, fx_tape_drive=1.0, delay_send=0.5,
+                
                 fx_blossom_decay=4.75, fx_blossom_bloom=1.80, fx_blossom_damp=3500,
                 fx_blossom_predelay=0.110, fx_blossom_mod_rate=0.300, fx_blossom_mod_depth=0.002, reverb_mix=0.0,
+                
                 system_dirt=0, dust_dens=0, 
                 clear_trig=0, t_reset=0;
 
@@ -64,10 +67,10 @@ Engine_Ltra : CroneEngine {
             
             var tape_in, local_in, shared_wow, shared_flutter, shared_mod;
             var shared_dust_trig, shared_dropout_env, dt_mono, tape_del_mono;
-            var sat_mono, ero_lpf_freq, ero_bass_cut, filt_mono, tone_freq, tone_filt_mono, final_mono;
+            var sat_mono, ero_lpf_freq, ero_bass_cut, filt_mono, final_mono;
             var skew_lfo, skew_l, skew_r, cross_l, cross_r, eq_var_l, eq_var_r;
             var tape_sig_l, tape_sig_r;
-            var time_kr, fb_kr, wf_kr, ero_kr, drive_kr, tone_kr;
+            var time_kr, fb_kr, wf_kr, ero_kr, drive_kr;
 
             var rev_in, lfo_l, lfo_r, combs_l, combs_r, cross_l_rev, cross_r_rev;
             var ap_l, ap_r, rev_filt_l, rev_filt_r, rev_out_l, rev_out_r;
@@ -144,7 +147,6 @@ Engine_Ltra : CroneEngine {
             s_vol3 = Lag.kr(vol3, lag);   s_vol4 = Lag.kr(vol4, lag);
             s_filt1 = Lag.kr(filt1_cutoff, lag); s_filt2 = Lag.kr(filt2_cutoff, lag);
 
-            // FIX: MOD1 Generation (Strictly Unipolar 0 to 1)
             mod1_lfo = SelectX.kr(mod1_lfo_shape * 3,[
                 LFPulse.kr(mod1_lfo_rate, 0, 0.5), 
                 (LFSaw.kr(mod1_lfo_rate, 0) + 1) * 0.5, 
@@ -154,7 +156,6 @@ Engine_Ltra : CroneEngine {
             mod1_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod1_chaos_rate * 4)), mod1_chaos_slew * 10, mod1_chaos_slew * 10);
             mod1_sig = SelectX.kr(mod1_mix,[mod1_lfo, mod1_chaos]) * mod1_depth;
 
-            // FIX: MOD2 Generation
             mod2_lfo = SelectX.kr(mod2_lfo_shape * 3,[
                 LFPulse.kr(mod2_lfo_rate, 0, 0.5), 
                 (LFSaw.kr(mod2_lfo_rate, 0) + 1) * 0.5, 
@@ -164,7 +165,6 @@ Engine_Ltra : CroneEngine {
             mod2_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod2_chaos_rate * 4)), mod2_chaos_slew * 10, mod2_chaos_slew * 10);
             mod2_sig = SelectX.kr(mod2_mix,[mod2_lfo, mod2_chaos]) * mod2_depth;
 
-            // FIX: MOD3 Generation
             mod3_lfo = SelectX.kr(mod3_lfo_shape * 3,[
                 LFPulse.kr(mod3_lfo_rate, 0, 0.5), 
                 (LFSaw.kr(mod3_lfo_rate, 0) + 1) * 0.5, 
@@ -172,7 +172,7 @@ Engine_Ltra : CroneEngine {
                 (SinOsc.kr(mod3_lfo_rate, 0) + 1) * 0.5
             ]);
             mod3_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod3_chaos_rate * 4)), mod3_chaos_slew * 10, mod3_chaos_slew * 10);
-            mod3_sig = SelectX.kr(mod3_mix, [mod3_lfo, mod3_chaos]) * mod3_depth;
+            mod3_sig = SelectX.kr(mod3_mix,[mod3_lfo, mod3_chaos]) * mod3_depth;
 
             env_int = LagUD.kr((gate1+gate2+gate3+gate4).clip(0,1), 0.01, 0.5);
             env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); 
@@ -221,7 +221,6 @@ Engine_Ltra : CroneEngine {
             wf_kr = Lag.kr(fx_tape_wow_flutter, 0.1);
             ero_kr = Lag.kr(fx_tape_erosion, 0.1);
             drive_kr = Lag.kr(fx_tape_drive, 0.1);
-            tone_kr = fx_tape_tone;
 
             local_in = LocalIn.ar(1);
             local_in = local_in * (1.0 - Trig.kr(clear_trig, 0.05));
@@ -246,10 +245,7 @@ Engine_Ltra : CroneEngine {
             filt_mono = LPF.ar(sat_mono, ero_lpf_freq);
             filt_mono = BLowShelf.ar(filt_mono, 120, 1.0, ero_bass_cut);
 
-            tone_freq = Select.kr((tone_kr - 1).round,[15000, 8000, 4000, 1600]);
-            tone_filt_mono = LPF.ar(filt_mono, tone_freq);
-
-            final_mono = tone_filt_mono * (1.0 - (shared_dropout_env * ero_kr).clip(0.0, 0.9));
+            final_mono = filt_mono * (1.0 - (shared_dropout_env * ero_kr).clip(0.0, 0.9));
 
             LocalOut.ar(final_mono);
 
@@ -295,8 +291,9 @@ Engine_Ltra : CroneEngine {
             rev_filt_l = LPF.ar(ap_l, damp_kr);
             rev_filt_r = LPF.ar(ap_r, damp_kr);
 
-            rev_out_l = ((LeakDC.ar(rev_filt_l) * 0.05).tanh * 3.6).softclip;
-            rev_out_r = ((LeakDC.ar(rev_filt_r) * 0.05).tanh * 3.6).softclip;
+            // FIX: +12dB Reverb Gain (* 4.0)
+            rev_out_l = ((LeakDC.ar(rev_filt_l) * 0.2).tanh * 4.0).softclip * 4.0;
+            rev_out_r = ((LeakDC.ar(rev_filt_r) * 0.2).tanh * 4.0).softclip * 4.0;
             
             effects_out = (sig_pre * (1-delay_send)) + ([tape_sig_l, tape_sig_r] * delay_send);
             effects_out = (effects_out * (1-reverb_mix)) + ([rev_out_l, rev_out_r] * reverb_mix);
@@ -308,7 +305,6 @@ Engine_Ltra : CroneEngine {
             osc_trig = Impulse.kr(15);
             amp_l = Amplitude.kr(sig_post[0]);
             amp_r = Amplitude.kr(sig_post[1]);
-            // FIX: Send MOD1, MOD2, MOD3 telemetry
             SendReply.kr(osc_trig, '/ltra/visuals',[amp_l, amp_r, mod1_sig, mod2_sig, mod3_sig, outline_sig]);
 
         }).add;
