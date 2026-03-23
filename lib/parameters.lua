@@ -1,15 +1,15 @@
--- lib/parameters.lua | v1.5.13
+-- lib/parameters.lua | v1.5.14
 -- FIX: Added VCO Pan, Added Loopers Group
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
 local Consts = require 'ltra/lib/consts'
 local Scales = require 'ltra/lib/scales'
-local Loopers = require 'ltra/lib/loopers' -- FIX: Require Loopers for actions
+local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.5.13")
+    params:add_separator("LTRA v1.5.14")
     
     params:add_group("GLOBAL", 4)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
