@@ -1,5 +1,5 @@
--- lib/parameters.lua | v1.5.10
--- FIX: Namespace Isolation (tapecho_*, blossomverb_*)
+-- lib/parameters.lua | v1.5.11
+-- FIX: Envelopes, FxTape Filter, Matrix String Translation
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -8,7 +8,7 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.5.10")
+    params:add_separator("LTRA v1.5.11")
     
     params:add_group("GLOBAL", 4)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
@@ -36,7 +36,7 @@ function Params.init(g_ref)
     params:set_action("monitor_vol", function(x) audio.level_adc(x) end)
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 8) 
+        params:add_group("VOICE "..i, 10) -- FIX: Increased to 10 for Envelopes
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -81,6 +81,12 @@ function Params.init(g_ref)
                 if action then action(p) end
             end
         end)
+        
+        -- FIX: Variable Envelopes
+        params:add_control("env_atk"..i, "Attack", controlspec.new(0.001, 5.0, "exp", 0.01, 0.01))
+        params:set_action("env_atk"..i, function(x) Bridge.set_param("env_atk"..i, x) end)
+        params:add_control("env_rel"..i, "Release", controlspec.new(0.001, 11.0, "exp", 0.01, 0.5))
+        params:set_action("env_rel"..i, function(x) Bridge.set_param("env_rel"..i, x) end)
     end
     
     local sync_opts = {}
@@ -145,8 +151,7 @@ function Params.init(g_ref)
     params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0.1, 1))
     params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
 
-    -- FIX: Isolated Namespace for Space FX
-    params:add_group("SPACE", 15)
+    params:add_group("SPACE", 16) -- FIX: Increased to 16
     params:add_control("system_dirt", "Dirt", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("system_dirt", function(x) Bridge.set_param("system_dirt", x) end)
     params:add_control("dust_dens", "Dust", controlspec.new(0,50,"lin",0.1,0))
@@ -165,6 +170,9 @@ function Params.init(g_ref)
     params:set_action("tapecho_erosion", function(x) Bridge.set_param("tapecho_erosion", x) end)
     params:add_control("tapecho_drive", "Tape Drive", controlspec.new(0.1,5.0,"lin",0.01,1.0))
     params:set_action("tapecho_drive", function(x) Bridge.set_param("tapecho_drive", x) end)
+    -- FIX: Added tapecho_filter
+    params:add_control("tapecho_filter", "Tape Filter", controlspec.new(20,18000,"exp",1,8000))
+    params:set_action("tapecho_filter", function(x) Bridge.set_param("tapecho_filter", x) end)
     
     params:add_control("reverb_mix", "Reverb Mix", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("reverb_mix", function(x) Bridge.set_param("reverb_mix", x) end)
@@ -193,6 +201,9 @@ function Params.init(g_ref)
                 local bridge_dest = d_name:lower():gsub("%d", "")
                 if bridge_dest == "filt" then bridge_dest = "filt" end 
                 if bridge_dest == "morph" then bridge_dest = "shape" end 
+                -- FIX: Strict translation to isolated namespace
+                if bridge_dest == "delay_t" then bridge_dest = "tapecho_time" end
+                if bridge_dest == "delay_f" then bridge_dest = "tapecho_feedback" end
                 Bridge.set_matrix(s_name:lower(), bridge_dest, idx, x)
             end)
         end
