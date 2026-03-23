@@ -1,5 +1,5 @@
--- lib/mod_matrix.lua | v1.5.4
--- FIX: Morph to Shape Translation
+-- lib/mod_matrix.lua | v1.5.7
+-- FIX: MOD1-3 Visuals
 
 local Matrix = {}
 local Globals
@@ -8,7 +8,7 @@ local Consts = require 'ltra/lib/consts'
 
 function Matrix.init(g_ref) Globals = g_ref end
 
-local ROW_TO_SOURCE = { [1]="LFO1",[2]="LFO2", [3]="CHAOS",[4]="OUTLINE" }
+local ROW_TO_SOURCE = { [1]="MOD1",[2]="MOD2", [3]="MOD3",[4]="OUTLINE" }
 local COL_TO_DEST = {
     [1]="PITCH1",[2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
     [5]="AMP1",   [6]="AMP2",   [7]="AMP3",[8]="AMP4",
@@ -42,10 +42,10 @@ end
 function Matrix.draw(hw, led_func)
     for y=1, 4 do
         local mod_val = 0
-        if y == 1 then mod_val = Globals.visuals.lfo_vals[1] or 0
-        elseif y == 2 then mod_val = Globals.visuals.lfo_vals[2] or 0 
-        elseif y == 3 then mod_val = Globals.visuals.chaos_val or 0 
-        elseif y == 4 then mod_val = (Globals.visuals.outline_val or 0) * 2 - 1 
+        if y >= 1 and y <= 3 then 
+            mod_val = (Globals.visuals.mod_vals and Globals.visuals.mod_vals[y]) or 0
+        elseif y == 4 then 
+            mod_val = (Globals.visuals.outline_val or 0) * 2 - 1 
         end
         
         local anim_offset = math.abs(mod_val) 
