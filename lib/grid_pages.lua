@@ -1,4 +1,4 @@
--- lib/grid_pages.lua
+-- lib/grid_pages.lua v1.5.14
 -- FIX: Visual Feedback for State 6 (Fading In)
 
 local Pages = {}
