@@ -1,6 +1,5 @@
--- code/ltra/lib/consts.lua | v1.4.7
--- LTRA: Constants
--- FIX: Added NOTE_NAMES (Critical) & COL_TO_DEST_NAMES
+-- lib/consts.lua | v1.5.6
+-- FIX: Added ARP Menu and SYNC_DIVS
 
 local Consts = {}
 
@@ -21,27 +20,28 @@ Consts.DESTINATIONS = {
     FILT1=13, FILT2=14, DELAY_T=15, DELAY_F=16
 }
 
--- FIX: Tabla inversa para UI de Matriz
 Consts.COL_TO_DEST_NAMES = {
     [1]="PITCH1", [2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
     [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",
     [9]="MORPH1", [10]="MORPH2", [11]="MORPH3", [12]="MORPH4",
-    [13]="FILT1", [14]="FILT2",  [15]="DELAY T", [16]="DELAY F"
+    [13]="FILT1", [14]="FILT2",  [15]="DELAY_T", [16]="DELAY_F"
 }
 
 Consts.MENU = {
     NONE=0, OSC=1, LFO=2, CHAOS=3, OUTLINE=4, 
-    FILTER=5, DELAY=6, REVERB=7, LOOPER=8, MATRIX=9
+    FILTER=5, DELAY=6, REVERB=7, LOOPER=8, MATRIX=9, ARP=10
 }
 
-Consts.LOOPER_PAIRS = { {1,2}, {3,4}, {5,6} }
-Consts.LOOPER_BOUNDS = { {min=0, max=40}, {min=40, max=80}, {min=80, max=120} }
+Consts.SYNC_DIVS = {
+    {name="4 bars", v=16}, {name="2 bars", v=8}, {name="1 bar", v=4},
+    {name="1/2", v=2}, {name="1/4", v=1}, {name="1/8", v=0.5},
+    {name="1/16", v=0.25}, {name="1/32", v=0.125}
+}
 
 Consts.SNAPSHOT_PATTERNS = {
-    "^osc", "^filt", "^lfo", "^chaos", "^delay", "^reverb", "^tape", "^system", "^dust", "^mat_", "^loop", "^outline"
+    "^osc", "^filt", "^lfo", "^chaos", "^delay", "^reverb", "^fx_", "^system", "^dust", "^mat_", "^outline", "^arp"
 }
 
--- FIX: Vital para evitar crash en UI
 Consts.NOTE_NAMES = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
 
 Consts.SCALES_A = {
