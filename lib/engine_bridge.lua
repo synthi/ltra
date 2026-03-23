@@ -1,5 +1,5 @@
--- lib/engine_bridge.lua | v1.5.7
--- FIX: MOD1-3 Telemetry
+-- lib/engine_bridge.lua | v1.5.10
+-- FIX: Matrix translation to isolated namespace (tapecho_*)
 
 local Bridge = {}
 local Globals
@@ -37,10 +37,11 @@ function Bridge.sync_matrix()
             if val > 0 or quant ~= 1 then 
                 local idx = string.match(d_name, "(%d+)$") or ""
                 local dest = d_name:lower():gsub("%d", "")
-                if dest == "delay_t" then dest = "delay_time" end
-                if dest == "delay_f" then dest = "delay_fb" end
                 if dest == "filt" then dest = "filt" end 
                 if dest == "morph" then dest = "shape" end 
+                -- FIX: Translate matrix visual names to isolated namespace
+                if dest == "delay_t" then dest = "tapecho_time" end
+                if dest == "delay_f" then dest = "tapecho_feedback" end
                 
                 engine.set_engine_param("mod_" .. s_name:lower() .. "_" .. dest .. idx, val)
                 
