@@ -1,5 +1,5 @@
--- lib/consts.lua | v1.5.7
--- FIX: MOD1-3 Architecture, Sync Divisions (Dotted/Triplets)
+-- lib/consts.lua | v1.5.8
+-- FIX: 21 Sync Divisions, New Grid Layout
 
 local Consts = {}
 
@@ -12,7 +12,6 @@ Consts.BRIGHT = {
 
 Consts.MATRIX_CYCLES = {1.0, 0.66, 0.33, 0.0}
 
--- FIX: Unified MOD Architecture
 Consts.SOURCES = { MOD1=1, MOD2=2, MOD3=3, OUTLINE=4, ARP=5 }
 Consts.DESTINATIONS = {
     PITCH1=1, PITCH2=2, PITCH3=3, PITCH4=4,
@@ -21,10 +20,10 @@ Consts.DESTINATIONS = {
     FILT1=13, FILT2=14, DELAY_T=15, DELAY_F=16
 }
 
-Consts.COL_TO_DEST_NAMES = {
-    [1]="PITCH1", [2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
+Consts.COL_TO_DEST_NAMES = {[1]="PITCH1", [2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
     [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",
-    [9]="MORPH1", [10]="MORPH2", [11]="MORPH3", [12]="MORPH4",[13]="FILT1", [14]="FILT2",  [15]="DELAY_T",[16]="DELAY_F"
+    [9]="MORPH1", [10]="MORPH2",[11]="MORPH3", [12]="MORPH4",
+    [13]="FILT1",[14]="FILT2",  [15]="DELAY_T", [16]="DELAY_F"
 }
 
 Consts.MENU = {
@@ -32,13 +31,14 @@ Consts.MENU = {
     FILTER=5, DELAY=6, REVERB=7, LOOPER=8, MATRIX=9, ARP=10
 }
 
--- FIX: 15 Sync Divisions including Dotted (D) and Triplets (T)
+-- FIX: 21 Sync Divisions (4 bars to 1/64 + Dotted/Triplets)
 Consts.SYNC_DIVS = {
-    {name="1/1 D", v=6}, {name="1/1", v=4}, {name="1/1 T", v=2.6667},
-    {name="1/2 D", v=3}, {name="1/2", v=2}, {name="1/2 T", v=1.3333},
+    {name="4 bars", v=16}, {name="3 bars", v=12}, {name="2 bars", v=8}, {name="1.5 bars", v=6},
+    {name="1 bar", v=4}, {name="1/2 D", v=3}, {name="1/2", v=2}, {name="1/2 T", v=1.3333},
     {name="1/4 D", v=1.5}, {name="1/4", v=1}, {name="1/4 T", v=0.6667},
     {name="1/8 D", v=0.75}, {name="1/8", v=0.5}, {name="1/8 T", v=0.3333},
-    {name="1/16 D", v=0.375}, {name="1/16", v=0.25}, {name="1/16 T", v=0.1667}
+    {name="1/16 D", v=0.375}, {name="1/16", v=0.25}, {name="1/16 T", v=0.1667},
+    {name="1/32", v=0.125}, {name="1/64", v=0.0625}
 }
 
 Consts.NOTE_NAMES = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
