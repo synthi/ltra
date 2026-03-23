@@ -1,5 +1,5 @@
--- lib/midi_16n.lua | v1.5.6
--- FIX: Fader Controlspec Mapping, Sync Logic
+-- lib/midi_16n.lua | v1.5.7
+-- FIX: MOD1-3 Faders, Delay Faders Controlspec Mapping
 
 local Midi16n = {}
 local Globals
@@ -9,7 +9,7 @@ local UI_Ref = nil
 local FADER_FUNC = {
     [1]="pitch1",[2]="pitch2", [3]="pitch3", [4]="pitch4",
     [5]="amp1",   [6]="amp2",   [7]="amp3",   [8]="amp4",
-    [9]="filt1",[10]="filt2", [11]="chaos",[12]="lfo1",[13]="lfo2",  [14]="delay_t",[15]="delay_fb",[16]="delay_send"
+    [9]="filt1",[10]="filt2", [11]="mod1",[12]="mod2",[13]="mod3",  [14]="tape_time",[15]="tape_fb",[16]="delay_send"
 }
 
 local function trigger_popup(text, val_str)
@@ -46,7 +46,6 @@ local function process_fader(id, val)
     Globals.fader_values[id] = val
     Globals.fader_virtual[id] = norm
     
-    -- FIX: Proper Controlspec Mapping and Sync Logic
     if func == "pitch1" then params:set("osc1_pitch", norm); trigger_popup(name, string.format("%.2f", norm))
     elseif func == "pitch2" then params:set("osc2_pitch", norm); trigger_popup(name, string.format("%.2f", norm))
     elseif func == "pitch3" then params:set("osc3_pitch", norm); trigger_popup(name, string.format("%.2f", norm))
@@ -61,37 +60,37 @@ local function process_fader(id, val)
     elseif func == "filt2" then 
         local hz = params:lookup_param("filt2_cutoff").controlspec:map(norm)
         params:set("filt2_cutoff", hz); trigger_popup(name, string.format("%.0f Hz", hz))
-    elseif func == "chaos" then 
-        if params:get("chaos_sync") == 1 then
-            local div = math.floor(norm * 7) + 1
-            params:set("chaos_div", div)
-            trigger_popup("CHAOS SYNC", Consts.SYNC_DIVS[div].name)
+    elseif func == "mod1" then 
+        if params:get("mod1_lfo_sync") == 1 then
+            local div = math.floor(norm * 14) + 1
+            params:set("mod1_lfo_div", div)
+            trigger_popup("MOD1 SYNC", Consts.SYNC_DIVS[div].name)
         else
-            local hz = params:lookup_param("chaos_rate").controlspec:map(norm)
-            params:set("chaos_rate", hz); trigger_popup(name, string.format("%.2f Hz", hz))
+            local hz = params:lookup_param("mod1_lfo_rate").controlspec:map(norm)
+            params:set("mod1_lfo_rate", hz); trigger_popup("MOD1 RATE", string.format("%.2f Hz", hz))
         end
-    elseif func == "lfo1" then 
-        if params:get("lfo1_sync") == 1 then
-            local div = math.floor(norm * 7) + 1
-            params:set("lfo1_div", div)
-            trigger_popup("LFO1 SYNC", Consts.SYNC_DIVS[div].name)
+    elseif func == "mod2" then 
+        if params:get("mod2_lfo_sync") == 1 then
+            local div = math.floor(norm * 14) + 1
+            params:set("mod2_lfo_div", div)
+            trigger_popup("MOD2 SYNC", Consts.SYNC_DIVS[div].name)
         else
-            local hz = params:lookup_param("lfo1_rate").controlspec:map(norm)
-            params:set("lfo1_rate", hz); trigger_popup(name, string.format("%.2f Hz", hz))
+            local hz = params:lookup_param("mod2_lfo_rate").controlspec:map(norm)
+            params:set("mod2_lfo_rate", hz); trigger_popup("MOD2 RATE", string.format("%.2f Hz", hz))
         end
-    elseif func == "lfo2" then 
-        if params:get("lfo2_sync") == 1 then
-            local div = math.floor(norm * 7) + 1
-            params:set("lfo2_div", div)
-            trigger_popup("LFO2 SYNC", Consts.SYNC_DIVS[div].name)
+    elseif func == "mod3" then 
+        if params:get("mod3_lfo_sync") == 1 then
+            local div = math.floor(norm * 14) + 1
+            params:set("mod3_lfo_div", div)
+            trigger_popup("MOD3 SYNC", Consts.SYNC_DIVS[div].name)
         else
-            local hz = params:lookup_param("lfo2_rate").controlspec:map(norm)
-            params:set("lfo2_rate", hz); trigger_popup(name, string.format("%.2f Hz", hz))
+            local hz = params:lookup_param("mod3_lfo_rate").controlspec:map(norm)
+            params:set("mod3_lfo_rate", hz); trigger_popup("MOD3 RATE", string.format("%.2f Hz", hz))
         end
-    elseif func == "delay_t" then 
+    elseif func == "tape_time" then 
         local t = params:lookup_param("fx_tape_time").controlspec:map(norm)
         params:set("fx_tape_time", t); trigger_popup("TAPE TIME", string.format("%.2f s", t))
-    elseif func == "delay_fb" then 
+    elseif func == "tape_fb" then 
         local fb = params:lookup_param("fx_tape_feedback").controlspec:map(norm)
         params:set("fx_tape_feedback", fb); trigger_popup("TAPE FB", string.format("%.2f", fb))
     elseif func == "delay_send" then 
