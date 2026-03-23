@@ -1,5 +1,5 @@
--- lib/ui.lua | v1.5.1
--- FIX: Removed bottom arrows, UI Deadlock fix
+-- lib/ui.lua | v1.6.0
+-- FIX: Filter Menu UI Update
 
 local UI = {}
 local Globals
@@ -40,11 +40,13 @@ local function draw_menu()
     elseif mode == Consts.MENU.FILTER then
         screen.move(5,10); screen.text("FILTER EDIT")
         local f_idx = t
-        screen.move(5,25); screen.text("E1 Tone: "..string.format("%.2f", params:get("filt"..f_idx.."_tone")))
+        -- FIX: Real Cutoff UI
+        screen.move(5,25); screen.text("E1 Cutoff: "..string.format("%.0f Hz", params:get("filt"..f_idx.."_cutoff")))
         screen.move(5,35); screen.text("E2 Res: "..string.format("%.2f", params:get("filt"..f_idx.."_res")))
-        screen.move(5,45); screen.text("E3 Drive: "..string.format("%.2f", params:get("filt_drive")))
-        local type_str = params:get("filt_type") == 0 and "SVF" or "MOOG"
-        screen.move(5,58); screen.text("K2: TYPE ["..type_str.."]")
+        local type_str = params:get("filt"..f_idx.."_type") == 0 and "LP" or "HP"
+        screen.move(5,45); screen.text("E3 Type: "..type_str)
+        local model_str = params:get("filt_model") == 0 and "SVF" or "MOOG"
+        screen.move(5,58); screen.text("K2: MODEL ["..model_str.."]")
 
     elseif mode == Consts.MENU.DELAY then
         screen.move(5,10); screen.text("TAPE DELAY")
@@ -90,7 +92,6 @@ function UI.redraw()
     if Globals.menu_mode ~= Consts.MENU.NONE then
         draw_menu()
     elseif Globals.ui_popup.active then
-        -- FIX: Force redraw when popup expires to clear the screen
         if util.time() > Globals.ui_popup.deadline then 
             Globals.ui_popup.active = false 
             Globals.dirty = true
@@ -99,7 +100,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.1")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.6.0")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
