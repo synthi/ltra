@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v1.5.7
--- FIX: MOD1-3 Dashboard Mapping
+-- lib/grid_pages.lua | v1.5.8
+-- FIX: New Grid Layout (Snapshots on Row 6, Menus on Row 7)
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -48,20 +48,30 @@ end
 local function check_hold()
     if Globals.page ~= 1 then return end
     
-    local y = 6
-    local held = nil
-    for x=1, 16 do
-        if Globals.button_state[x] and Globals.button_state[x][y] then held = x; break end
+    local held_x = nil
+    local held_y = nil
+    for y=6, 7 do
+        for x=1, 16 do
+            if Globals.button_state[x] and Globals.button_state[x][y] then 
+                held_x = x; held_y = y; break 
+            end
+        end
+        if held_x then break end
     end
     
-    if held then
-        if held <= 4 then Globals.menu_mode = Consts.MENU.OSC; Globals.menu_target = held
-        elseif held >= 6 and held <= 8 then Globals.menu_mode = Consts.MENU.MOD; Globals.menu_target = (held - 5)
-        elseif held == 9 then Globals.menu_mode = Consts.MENU.OUTLINE
-        elseif held == 11 or held == 12 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = (held==11 and 1 or 2)
-        elseif held == 13 then Globals.menu_mode = Consts.MENU.DELAY
-        elseif held == 14 then Globals.menu_mode = Consts.MENU.REVERB
-        elseif held == 16 then Globals.menu_mode = Consts.MENU.LOOPER 
+    if held_x then
+        -- FIX: New Menu Layout
+        if held_y == 6 then
+            if held_x <= 4 then Globals.menu_mode = Consts.MENU.OSC; Globals.menu_target = held_x
+            elseif held_x == 13 then Globals.menu_mode = Consts.MENU.DELAY
+            elseif held_x == 14 then Globals.menu_mode = Consts.MENU.REVERB
+            elseif held_x == 16 then Globals.menu_mode = Consts.MENU.LOOPER 
+            end
+        elseif held_y == 7 then
+            if held_x >= 1 and held_x <= 3 then Globals.menu_mode = Consts.MENU.MOD; Globals.menu_target = held_x
+            elseif held_x == 5 then Globals.menu_mode = Consts.MENU.OUTLINE
+            elseif held_x == 7 or held_x == 8 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = (held_x==7 and 1 or 2)
+            end
         end
         Globals.dirty = true
         return
@@ -101,10 +111,12 @@ local function check_hold()
 end
 
 local function draw_snapshots()
+    -- FIX: Snapshots on Row 6, Cols 6-11
     for i=1, 6 do
+        local x = i + 5
         local b = Consts.BRIGHT.BG_NAV 
         if Globals.snapshots[i] then b = Consts.BRIGHT.VAL_MED end 
-        led_safe(i, 7, b)
+        led_safe(x, 6, b)
     end
 end
 
@@ -114,21 +126,27 @@ function Pages.redraw()
     
     if Globals.page == 1 then
         Matrix.draw(HW, led_safe)
-        for i=1, 4 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
         
+        -- Row 6: OSC, Snaps, Delay, Reverb, Output
+        for i=1, 4 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
+        draw_snapshots() 
+        led_safe(13, 6, Consts.BRIGHT.BG_DASHBOARD)
+        led_safe(14, 6, Consts.BRIGHT.BG_DASHBOARD)
+        led_safe(16, 6, Consts.BRIGHT.BG_DASHBOARD) 
+        
+        -- Row 7: MOD1-3, Outline, Filter1-2
         local mod1 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[1] or 0))
-        led_safe(6, 6, mod1)
+        led_safe(1, 7, mod1)
         local mod2 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[2] or 0))
-        led_safe(7, 6, mod2)
+        led_safe(2, 7, mod2)
         local mod3 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[3] or 0))
-        led_safe(8, 6, mod3)
+        led_safe(3, 7, mod3)
         
         local outline_val = math.floor(util.linlin(0, 1, 2, 13, Globals.visuals.outline_val or 0))
-        led_safe(9, 6, outline_val)
+        led_safe(5, 7, outline_val)
         
-        for i=11, 14 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
-        led_safe(16, 6, Consts.BRIGHT.BG_DASHBOARD) 
-        draw_snapshots() 
+        led_safe(7, 7, Consts.BRIGHT.BG_DASHBOARD)
+        led_safe(8, 7, Consts.BRIGHT.BG_DASHBOARD)
     end
     
     if Globals.page == 2 then
@@ -250,37 +268,39 @@ function Pages.key(x, y, z)
                 end
             end
         end
-        if y == 7 and x <= 6 then
+        -- FIX: Snapshots on Row 6, Cols 6-11
+        if y == 6 and x >= 6 and x <= 11 then
             if z == 0 then
+                local snap_idx = x - 5
                 local press_time = Globals.grid_timers[x][y]
                 local duration = util.time() - press_time
-                local is_filled = (Globals.snapshots[x] ~= nil)
+                local is_filled = (Globals.snapshots[snap_idx] ~= nil)
                 
                 if duration >= 0.8 then
                     if is_filled then
-                        Storage.save_snapshot(x)
-                        Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..x; Globals.ui_popup.val = "UPDATED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+                        Storage.save_snapshot(snap_idx)
+                        Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "UPDATED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
                     end
                 else
                     local now = util.time()
-                    local last = Globals.snap_state.last_click_time[x] or 0
-                    Globals.snap_state.last_click_time[x] = now
+                    local last = Globals.snap_state.last_click_time[snap_idx] or 0
+                    Globals.snap_state.last_click_time[snap_idx] = now
                     
                     if (now - last) < 0.4 then
-                        if Globals.snap_state.defer_id[x] then clock.cancel(Globals.snap_state.defer_id[x]) end
+                        if Globals.snap_state.defer_id[snap_idx] then clock.cancel(Globals.snap_state.defer_id[snap_idx]) end
                         if is_filled then
-                            Storage.delete_snapshot(x)
-                            Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..x; Globals.ui_popup.val = "DELETED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+                            Storage.delete_snapshot(snap_idx)
+                            Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "DELETED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
                         end
                     else
-                        Globals.snap_state.defer_id[x] = clock.run(function()
+                        Globals.snap_state.defer_id[snap_idx] = clock.run(function()
                             clock.sleep(0.4)
                             if not is_filled then
-                                Storage.save_snapshot(x)
-                                Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..x; Globals.ui_popup.val = "SAVED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+                                Storage.save_snapshot(snap_idx)
+                                Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "SAVED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
                             else
-                                Storage.load_snapshot(x)
-                                Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..x; Globals.ui_popup.val = "LOADED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+                                Storage.load_snapshot(snap_idx)
+                                Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "LOADED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
                             end
                         end)
                     end
