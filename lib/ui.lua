@@ -1,5 +1,5 @@
--- lib/ui.lua | v1.5.12
--- FIX: Version String Update
+-- lib/ui.lua | v1.5.13
+-- FIX: Added Pan to ENV Menu
 
 local UI = {}
 local Globals
@@ -36,8 +36,10 @@ local function draw_menu()
         
     elseif mode == Consts.MENU.ENV then
         screen.move(5,10); screen.text("ENV "..t.." EDIT")
-        screen.move(5,25); screen.text("E2 Attack: "..string.format("%.3fs", params:get("env_atk"..t)))
-        screen.move(5,35); screen.text("E3 Release: "..string.format("%.3fs", params:get("env_rel"..t)))
+        -- FIX: Added Pan to E1
+        screen.move(5,25); screen.text("E1 Pan: "..string.format("%.2f", params:get("osc"..t.."_pan")))
+        screen.move(5,35); screen.text("E2 Attack: "..string.format("%.3fs", params:get("env_atk"..t)))
+        screen.move(5,45); screen.text("E3 Release: "..string.format("%.3fs", params:get("env_rel"..t)))
         
     elseif mode == Consts.MENU.MOD then
         if Globals.mod_menu_page == 1 then
@@ -173,7 +175,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.12")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.13")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
