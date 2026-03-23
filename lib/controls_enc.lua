@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v1.5.13
--- FIX: Added Pan to ENV Menu
+-- lib/controls_enc.lua | v1.5.14
+-- FIX: ARP Menu Page 2, ENV Menu Pan
 
 local Enc = {}
 local Globals
@@ -27,7 +27,6 @@ function Enc.delta(n, d)
             end
             
         elseif m == Consts.MENU.ENV then
-            -- FIX: E1 controls Pan
             if n==1 then params:delta("osc"..t.."_pan", d)
             elseif n==2 then params:delta("env_atk"..t, d)
             elseif n==3 then params:delta("env_rel"..t, d) end
@@ -59,8 +58,8 @@ function Enc.delta(n, d)
                 elseif n==2 then params:delta("arp_chaos", d)
                 elseif n==3 then params:delta("arp_gate_len", d) end
             else
-                if n==1 then params:delta("arp_length", d)
-                elseif n==2 then params:delta("arp_octaves", d) end
+                if n==2 then params:delta("arp_length", d)
+                elseif n==3 then params:delta("arp_octaves", d) end
             end
             
         elseif m == Consts.MENU.OUTLINE then
