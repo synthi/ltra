@@ -1,5 +1,5 @@
--- lib/loopers.lua | v1.5.11
--- NEW: 4 Async Loopers via Softcut
+-- lib/loopers.lua | v1.5.12
+-- FIX: Removed API Hallucinations (level_cut_cut, position_cut), Bulletproof Loop Closing
 
 local Loopers = {}
 local Globals
@@ -9,8 +9,6 @@ function Loopers.init(g_ref)
     
     -- Route Engine to Softcut
     audio.level_eng_cut(1)
-    -- Prevent Softcut feedback loop
-    audio.level_cut_cut(0)
     
     for i=1, 4 do
         softcut.enable(i, 1)
@@ -39,7 +37,7 @@ function Loopers.init(g_ref)
         
         -- State: 0=Empty, 1=Rec, 2=Play, 3=Dub, 4=Stop
         Globals.loopers = Globals.loopers or {}
-        Globals.loopers[i] = { state = 0, start_pos = start_pos, end_pos = start_pos + 30 }
+        Globals.loopers[i] = { state = 0, start_pos = start_pos, end_pos = start_pos + 30, rec_start_time = 0 }
     end
 end
 
@@ -61,6 +59,7 @@ function Loopers.handle_button(idx, shift)
     if l.state == 0 then
         -- Empty -> Rec
         l.state = 1
+        l.rec_start_time = util.time() -- FIX: Precise time tracking
         softcut.position(idx, l.start_pos)
         softcut.rec_level(idx, 1.0)
         softcut.pre_level(idx, 0.0)
@@ -69,7 +68,10 @@ function Loopers.handle_button(idx, shift)
     elseif l.state == 1 then
         -- Rec -> Play (Close Loop)
         l.state = 2
-        softcut.position_cut(idx) -- Query position to close loop
+        local elapsed = util.time() - l.rec_start_time -- FIX: Math-based loop closing
+        l.end_pos = l.start_pos + elapsed
+        softcut.loop_end(idx, l.end_pos)
+        softcut.rec(idx, 0)
     elseif l.state == 2 then
         -- Play -> Dub
         l.state = 3
@@ -87,21 +89,13 @@ function Loopers.handle_button(idx, shift)
     end
 end
 
-function Loopers.handle_position(idx, pos)
-    local l = Globals.loopers[idx]
-    if l.state == 2 then
-        l.end_pos = pos
-        softcut.loop_end(idx, pos)
-        softcut.rec(idx, 0)
-    end
-end
-
 function Loopers.clear(idx)
     local l = Globals.loopers[idx]
     l.state = 0
     softcut.rec(idx, 0)
     softcut.play(idx, 0)
     softcut.buffer_clear_region(l.start_pos, 30)
+    softcut.loop_end(idx, l.start_pos + 30)
 end
 
 return Loopers
