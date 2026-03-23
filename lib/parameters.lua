@@ -1,14 +1,15 @@
--- lib/parameters.lua | v1.5.12
--- FIX: Restored Vactrol Defaults (0.01s Atk, 0.2s Rel)
+-- lib/parameters.lua | v1.5.13
+-- FIX: Added VCO Pan, Added Loopers Group
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
 local Consts = require 'ltra/lib/consts'
 local Scales = require 'ltra/lib/scales'
+local Loopers = require 'ltra/lib/loopers' -- FIX: Require Loopers for actions
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.5.12")
+    params:add_separator("LTRA v1.5.13")
     
     params:add_group("GLOBAL", 4)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
@@ -36,7 +37,7 @@ function Params.init(g_ref)
     params:set_action("monitor_vol", function(x) audio.level_adc(x) end)
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 10) 
+        params:add_group("VOICE "..i, 11) -- FIX: Increased to 11 for Pan
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -56,6 +57,10 @@ function Params.init(g_ref)
         
         params:add_control("osc"..i.."_vol", "Vol", controlspec.new(0,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_vol", function(x) if Globals then Globals.voices[i].vol=x end; Bridge.set_param("vol"..i, x) end)
+        
+        -- FIX: Added VCO Pan
+        params:add_control("osc"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0.01,0.0))
+        params:set_action("osc"..i.."_pan", function(x) Bridge.set_param("pan"..i, x) end)
         
         params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,4,"lin",0.01,2))
         params:set_action("osc"..i.."_shape", function(x) if Globals then Globals.voices[i].shape=x end; Bridge.set_param("shape"..i, x) end)
@@ -82,7 +87,6 @@ function Params.init(g_ref)
             end
         end)
         
-        -- FIX: Restored Vactrol Defaults
         params:add_control("env_atk"..i, "Attack", controlspec.new(0.001, 5.0, "exp", 0.01, 0.01))
         params:set_action("env_atk"..i, function(x) Bridge.set_param("env_atk"..i, x) end)
         params:add_control("env_rel"..i, "Release", controlspec.new(0.001, 11.0, "exp", 0.01, 0.2))
@@ -188,6 +192,20 @@ function Params.init(g_ref)
     params:set_action("blossomverb_mod_rate", function(x) Bridge.set_param("blossomverb_mod_rate", x) end)
     params:add_control("blossomverb_mod_depth", "Rev Mod Depth", controlspec.new(0.0,0.002,"lin",0.0001,0.002))
     params:set_action("blossomverb_mod_depth", function(x) Bridge.set_param("blossomverb_mod_depth", x) end)
+
+    -- FIX: Added LOOPERS Group
+    params:add_group("LOOPERS", 20)
+    for i=1, 4 do
+        params:add_control("looper"..i.."_vol", "L"..i.." Vol", controlspec.new(0,1,"lin",0.01,1.0))
+        params:set_action("looper"..i.."_vol", function(x) Loopers.set_vol(i, x) end)
+        params:add_control("looper"..i.."_cut", "L"..i.." Cutoff", controlspec.new(20,18000,"exp",1,18000))
+        params:set_action("looper"..i.."_cut", function(x) Loopers.set_cut(i, x) end)
+        params:add_control("looper"..i.."_res", "L"..i.." Res", controlspec.new(0,1,"lin",0.01,0))
+        params:set_action("looper"..i.."_res", function(x) Loopers.set_res(i, x) end)
+        params:add_control("looper"..i.."_pan", "L"..i.." Pan", controlspec.new(-1,1,"lin",0.01,0))
+        params:set_action("looper"..i.."_pan", function(x) Loopers.set_pan(i, x) end)
+        params:add_control("looper"..i.."_fade", "L"..i.." Fade", controlspec.new(0,16,"lin",0.1,0))
+    end
 
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
