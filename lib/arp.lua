@@ -1,5 +1,5 @@
--- lib/arp.lua | v1.5.9
--- FIX: True Cross-Voice Arpeggiator
+-- lib/arp.lua | v1.5.11
+-- FIX: Musical Arpeggiator (Cross-Voice, Octaves, Skips, Ratchets)
 
 local Arp = {}
 local Globals
@@ -36,40 +36,54 @@ function Arp.tick()
     
     if #active_voices == 0 then return end
     
+    -- FIX: Cross-Voice Cycling
     Globals.arp.current_step = (Globals.arp.current_step % #active_voices) + 1
     local target_voice = active_voices[Globals.arp.current_step]
 
     local chaos_prob = params:get("arp_chaos") or 0.1
-    local len = params:get("arp_length") or 8
     local oct_range = params:get("arp_octaves") or 1
+    
+    -- FIX: Musical Chaos Logic
+    local r = math.random()
+    local oct_offset = 0
+    local skip = false
+    local ratchet = false
+    
+    if r < (chaos_prob * 0.3) then
+        oct_offset = math.random(1, oct_range)
+    elseif r < (chaos_prob * 0.6) then
+        oct_offset = -math.random(1, oct_range)
+    elseif r < (chaos_prob * 0.8) then
+        skip = true
+    elseif r < (chaos_prob * 1.0) then
+        ratchet = true
+    end
 
-    local reg = Globals.arp.register[target_voice]
-    
-    local last_bit = reg[len]
-    local prev_bit = reg[len-1]
-    if prev_bit == nil then prev_bit = 0 end
-    
-    local new_bit = (last_bit ~= prev_bit) and 1 or 0 
-    
-    if math.random() < chaos_prob then new_bit = 1 - new_bit end
-    
-    table.remove(reg)
-    table.insert(reg, 1, new_bit)
-    
-    local val = (reg[1] * 4) + (reg[2] * 2) + (reg[3] * 1)
-    local norm_val = val / 7
-    Globals.arp.step_val[target_voice] = norm_val
-    
-    Bridge.set_param("arp_cv"..target_voice, norm_val)
-    
-    local deg = math.floor(norm_val * 24)
-    local oct_offset = math.floor(norm_val * oct_range)
-    local hz = Scales.get_freq(deg, (params:get("osc"..target_voice.."_octave") or 0) + oct_offset)
-    local tune = params:get("osc"..target_voice.."_tune") or 0
-    hz = hz * (2 ^ (tune / 12))
-    
-    Bridge.set_freq(target_voice, hz)
-    Bridge.set_param("t_arp"..target_voice, params:get("arp_gate_len") or 0.5)
+    if not skip then
+        local pitch_val = params:get("osc"..target_voice.."_pitch") or 0.5
+        local deg = math.floor(pitch_val * 24)
+        local hz = Scales.get_freq(deg, (params:get("osc"..target_voice.."_octave") or 0) + oct_offset)
+        local tune = params:get("osc"..target_voice.."_tune") or 0
+        hz = hz * (2 ^ (tune / 12))
+        
+        Bridge.set_freq(target_voice, hz)
+        
+        -- FIX: Real Gate Pulse for Envelopes
+        clock.run(function()
+            Bridge.set_gate(target_voice, 1)
+            if ratchet then
+                clock.sleep(0.05)
+                Bridge.set_gate(target_voice, 0)
+                clock.sleep(0.05)
+                Bridge.set_gate(target_voice, 1)
+            end
+            clock.sleep(params:get("arp_gate_len") or 0.5)
+            -- Only close if not latched
+            if not Globals.voices[target_voice].latched then
+                Bridge.set_gate(target_voice, 0)
+            end
+        end)
+    end
 end
 
 return Arp
