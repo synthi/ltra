@@ -1,5 +1,6 @@
--- lib/grid_pages.lua | v1.5.11
--- FIX: New Layout, Envelopes, Loopers, Shift Logic
+-- lib/grid_pages.lua | v1.5.12
+-- lib/grid_pages.lua
+-- FIX: Restored Row 6/7 Layout, Looper Breathing Visuals
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -39,15 +40,13 @@ local function draw_nav_bar()
     led_safe(5, y, latch_b)
     led_safe(12, y, Consts.BRIGHT.BG_NAV)
     
-    -- FIX: Page buttons moved to 13-14
-    local page_map = {[13]=1, [14]=2}
+    local page_map = {[13]=1,[14]=2}
     for x=13, 14 do
         local p = page_map[x]
         local b = (Globals.page == p) and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
         led_safe(x, y, b)
     end
     
-    -- FIX: Shift Button
     local shift_b = (Globals.button_state[16] and Globals.button_state[16][8]) and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
     led_safe(16, 8, shift_b)
 end
@@ -67,21 +66,24 @@ local function check_hold()
     end
     
     if held_x then
+        -- FIX: Restored Row 6 and Row 7 Menu Mapping
         if held_y == 6 then
             if held_x <= 4 then Globals.menu_mode = Consts.MENU.OSC; Globals.menu_target = held_x
+            elseif held_x >= 6 and held_x <= 8 then Globals.menu_mode = Consts.MENU.MOD; Globals.menu_target = held_x - 5
+            elseif held_x == 9 then Globals.menu_mode = Consts.MENU.OUTLINE
+            elseif held_x == 11 or held_x == 12 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = (held_x==11 and 1 or 2)
             elseif held_x == 13 then Globals.menu_mode = Consts.MENU.DELAY
             elseif held_x == 14 then Globals.menu_mode = Consts.MENU.REVERB
             elseif held_x == 16 then Globals.menu_mode = Consts.MENU.LOOPER 
             end
+            Globals.dirty = true
+            return
         elseif held_y == 7 then
-            if held_x >= 1 and held_x <= 4 then Globals.menu_mode = Consts.MENU.ENV; Globals.menu_target = held_x -- FIX: ENV Menu
-            elseif held_x >= 5 and held_x <= 7 then Globals.menu_mode = Consts.MENU.MOD; Globals.menu_target = held_x - 4
-            elseif held_x == 9 then Globals.menu_mode = Consts.MENU.OUTLINE
-            elseif held_x == 11 or held_x == 12 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = (held_x==11 and 1 or 2)
+            if held_x >= 1 and held_x <= 4 then Globals.menu_mode = Consts.MENU.ENV; Globals.menu_target = held_x
             end
+            Globals.dirty = true
+            return
         end
-        Globals.dirty = true
-        return
     end
 
     if Globals.button_state[12] and Globals.button_state[12][8] then
@@ -118,22 +120,32 @@ local function check_hold()
 end
 
 local function draw_snapshots()
+    -- FIX: Snapshots on Row 7, Cols 6-11
     for i=1, 6 do
         local x = i + 5
         local b = Consts.BRIGHT.BG_NAV 
         if Globals.snapshots[i] then b = Consts.BRIGHT.VAL_MED end 
-        led_safe(x, 6, b)
+        led_safe(x, 7, b)
     end
 end
 
 local function draw_loopers()
+    local now = util.time()
     for i=1, 4 do
         local x = i + 6
         local state = Globals.loopers[i].state
-        local b = Consts.BRIGHT.BG_NAV
-        if state == 1 then b = Consts.BRIGHT.VAL_PEAK -- Rec
-        elseif state == 2 then b = Consts.BRIGHT.VAL_MED -- Play
-        elseif state == 3 then b = Consts.BRIGHT.VAL_HIGH -- Dub
+        local b = Consts.BRIGHT.BG_NAV -- 0: Empty (Dim)
+        
+        -- FIX: Looper Breathing Visuals
+        if state == 1 or state == 3 then 
+            -- 1: Rec, 3: Dub -> Breathing
+            b = math.floor(util.linlin(-1, 1, 5, 15, math.sin(now * 6)))
+        elseif state == 2 then 
+            -- 2: Play -> Bright
+            b = Consts.BRIGHT.VAL_HIGH
+        elseif state == 4 then 
+            -- 4: Stop (with audio) -> Low but visible
+            b = Consts.BRIGHT.VAL_LOW
         end
         led_safe(x, 8, b)
     end
@@ -146,27 +158,28 @@ function Pages.redraw()
     if Globals.page == 1 then
         Matrix.draw(HW, led_safe)
         
+        -- FIX: Restored Row 6 Layout
         for i=1, 4 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
-        draw_snapshots() 
+        
+        local mod1 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[1] or 0))
+        led_safe(6, 6, mod1)
+        local mod2 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[2] or 0))
+        led_safe(7, 6, mod2)
+        local mod3 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[3] or 0))
+        led_safe(8, 6, mod3)
+        
+        local outline_val = math.floor(util.linlin(0, 1, 2, 13, Globals.visuals.outline_val or 0))
+        led_safe(9, 6, outline_val)
+        
+        led_safe(11, 6, Consts.BRIGHT.BG_DASHBOARD)
+        led_safe(12, 6, Consts.BRIGHT.BG_DASHBOARD)
         led_safe(13, 6, Consts.BRIGHT.BG_DASHBOARD)
         led_safe(14, 6, Consts.BRIGHT.BG_DASHBOARD)
         led_safe(16, 6, Consts.BRIGHT.BG_DASHBOARD) 
         
-        -- FIX: Row 7 Layout (ENV, MOD, Outline, Filter)
-        for i=1, 4 do led_safe(i, 7, 1) end -- ENV
-        
-        local mod1 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[1] or 0))
-        led_safe(5, 7, mod1)
-        local mod2 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[2] or 0))
-        led_safe(6, 7, mod2)
-        local mod3 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[3] or 0))
-        led_safe(7, 7, mod3)
-        
-        local outline_val = math.floor(util.linlin(0, 1, 2, 13, Globals.visuals.outline_val or 0))
-        led_safe(9, 7, outline_val)
-        
-        led_safe(11, 7, Consts.BRIGHT.BG_DASHBOARD)
-        led_safe(12, 7, Consts.BRIGHT.BG_DASHBOARD)
+        -- FIX: Row 7 Layout (ENV + Snapshots)
+        for i=1, 4 do led_safe(i, 7, Consts.BRIGHT.BG_DASHBOARD) end
+        draw_snapshots() 
         
         draw_loopers()
     end
@@ -256,7 +269,6 @@ function Pages.key(x, y, z)
             return
         end
         
-        -- FIX: Loopers Logic
         if x >= 7 and x <= 10 then
             if z == 0 then
                 local idx = x - 6
@@ -272,7 +284,7 @@ function Pages.key(x, y, z)
                     
                     if (now - last) < 0.4 then
                         if Globals.looper_state.defer_id[idx] then clock.cancel(Globals.looper_state.defer_id[idx]) end
-                        Loopers.handle_button(idx, true) -- Double click = Stop
+                        Loopers.handle_button(idx, true) 
                     else
                         Globals.looper_state.defer_id[idx] = clock.run(function()
                             clock.sleep(0.4)
@@ -296,7 +308,6 @@ function Pages.key(x, y, z)
             if z == 0 then
                 local press_time = Globals.grid_timers[x][y] or 0
                 if util.time() - press_time < 0.3 then
-                    -- FIX: Shift + Matrix = Reset
                     if shift then
                         local src_name = ({[1]="MOD1",[2]="MOD2",[3]="MOD3",[4]="OUTLINE"})[y]
                         local dest_name = Consts.COL_TO_DEST_NAMES[x] or "UNK"
@@ -327,7 +338,8 @@ function Pages.key(x, y, z)
                 end
             end
         end
-        if y == 6 and x >= 6 and x <= 11 then
+        -- FIX: Snapshots on Row 7, Cols 6-11
+        if y == 7 and x >= 6 and x <= 11 then
             if z == 0 then
                 local snap_idx = x - 5
                 local press_time = Globals.grid_timers[x][y]
