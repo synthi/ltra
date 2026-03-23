@@ -1,5 +1,5 @@
--- lib/ltra.lua | v1.6.0
--- FIX: Safe Init Timing, Default Latch State
+-- ltra.lua | v1.5.6
+-- FIX: Tempo Sync Watcher
 
 engine.name = 'Ltra'
 
@@ -23,7 +23,7 @@ local g_state
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v1.6.0 (Golden Master)...")
+    print("LTRA: Initializing v1.5.6 (Golden Master 2)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
@@ -32,9 +32,8 @@ function init()
     g_state.tap_last = 0
     g_state.loaded = false 
     
-    -- FIX: Default Latch ON for immediate sound
-    g_state.latch_mode = true
-    for i=1, 4 do g_state.voices[i].latched = true end
+    g_state.latch_mode = false
+    for i=1, 4 do g_state.voices[i].latched = false end
     
     Bridge.init(g_state)
     Scales.init(g_state)
@@ -51,7 +50,7 @@ function init()
     GridPages.set_hw(GridHW)
     
     clock.run(function()
-        clock.sleep(1.0) -- FIX: Wait for SC to fully compile SynthDef
+        clock.sleep(1.0) 
         Midi16n.init(g_state, UI)
         Bridge.query_config()
         
@@ -82,6 +81,26 @@ function init()
         if g_state.loaded then GridHW.redraw() end 
     end
     grid_fps:start()
+    
+    -- FIX: Sync Watcher
+    local sync_watcher = metro.init()
+    sync_watcher.time = 0.5
+    sync_watcher.event = function()
+        if not g_state.loaded then return end
+        local bpm = params:get("clock_tempo")
+        local function update_sync(name)
+            if params:get(name.."_sync") == 1 then
+                local div_idx = params:get(name.."_div")
+                local div_val = Consts.SYNC_DIVS[div_idx].v
+                local hz = (bpm / 60) / div_val
+                Bridge.set_param(name.."_rate", hz)
+            end
+        end
+        update_sync("lfo1")
+        update_sync("lfo2")
+        update_sync("chaos")
+    end
+    sync_watcher:start()
 end
 
 function key(n,z) 
