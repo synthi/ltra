@@ -7,9 +7,9 @@ local Consts = require 'ltra/lib/consts'
 local UI_Ref = nil
 
 local FADER_FUNC = {
-    [1]="pitch1",[2]="pitch2", [3]="pitch3", [4]="pitch4",
+    [1]="pitch1",[2]="pitch2", [3]="pitch3",[4]="pitch4",
     [5]="amp1",   [6]="amp2",   [7]="amp3",   [8]="amp4",
-    [9]="filt1",[10]="filt2", [11]="mod1",[12]="mod2",[13]="mod3",  [14]="tape_time",[15]="tape_fb",[16]="delay_send"
+    [9]="filt1",[10]="filt2",[11]="mod1",[12]="mod2",[13]="mod3",  [14]="tape_time",[15]="tape_fb",[16]="delay_send"
 }
 
 local function trigger_popup(text, val_str)
@@ -46,7 +46,6 @@ local function process_fader(id, val)
     Globals.fader_values[id] = val
     Globals.fader_virtual[id] = norm
     
-    -- FIX: Pure Math Mapping (No API dependency)
     if func == "pitch1" then params:set("osc1_pitch", norm); trigger_popup(name, string.format("%.2f", norm))
     elseif func == "pitch2" then params:set("osc2_pitch", norm); trigger_popup(name, string.format("%.2f", norm))
     elseif func == "pitch3" then params:set("osc3_pitch", norm); trigger_popup(name, string.format("%.2f", norm))
