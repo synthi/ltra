@@ -1,5 +1,5 @@
--- lib/parameters.lua | v1.5.5
--- FIX: Added Drift, Spread, Chaos Amp
+-- lib/parameters.lua | v1.5.6
+-- FIX: FxTape, FxBlossom, Sync Params, ARP Params
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -8,7 +8,7 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.5.5")
+    params:add_separator("LTRA v1.5.6")
     
     params:add_group("GLOBAL", 4)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
@@ -36,7 +36,7 @@ function Params.init(g_ref)
     params:set_action("monitor_vol", function(x) audio.level_adc(x) end)
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 8) -- FIX: Increased to 8
+        params:add_group("VOICE "..i, 8) 
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -66,7 +66,6 @@ function Params.init(g_ref)
             if Globals and Globals.loaded then Scales.update_all_voices() end
         end)
         
-        -- FIX: Drift and Spread
         params:add_control("osc"..i.."_drift", "Drift", controlspec.new(0,1,"lin",0.01,0))
         params:set_action("osc"..i.."_drift", function(x) Bridge.set_param("drift"..i, x) end)
         
@@ -84,9 +83,13 @@ function Params.init(g_ref)
         end)
     end
     
-    params:add_group("ARP", 7)
+    -- FIX: ARP Params
+    params:add_group("ARP", 10)
     params:add_option("arp_div", "Clock Div", {"1/4", "1/8", "1/16", "1/32"}, 2)
     params:add_control("arp_chaos", "Chaos Prob", controlspec.new(0,1,"lin",0.01,0.2))
+    params:add_number("arp_length", "Length", 1, 8, 8)
+    params:add_number("arp_octaves", "Octaves", 1, 3, 1)
+    params:add_control("arp_gate_len", "Gate Length", controlspec.new(0.1, 1.0, "lin", 0.01, 0.5))
     params:add_binary("latch_mode", "Latch", "toggle", 0)
     params:set_action("latch_mode", function(x) if Globals then Globals.latch_mode=(x==1); Globals.dirty=true end end)
     for i=1,4 do
@@ -113,26 +116,33 @@ function Params.init(g_ref)
     params:add_control("filt2_drive", "Filt 2 Drive", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("filt2_drive", function(x) Bridge.set_param("filt2_drive", x) end)
 
-    params:add_group("MODULATION", 11) -- FIX: Increased to 11
+    -- FIX: Sync Params
+    params:add_group("MODULATION", 17) 
+    params:add_binary("lfo1_sync", "LFO1 Sync", "toggle", 0)
+    params:add_option("lfo1_div", "LFO1 Div", {"4 bars", "2 bars", "1 bar", "1/2", "1/4", "1/8", "1/16", "1/32"}, 5)
     params:add_control("lfo1_rate", "LFO1 Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
-    params:set_action("lfo1_rate", function(x) Bridge.set_param("lfo1_rate", x) end)
+    params:set_action("lfo1_rate", function(x) if params:get("lfo1_sync")==0 then Bridge.set_param("lfo1_rate", x) end end)
     params:add_control("lfo1_depth", "LFO1 Depth", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("lfo1_depth", function(x) Bridge.set_param("lfo1_depth", x) end)
     params:add_control("lfo1_shape", "LFO1 Shape", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("lfo1_shape", function(x) Bridge.set_param("lfo1_shape", x) end)
     
+    params:add_binary("lfo2_sync", "LFO2 Sync", "toggle", 0)
+    params:add_option("lfo2_div", "LFO2 Div", {"4 bars", "2 bars", "1 bar", "1/2", "1/4", "1/8", "1/16", "1/32"}, 5)
     params:add_control("lfo2_rate", "LFO2 Rate", controlspec.new(0.01,20,"exp",0.01,0.2))
-    params:set_action("lfo2_rate", function(x) Bridge.set_param("lfo2_rate", x) end)
+    params:set_action("lfo2_rate", function(x) if params:get("lfo2_sync")==0 then Bridge.set_param("lfo2_rate", x) end end)
     params:add_control("lfo2_depth", "LFO2 Depth", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("lfo2_depth", function(x) Bridge.set_param("lfo2_depth", x) end)
     params:add_control("lfo2_shape", "LFO2 Shape", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("lfo2_shape", function(x) Bridge.set_param("lfo2_shape", x) end)
     
+    params:add_binary("chaos_sync", "Chaos Sync", "toggle", 0)
+    params:add_option("chaos_div", "Chaos Div", {"4 bars", "2 bars", "1 bar", "1/2", "1/4", "1/8", "1/16", "1/32"}, 5)
     params:add_control("chaos_rate", "Chaos Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
-    params:set_action("chaos_rate", function(x) Bridge.set_param("chaos_rate", x) end)
+    params:set_action("chaos_rate", function(x) if params:get("chaos_sync")==0 then Bridge.set_param("chaos_rate", x) end end)
     params:add_control("chaos_slew", "Chaos Slew", controlspec.new(0,1,"lin",0.01,0.1))
     params:set_action("chaos_slew", function(x) Bridge.set_param("chaos_slew", x) end)
-    params:add_control("chaos_amp", "Chaos Amp", controlspec.new(0,1,"lin",0.01,1.0)) -- FIX: Chaos Amp
+    params:add_control("chaos_amp", "Chaos Amp", controlspec.new(0,1,"lin",0.01,1.0)) 
     params:set_action("chaos_amp", function(x) Bridge.set_param("chaos_amp", x) end)
     
     params:add_option("outline_src", "Outline Source", {"Internal Gates", "External Audio"}, 1)
@@ -140,31 +150,40 @@ function Params.init(g_ref)
     params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0.1, 1))
     params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
 
-    params:add_group("SPACE", 12)
+    -- FIX: FxTape and FxBlossom Params
+    params:add_group("SPACE", 15)
     params:add_control("system_dirt", "Dirt", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("system_dirt", function(x) Bridge.set_param("system_dirt", x) end)
     params:add_control("dust_dens", "Dust", controlspec.new(0,50,"lin",0.1,0))
     params:set_action("dust_dens", function(x) Bridge.set_param("dust_dens", x) end)
-    params:add_control("delay_time", "Delay Time", controlspec.new(0.01,2.0,"lin",0.01,0.5))
-    params:set_action("delay_time", function(x) Bridge.set_param("delay_time", x) end)
-    params:add_control("delay_fb", "Delay Feedback", controlspec.new(0,1.1,"lin",0.01,0))
-    params:set_action("delay_fb", function(x) Bridge.set_param("delay_fb", x) end)
-    params:add_control("delay_spread", "Spread", controlspec.new(0,1,"lin",0.01,0))
-    params:set_action("delay_spread", function(x) Bridge.set_param("delay_spread", x) end)
+    
     params:add_control("delay_send", "Delay Send", controlspec.new(0,1,"lin",0.01,0.5))
     params:set_action("delay_send", function(x) Bridge.set_param("delay_send", x) end)
-    params:add_control("tape_wow", "Wow", controlspec.new(0,1,"lin",0.01,0))
-    params:set_action("tape_wow", function(x) Bridge.set_param("tape_wow", x) end)
-    params:add_control("tape_flutter", "Flutter", controlspec.new(0,1,"lin",0.01,0))
-    params:set_action("tape_flutter", function(x) Bridge.set_param("tape_flutter", x) end)
-    params:add_control("tape_erosion", "Erosion", controlspec.new(0,1,"lin",0.01,0))
-    params:set_action("tape_erosion", function(x) Bridge.set_param("tape_erosion", x) end)
+    params:add_control("fx_tape_time", "Tape Time", controlspec.new(0.01,2.0,"exp",0.01,0.3))
+    params:set_action("fx_tape_time", function(x) Bridge.set_param("fx_tape_time", x) end)
+    params:add_control("fx_tape_feedback", "Tape Feedback", controlspec.new(0,1.2,"lin",0.01,0.4))
+    params:set_action("fx_tape_feedback", function(x) Bridge.set_param("fx_tape_feedback", x) end)
+    params:add_control("fx_tape_wow_flutter", "Tape Wow/Flut", controlspec.new(0,1.0,"lin",0.01,0.1))
+    params:set_action("fx_tape_wow_flutter", function(x) Bridge.set_param("fx_tape_wow_flutter", x) end)
+    params:add_control("fx_tape_erosion", "Tape Erosion", controlspec.new(0,1.0,"lin",0.01,0.0))
+    params:set_action("fx_tape_erosion", function(x) Bridge.set_param("fx_tape_erosion", x) end)
+    params:add_control("fx_tape_drive", "Tape Drive", controlspec.new(0.1,5.0,"lin",0.01,1.0))
+    params:set_action("fx_tape_drive", function(x) Bridge.set_param("fx_tape_drive", x) end)
+    
     params:add_control("reverb_mix", "Reverb Mix", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("reverb_mix", function(x) Bridge.set_param("reverb_mix", x) end)
-    params:add_control("reverb_decay", "Reverb Decay", controlspec.new(0.1,60,"exp",0.1,5))
-    params:set_action("reverb_decay", function(x) Bridge.set_param("reverb_time", x) end)
-    params:add_control("reverb_damp", "Reverb Damp", controlspec.new(0,1,"lin",0.01,0.5))
-    params:set_action("reverb_damp", function(x) Bridge.set_param("reverb_damp", x) end)
+    params:add_control("fx_blossom_decay", "Rev Decay", controlspec.new(0.1,100.0,"exp",0.1,4.75))
+    params:set_action("fx_blossom_decay", function(x) Bridge.set_param("fx_blossom_decay", x) end)
+    params:add_control("fx_blossom_bloom", "Rev Bloom", controlspec.new(0.01,2.0,"lin",0.01,1.80))
+    params:set_action("fx_blossom_bloom", function(x) Bridge.set_param("fx_blossom_bloom", x) end)
+    params:add_control("fx_blossom_damp", "Rev Damp", controlspec.new(200,18000,"exp",1,3500))
+    params:set_action("fx_blossom_damp", function(x) Bridge.set_param("fx_blossom_damp", x) end)
+    params:add_control("fx_blossom_predelay", "Rev Predelay", controlspec.new(0.0,1.0,"lin",0.01,0.110))
+    params:set_action("fx_blossom_predelay", function(x) Bridge.set_param("fx_blossom_predelay", x) end)
+    params:add_control("fx_blossom_mod_rate", "Rev Mod Rate", controlspec.new(0.0,10.0,"lin",0.01,0.300))
+    params:set_action("fx_blossom_mod_rate", function(x) Bridge.set_param("fx_blossom_mod_rate", x) end)
+    params:add_control("fx_blossom_mod_depth", "Rev Mod Depth", controlspec.new(0.0,0.002,"lin",0.0001,0.002))
+    params:set_action("fx_blossom_mod_depth", function(x) Bridge.set_param("fx_blossom_mod_depth", x) end)
 
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
@@ -177,7 +196,6 @@ function Params.init(g_ref)
                 local bridge_dest = d_name:lower():gsub("%d", "")
                 if bridge_dest == "filt" then bridge_dest = "filt" end 
                 if bridge_dest == "morph" then bridge_dest = "shape" end 
-                -- FIX: Delay strings match SC exactly
                 if bridge_dest == "delay_t" then bridge_dest = "delay_time" end
                 if bridge_dest == "delay_f" then bridge_dest = "delay_fb" end
                 Bridge.set_matrix(s_name:lower(), bridge_dest, idx, x)
