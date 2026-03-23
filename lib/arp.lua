@@ -1,5 +1,7 @@
--- lib/arp.lua | v1.5.11
+-- lib/arp.lua | v1.5.12
 -- FIX: Musical Arpeggiator (Cross-Voice, Octaves, Skips, Ratchets)
+-- lib/arp.lua
+-- FIX: Octaves only go UP, Skips and Ratchets maintained
 
 local Arp = {}
 local Globals
@@ -36,24 +38,41 @@ function Arp.tick()
     
     if #active_voices == 0 then return end
     
-    -- FIX: Cross-Voice Cycling
     Globals.arp.current_step = (Globals.arp.current_step % #active_voices) + 1
     local target_voice = active_voices[Globals.arp.current_step]
 
     local chaos_prob = params:get("arp_chaos") or 0.1
+    local len = params:get("arp_length") or 8
     local oct_range = params:get("arp_octaves") or 1
+
+    local reg = Globals.arp.register[target_voice]
     
-    -- FIX: Musical Chaos Logic
+    local last_bit = reg[len]
+    local prev_bit = reg[len-1]
+    if prev_bit == nil then prev_bit = 0 end
+    
+    local new_bit = (last_bit ~= prev_bit) and 1 or 0 
+    
+    if math.random() < chaos_prob then new_bit = 1 - new_bit end
+    
+    table.remove(reg)
+    table.insert(reg, 1, new_bit)
+    
+    local val = (reg[1] * 4) + (reg[2] * 2) + (reg[3] * 1)
+    local norm_val = val / 7
+    Globals.arp.step_val[target_voice] = norm_val
+    
+    Bridge.set_param("arp_cv"..target_voice, norm_val)
+    
+    -- FIX: Musical Chaos Logic (Octaves ONLY UP)
     local r = math.random()
     local oct_offset = 0
     local skip = false
     local ratchet = false
     
-    if r < (chaos_prob * 0.3) then
-        oct_offset = math.random(1, oct_range)
-    elseif r < (chaos_prob * 0.6) then
-        oct_offset = -math.random(1, oct_range)
-    elseif r < (chaos_prob * 0.8) then
+    if r < (chaos_prob * 0.4) then
+        oct_offset = math.random(1, oct_range) -- Only positive jumps
+    elseif r < (chaos_prob * 0.7) then
         skip = true
     elseif r < (chaos_prob * 1.0) then
         ratchet = true
@@ -68,7 +87,6 @@ function Arp.tick()
         
         Bridge.set_freq(target_voice, hz)
         
-        -- FIX: Real Gate Pulse for Envelopes
         clock.run(function()
             Bridge.set_gate(target_voice, 1)
             if ratchet then
@@ -78,7 +96,6 @@ function Arp.tick()
                 Bridge.set_gate(target_voice, 1)
             end
             clock.sleep(params:get("arp_gate_len") or 0.5)
-            -- Only close if not latched
             if not Globals.voices[target_voice].latched then
                 Bridge.set_gate(target_voice, 0)
             end
