@@ -1,5 +1,5 @@
--- lib/parameters.lua | v1.5.3
--- FIX: Matrix Controlspec (-1 to 1), Delay Naming
+-- lib/parameters.lua | v1.5.4
+-- FIX: Morph to Shape Translation
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -8,7 +8,7 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.5.3")
+    params:add_separator("LTRA v1.5.4")
     
     params:add_group("GLOBAL", 4)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
@@ -159,15 +159,16 @@ function Params.init(g_ref)
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
             local id = "mat_"..s_name.."_"..d_name
-            -- FIX: Controlspec -1 to 1 for proper inversion
             params:add_control(id, id, controlspec.new(-1,1,"lin",0,0))
             params:hide(id)
             params:set_action(id, function(x) 
                 if Globals then Globals.matrix[s_idx][d_idx] = x end
                 local idx = string.match(d_name, "(%d+)$") or ""
                 local bridge_dest = d_name:lower():gsub("%d", "")
-                -- FIX: Removed delay_t translation to match SC NamedControl
+                if bridge_dest == "delay_t" then bridge_dest = "delay_time" end
+                if bridge_dest == "delay_f" then bridge_dest = "delay_fb" end
                 if bridge_dest == "filt" then bridge_dest = "filt" end 
+                if bridge_dest == "morph" then bridge_dest = "shape" end -- FIX: Shape Translation
                 Bridge.set_matrix(s_name:lower(), bridge_dest, idx, x)
             end)
         end
