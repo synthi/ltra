@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.8
-// FIX: Purged old FX params, +12dB Reverb Gain
+// lib/Engine_Ltra.sc | v1.5.9
+// FIX: Purged old FX params, +12dB Reverb Gain, Unipolar Chaos
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -35,9 +35,8 @@ Engine_Ltra : CroneEngine {
                 filt1_type=1, filt2_type=0, 
                 filt1_drive=0, filt2_drive=0, 
                 
-                // FIX: Only FxTape and FxBlossom params remain
                 fx_tape_time=0.3, fx_tape_feedback=0.4, fx_tape_wow_flutter=0.1,
-                fx_tape_erosion=0.0, fx_tape_drive=1.0, delay_send=0.5,
+                fx_tape_erosion=0.0, fx_tape_drive=1.0, fx_tape_tone=1, delay_send=0.5,
                 
                 fx_blossom_decay=4.75, fx_blossom_bloom=1.80, fx_blossom_damp=3500,
                 fx_blossom_predelay=0.110, fx_blossom_mod_rate=0.300, fx_blossom_mod_depth=0.002, reverb_mix=0.0,
@@ -67,10 +66,10 @@ Engine_Ltra : CroneEngine {
             
             var tape_in, local_in, shared_wow, shared_flutter, shared_mod;
             var shared_dust_trig, shared_dropout_env, dt_mono, tape_del_mono;
-            var sat_mono, ero_lpf_freq, ero_bass_cut, filt_mono, final_mono;
+            var sat_mono, ero_lpf_freq, ero_bass_cut, filt_mono, tone_freq, tone_filt_mono, final_mono;
             var skew_lfo, skew_l, skew_r, cross_l, cross_r, eq_var_l, eq_var_r;
             var tape_sig_l, tape_sig_r;
-            var time_kr, fb_kr, wf_kr, ero_kr, drive_kr;
+            var time_kr, fb_kr, wf_kr, ero_kr, drive_kr, tone_kr;
 
             var rev_in, lfo_l, lfo_r, combs_l, combs_r, cross_l_rev, cross_r_rev;
             var ap_l, ap_r, rev_filt_l, rev_filt_r, rev_out_l, rev_out_r;
@@ -221,6 +220,7 @@ Engine_Ltra : CroneEngine {
             wf_kr = Lag.kr(fx_tape_wow_flutter, 0.1);
             ero_kr = Lag.kr(fx_tape_erosion, 0.1);
             drive_kr = Lag.kr(fx_tape_drive, 0.1);
+            tone_kr = fx_tape_tone;
 
             local_in = LocalIn.ar(1);
             local_in = local_in * (1.0 - Trig.kr(clear_trig, 0.05));
@@ -245,7 +245,10 @@ Engine_Ltra : CroneEngine {
             filt_mono = LPF.ar(sat_mono, ero_lpf_freq);
             filt_mono = BLowShelf.ar(filt_mono, 120, 1.0, ero_bass_cut);
 
-            final_mono = filt_mono * (1.0 - (shared_dropout_env * ero_kr).clip(0.0, 0.9));
+            tone_freq = Select.kr((tone_kr - 1).round,[15000, 8000, 4000, 1600]);
+            tone_filt_mono = LPF.ar(filt_mono, tone_freq);
+
+            final_mono = tone_filt_mono * (1.0 - (shared_dropout_env * ero_kr).clip(0.0, 0.9));
 
             LocalOut.ar(final_mono);
 
@@ -292,8 +295,8 @@ Engine_Ltra : CroneEngine {
             rev_filt_r = LPF.ar(ap_r, damp_kr);
 
             // FIX: +12dB Reverb Gain (* 4.0)
-            rev_out_l = ((LeakDC.ar(rev_filt_l) * 0.2).tanh * 4.0).softclip * 4.0;
-            rev_out_r = ((LeakDC.ar(rev_filt_r) * 0.2).tanh * 4.0).softclip * 4.0;
+            rev_out_l = ((LeakDC.ar(rev_filt_l) * 0.05).tanh * 3.6).softclip * 4.0;
+            rev_out_r = ((LeakDC.ar(rev_filt_r) * 0.05).tanh * 3.6).softclip * 4.0;
             
             effects_out = (sig_pre * (1-delay_send)) + ([tape_sig_l, tape_sig_r] * delay_send);
             effects_out = (effects_out * (1-reverb_mix)) + ([rev_out_l, rev_out_r] * reverb_mix);
