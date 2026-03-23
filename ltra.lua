@@ -1,5 +1,5 @@
--- ltra.lua | v1.5.6
--- FIX: Tempo Sync Watcher
+-- lib/ltra.lua | v1.5.7
+-- FIX: MOD1-3 Sync Watcher
 
 engine.name = 'Ltra'
 
@@ -23,7 +23,7 @@ local g_state
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v1.5.6 (Golden Master 2)...")
+    print("LTRA: Initializing v1.5.7 (Golden Master 3)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
@@ -82,7 +82,6 @@ function init()
     end
     grid_fps:start()
     
-    -- FIX: Sync Watcher
     local sync_watcher = metro.init()
     sync_watcher.time = 0.5
     sync_watcher.event = function()
@@ -96,9 +95,10 @@ function init()
                 Bridge.set_param(name.."_rate", hz)
             end
         end
-        update_sync("lfo1")
-        update_sync("lfo2")
-        update_sync("chaos")
+        for i=1, 3 do
+            update_sync("mod"..i.."_lfo")
+            update_sync("mod"..i.."_chaos")
+        end
     end
     sync_watcher:start()
 end
