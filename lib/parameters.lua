@@ -1,5 +1,7 @@
--- lib/parameters.lua | v1.5.14
+-- lib/parameters.lua | v1.5.16
 -- FIX: Added VCO Pan, Added Loopers Group
+-- lib/parameters.lua
+-- FIX: Re-open gate if Arp is turned off while voice is latched/sustained
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -37,7 +39,7 @@ function Params.init(g_ref)
     params:set_action("monitor_vol", function(x) audio.level_adc(x) end)
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 11) -- FIX: Increased to 11 for Pan
+        params:add_group("VOICE "..i, 11) 
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -58,7 +60,6 @@ function Params.init(g_ref)
         params:add_control("osc"..i.."_vol", "Vol", controlspec.new(0,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_vol", function(x) if Globals then Globals.voices[i].vol=x end; Bridge.set_param("vol"..i, x) end)
         
-        -- FIX: Added VCO Pan
         params:add_control("osc"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_pan", function(x) Bridge.set_param("pan"..i, x) end)
         
@@ -84,6 +85,13 @@ function Params.init(g_ref)
                 local p = params:get("osc"..i.."_pitch")
                 local action = params:lookup_param("osc"..i.."_pitch").action
                 if action then action(p) end
+                
+                -- FIX: Re-open gate if latched or sustained when Arp is turned off
+                if Globals and (Globals.voices[i].latched or Globals.voices[i].sustained) then
+                    Bridge.set_gate(i, 1)
+                else
+                    Bridge.set_gate(i, 0)
+                end
             end
         end)
         
@@ -193,7 +201,6 @@ function Params.init(g_ref)
     params:add_control("blossomverb_mod_depth", "Rev Mod Depth", controlspec.new(0.0,0.002,"lin",0.0001,0.002))
     params:set_action("blossomverb_mod_depth", function(x) Bridge.set_param("blossomverb_mod_depth", x) end)
 
-    -- FIX: Added LOOPERS Group
     params:add_group("LOOPERS", 20)
     for i=1, 4 do
         params:add_control("looper"..i.."_vol", "L"..i.." Vol", controlspec.new(0,1,"lin",0.01,1.0))
