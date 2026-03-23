@@ -1,5 +1,5 @@
 -- lib/parameters.lua | v1.5.7
--- FIX: MOD1-3 Architecture, FxTape/FxBlossom Params
+-- FIX: MOD1-3 Params, Sync Divisions
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -115,11 +115,13 @@ function Params.init(g_ref)
     params:add_control("filt2_drive", "Filt 2 Drive", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("filt2_drive", function(x) Bridge.set_param("filt2_drive", x) end)
 
-    -- FIX: MOD1, MOD2, MOD3 Architecture
+    local sync_opts = {}
+    for _, v in ipairs(Consts.SYNC_DIVS) do table.insert(sync_opts, v.name) end
+
     params:add_group("MODULATION", 32) 
     for i=1, 3 do
         params:add_binary("mod"..i.."_lfo_sync", "MOD"..i.." LFO Sync", "toggle", 0)
-        params:add_option("mod"..i.."_lfo_div", "MOD"..i.." LFO Div", {"1/1 D", "1/1", "1/1 T", "1/2 D", "1/2", "1/2 T", "1/4 D", "1/4", "1/4 T", "1/8 D", "1/8", "1/8 T", "1/16 D", "1/16", "1/16 T"}, 8)
+        params:add_option("mod"..i.."_lfo_div", "MOD"..i.." LFO Div", sync_opts, 8)
         params:add_control("mod"..i.."_lfo_rate", "MOD"..i.." LFO Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
         params:set_action("mod"..i.."_lfo_rate", function(x) if params:get("mod"..i.."_lfo_sync")==0 then Bridge.set_param("mod"..i.."_lfo_rate", x) end end)
         params:add_control("mod"..i.."_lfo_shape", "MOD"..i.." LFO Shape", controlspec.new(0,1,"lin",0.01,0))
@@ -128,7 +130,7 @@ function Params.init(g_ref)
         params:set_action("mod"..i.."_depth", function(x) Bridge.set_param("mod"..i.."_depth", x) end)
         
         params:add_binary("mod"..i.."_chaos_sync", "MOD"..i.." Chaos Sync", "toggle", 0)
-        params:add_option("mod"..i.."_chaos_div", "MOD"..i.." Chaos Div", {"1/1 D", "1/1", "1/1 T", "1/2 D", "1/2", "1/2 T", "1/4 D", "1/4", "1/4 T", "1/8 D", "1/8", "1/8 T", "1/16 D", "1/16", "1/16 T"}, 8)
+        params:add_option("mod"..i.."_chaos_div", "MOD"..i.." Chaos Div", sync_opts, 8)
         params:add_control("mod"..i.."_chaos_rate", "MOD"..i.." Chaos Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
         params:set_action("mod"..i.."_chaos_rate", function(x) if params:get("mod"..i.."_chaos_sync")==0 then Bridge.set_param("mod"..i.."_chaos_rate", x) end end)
         params:add_control("mod"..i.."_chaos_slew", "MOD"..i.." Chaos Slew", controlspec.new(0,1,"lin",0.01,0.1))
