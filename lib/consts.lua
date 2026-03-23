@@ -1,5 +1,5 @@
--- lib/consts.lua | v1.5.8
--- FIX: 21 Sync Divisions, New Grid Layout
+-- lib/consts.lua | v1.5.9
+-- FIX: 21 Sync Divisions, Restored Row 6 Layout
 
 local Consts = {}
 
@@ -20,10 +20,11 @@ Consts.DESTINATIONS = {
     FILT1=13, FILT2=14, DELAY_T=15, DELAY_F=16
 }
 
-Consts.COL_TO_DEST_NAMES = {[1]="PITCH1", [2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
+Consts.COL_TO_DEST_NAMES = {
+    [1]="PITCH1", [2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
     [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",
-    [9]="MORPH1", [10]="MORPH2",[11]="MORPH3", [12]="MORPH4",
-    [13]="FILT1",[14]="FILT2",  [15]="DELAY_T", [16]="DELAY_F"
+    [9]="MORPH1", [10]="MORPH2",[11]="MORPH3",[12]="MORPH4",
+    [13]="FILT1", [14]="FILT2",[15]="DELAY_T",[16]="DELAY_F"
 }
 
 Consts.MENU = {
