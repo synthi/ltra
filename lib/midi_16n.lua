@@ -1,12 +1,12 @@
--- lib/midi_16n.lua | v1.5.1
--- FIX: Advanced Soft Takeover UI (Arrows and Target Values)
+-- lib/midi_16n.lua | v1.5.2
+-- FIX: Filter Faders Exp Scaling
 
 local Midi16n = {}
 local Globals
 local UI_Ref = nil
 
 local FADER_FUNC = {
-    [1]="pitch1", [2]="pitch2", [3]="pitch3", [4]="pitch4",
+    [1]="pitch1",[2]="pitch2", [3]="pitch3", [4]="pitch4",
     [5]="amp1",   [6]="amp2",   [7]="amp3",   [8]="amp4",
     [9]="filt1",  [10]="filt2", [11]="chaos",[12]="lfo1",
     [13]="lfo2",  [14]="delay_t",[15]="delay_fb",[16]="delay_send"
@@ -28,7 +28,6 @@ local function process_fader(id, val)
     if not func then return end
     local name = func:upper()
     
-    -- FIX: Real Soft Takeover Logic with UI Feedback
     if Globals.fader_ghost[id] then
         local virt = Globals.fader_virtual[id] or 0
         if math.abs(norm - virt) < 0.05 then
@@ -47,7 +46,12 @@ local function process_fader(id, val)
     Globals.fader_values[id] = val
     Globals.fader_virtual[id] = norm
     
-    trigger_popup(name, string.format("%.2f", norm))
+    if func == "filt1" or func == "filt2" then
+        local hz = util.linexp(0, 1, 20, 18000, norm)
+        trigger_popup(name, string.format("%.0f Hz", hz))
+    else
+        trigger_popup(name, string.format("%.2f", norm))
+    end
     
     if func == "pitch1" then params:set("osc1_pitch", norm)
     elseif func == "pitch2" then params:set("osc2_pitch", norm)
@@ -57,8 +61,8 @@ local function process_fader(id, val)
     elseif func == "amp2" then params:set("osc2_vol", norm)
     elseif func == "amp3" then params:set("osc3_vol", norm)
     elseif func == "amp4" then params:set("osc4_vol", norm)
-    elseif func == "filt1" then params:set("filt1_tone", norm*2-1)
-    elseif func == "filt2" then params:set("filt2_tone", norm*2-1)
+    elseif func == "filt1" then params:set("filt1_cutoff", util.linexp(0, 1, 20, 18000, norm))
+    elseif func == "filt2" then params:set("filt2_cutoff", util.linexp(0, 1, 20, 18000, norm))
     elseif func == "chaos" then params:set("chaos_rate", norm)
     elseif func == "lfo1" then params:set("lfo1_rate", norm)
     elseif func == "lfo2" then params:set("lfo2_rate", norm)
