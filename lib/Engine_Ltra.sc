@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.2
-// FIX: VadimFilter, DFM1, Noisy Saw, VCA Mod, Signal Flow
+// lib/Engine_Ltra.sc | v1.5.3
+// FIX: DFM1 Filters, Unipolar LFOs, Scale Quantization Map, Blurred Saw
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -24,7 +24,7 @@ Engine_Ltra : CroneEngine {
                 filt1_cutoff=32, filt2_cutoff=14200, 
                 filt1_res=0, filt2_res=0,
                 filt1_type=1, filt2_type=0, // 0=LP, 1=HP
-                filt1_drive=0, filt2_drive=0, // Vadim Type / DFM1 Drive
+                filt1_drive=0, filt2_drive=0, 
                 delay_time=0.5, delay_fb=0.0, delay_send=0.5, delay_spread=0.0,
                 tape_wow=0, tape_flutter=0, tape_erosion=0,
                 reverb_mix=0, reverb_time=5, reverb_damp=0.5,
@@ -48,15 +48,26 @@ Engine_Ltra : CroneEngine {
             var s_vol1, s_vol2, s_vol3, s_vol4;
             var s_filt1, s_filt2, s_dtime;
             var vca1, vca2, vca3, vca4;
+            
+            // Scale Quantization Map from Lua
+            var scale_map =[
+                NamedControl.kr(\scale_map_0, 0), NamedControl.kr(\scale_map_1, 1),
+                NamedControl.kr(\scale_map_2, 2), NamedControl.kr(\scale_map_3, 3),
+                NamedControl.kr(\scale_map_4, 4), NamedControl.kr(\scale_map_5, 5),
+                NamedControl.kr(\scale_map_6, 6), NamedControl.kr(\scale_map_7, 7),
+                NamedControl.kr(\scale_map_8, 8), NamedControl.kr(\scale_map_9, 9),
+                NamedControl.kr(\scale_map_10, 10), NamedControl.kr(\scale_map_11, 11)
+            ];
 
             var mk_osc = { |f, s| 
                 var noise = PinkNoise.ar;
-                // FIX: Noisy Saw instead of Pitch Mod
-                var noisy_saw = Saw.ar(f.clip(20, 20000)) + (noise * 0.2);
+                // FIX: Blurred Saw (Phase Modulation via Noise)
+                var phase = Phasor.ar(0, f.clip(20, 20000) * SampleDur.ir, 0, 1) + (noise * 0.15);
+                var blurred_saw = (phase.wrap(0, 1) * 2) - 1;
                 var tri = LFTri.ar(f.clip(20, 20000));
                 var pul = Pulse.ar(f.clip(20, 20000), 0.5);
                 var sin = SinOsc.ar(f.clip(20, 20000));
-                SelectX.ar(s.clip(0,4),[noise, noisy_saw, tri, pul, sin]) 
+                SelectX.ar(s.clip(0,4),[noise, blurred_saw, tri, pul, sin]) 
             };
             
             var mk_vactrol = { |g, t| 
@@ -74,17 +85,24 @@ Engine_Ltra : CroneEngine {
             };
             
             var calc_mod_pitch = { |dest_name, arp_val|
-                var raw_lfo1 = lfo1 * NamedControl.kr(("mod_lfo1_" ++ dest_name).asSymbol, 0) * 60.0;
-                var raw_lfo2 = lfo2 * NamedControl.kr(("mod_lfo2_" ++ dest_name).asSymbol, 0) * 60.0;
-                var raw_chaos = chaos_sig * NamedControl.kr(("mod_chaos_" ++ dest_name).asSymbol, 0) * 60.0;
-                var raw_outline = outline_sig * NamedControl.kr(("mod_outline_" ++ dest_name).asSymbol, 0) * 60.0;
-                var raw_arp = arp_val * NamedControl.kr(("mod_arp_" ++ dest_name).asSymbol, 0) * 60.0;
+                var raw_lfo1 = lfo1 * NamedControl.kr(("mod_lfo1_" ++ dest_name).asSymbol, 0) * 24.0;
+                var raw_lfo2 = lfo2 * NamedControl.kr(("mod_lfo2_" ++ dest_name).asSymbol, 0) * 24.0;
+                var raw_chaos = chaos_sig * NamedControl.kr(("mod_chaos_" ++ dest_name).asSymbol, 0) * 24.0;
+                var raw_outline = outline_sig * NamedControl.kr(("mod_outline_" ++ dest_name).asSymbol, 0) * 24.0;
+                var raw_arp = arp_val * NamedControl.kr(("mod_arp_" ++ dest_name).asSymbol, 0) * 24.0;
                 
-                var q_lfo1 = Select.kr(NamedControl.kr(("quant_lfo1_" ++ dest_name).asSymbol, 1),[raw_lfo1, raw_lfo1.round]);
-                var q_lfo2 = Select.kr(NamedControl.kr(("quant_lfo2_" ++ dest_name).asSymbol, 1),[raw_lfo2, raw_lfo2.round]);
-                var q_chaos = Select.kr(NamedControl.kr(("quant_chaos_" ++ dest_name).asSymbol, 1),[raw_chaos, raw_chaos.round]);
-                var q_outline = Select.kr(NamedControl.kr(("quant_outline_" ++ dest_name).asSymbol, 1),[raw_outline, raw_outline.round]);
-                var q_arp = Select.kr(NamedControl.kr(("quant_arp_" ++ dest_name).asSymbol, 1),[raw_arp, raw_arp.round]);
+                var quantize_fn = { |raw|
+                    var rounded = raw.round;
+                    var oct = (rounded / 12).floor;
+                    var pc = rounded % 12;
+                    (oct * 12) + Select.kr(pc, scale_map);
+                };
+                
+                var q_lfo1 = Select.kr(NamedControl.kr(("quant_lfo1_" ++ dest_name).asSymbol, 1),[raw_lfo1, quantize_fn.(raw_lfo1)]);
+                var q_lfo2 = Select.kr(NamedControl.kr(("quant_lfo2_" ++ dest_name).asSymbol, 1),[raw_lfo2, quantize_fn.(raw_lfo2)]);
+                var q_chaos = Select.kr(NamedControl.kr(("quant_chaos_" ++ dest_name).asSymbol, 1),[raw_chaos, quantize_fn.(raw_chaos)]);
+                var q_outline = Select.kr(NamedControl.kr(("quant_outline_" ++ dest_name).asSymbol, 1),[raw_outline, quantize_fn.(raw_outline)]);
+                var q_arp = Select.kr(NamedControl.kr(("quant_arp_" ++ dest_name).asSymbol, 1),[raw_arp, quantize_fn.(raw_arp)]);
                 
                 (q_lfo1 + q_lfo2 + q_chaos + q_outline + q_arp) / 12.0;
             };
@@ -96,12 +114,24 @@ Engine_Ltra : CroneEngine {
             s_filt1 = Lag.kr(filt1_cutoff, lag); s_filt2 = Lag.kr(filt2_cutoff, lag);
             s_dtime = Lag.kr(delay_time, 0.2); 
 
-            lfo1 = SelectX.kr(lfo1_shape * 3,[LFPulse.kr(lfo1_rate, 0, 0.5), LFSaw.kr(lfo1_rate, 0), LFTri.kr(lfo1_rate, 0), SinOsc.kr(lfo1_rate, 0)]) * lfo1_depth;
-            lfo2 = SelectX.kr(lfo2_shape * 3,[LFPulse.kr(lfo2_rate, 0, 0.5), LFSaw.kr(lfo2_rate, 0), LFTri.kr(lfo2_rate, 0), SinOsc.kr(lfo2_rate, 0)]) * lfo2_depth;
+            // FIX: Strict Unipolar LFOs (0.0 to 1.0)
+            lfo1 = SelectX.kr(lfo1_shape * 3,[
+                LFPulse.kr(lfo1_rate, 0, 0.5), 
+                (LFSaw.kr(lfo1_rate, 0) + 1) * 0.5, 
+                (LFTri.kr(lfo1_rate, 0) + 1) * 0.5, 
+                (SinOsc.kr(lfo1_rate, 0) + 1) * 0.5
+            ]) * lfo1_depth;
+            
+            lfo2 = SelectX.kr(lfo2_shape * 3,[
+                LFPulse.kr(lfo2_rate, 0, 0.5), 
+                (LFSaw.kr(lfo2_rate, 0) + 1) * 0.5, 
+                (LFTri.kr(lfo2_rate, 0) + 1) * 0.5, 
+                (SinOsc.kr(lfo2_rate, 0) + 1) * 0.5
+            ]) * lfo2_depth;
             
             rungler_clk = Impulse.kr(chaos_rate * 4);
             rungler_val = Latch.kr(WhiteNoise.kr, rungler_clk); 
-            chaos_sig = Slew.kr(rungler_val, chaos_slew * 10, chaos_slew * 10);
+            chaos_sig = Slew.kr(rungler_val, chaos_slew * 10, chaos_slew * 10); // 0 to 1 approx
 
             env_int = LagUD.kr((gate1+gate2+gate3+gate4).clip(0,1), 0.01, 0.5);
             env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); 
@@ -122,7 +152,7 @@ Engine_Ltra : CroneEngine {
             
             m_delay_t = calc_mod.("delay_t", arp_cv1); m_delay_f = calc_mod.("delay_f", arp_cv1);
 
-            // FIX: Unipolar VCA Modulation
+            // FIX: Unipolar VCA Modulation (Adds or subtracts from fader)
             vca1 = (s_vol1 + m_amp1).clip(0, 1);
             vca2 = (s_vol2 + m_amp2).clip(0, 1);
             vca3 = (s_vol3 + m_amp3).clip(0, 1);
@@ -135,9 +165,9 @@ Engine_Ltra : CroneEngine {
 
             sig_mix = Pan2.ar(o1, pan1.clip(-1,1)) + Pan2.ar(o2, pan2.clip(-1,1)) + Pan2.ar(o3, pan3.clip(-1,1)) + Pan2.ar(o4, pan4.clip(-1,1));
 
-            // FIX: VadimFilter (Filt 1) and DFM1 (Filt 2) in Series
-            sig_filt1 = VadimFilter.ar(sig_mix, (s_filt1 + m_filt1).clip(20, 18000), filt1_res.clip(0, 0.9), Select.kr(filt1_type, [0, 1]));
-            sig_filt2 = DFM1.ar(sig_filt1, (s_filt2 + m_filt2).clip(20, 18000), filt2_res.clip(0, 0.9), 1.0 + (filt2_drive * 3), filt2_type);
+            // FIX: Both filters are DFM1
+            sig_filt1 = DFM1.ar(sig_mix, (s_filt1 + m_filt1).clip(20, 18000), filt1_res.clip(0, 1.2), 1.0 + (filt1_drive * 3), filt1_type, 0.0003);
+            sig_filt2 = DFM1.ar(sig_filt1, (s_filt2 + m_filt2).clip(20, 18000), filt2_res.clip(0, 1.2), 1.0 + (filt2_drive * 3), filt2_type, 0.0003);
             
             sig_pre = LeakDC.ar(sig_filt2); 
 
@@ -156,7 +186,7 @@ Engine_Ltra : CroneEngine {
             local_fb = LPF.ar(local_fb, 8000) * (1 + (delay_fb * 0.5)).tanh; 
             local_fb = local_fb * (1.0 - (Decay.kr(Dust.kr(tape_erosion * 10), 0.1) * tape_erosion));
 
-            delay_proc = [
+            delay_proc =[
                 DelayC.ar(delay_in[0] + (local_fb[0] * (delay_fb + m_delay_f).clip(0,1.1)), 2.5, (s_dtime + m_delay_t).clip(0.001, 2.5) + (LFNoise2.kr(0.5)*tape_wow) + (LFNoise1.kr(10)*tape_flutter)),
                 DelayC.ar(delay_in[1] + (local_fb[1] * (delay_fb + m_delay_f).clip(0,1.1)), 2.5, (s_dtime + m_delay_t).clip(0.001, 2.5) + (LFNoise2.kr(0.5)*tape_wow) + (LFNoise1.kr(10)*tape_flutter) + (delay_spread * 0.02))
             ];
