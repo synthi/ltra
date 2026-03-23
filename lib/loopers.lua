@@ -1,4 +1,4 @@
--- lib/loopers.lua v1.5.14
+-- lib/loopers.lua | v1.5.14
 -- FIX: 80s Buffer Allocation, Bidirectional Fade In/Out Logic
 
 local Loopers = {}
@@ -123,17 +123,12 @@ function Loopers.do_fade(idx, is_fade_in)
     end
 end
 
-function Loopers.handle_button(idx, shift)
+function Loopers.stop_looper(idx)
+    Loopers.do_fade(idx, false)
+end
+
+function Loopers.handle_button(idx)
     local l = Globals.loopers[idx]
-    
-    if shift then
-        if l.state == 2 or l.state == 3 or l.state == 6 then
-            Loopers.do_fade(idx, false) -- Fade Out to Stop
-        elseif l.state == 4 or l.state == 5 then
-            Loopers.do_fade(idx, true) -- Fade In to Play
-        end
-        return
-    end
     
     if l.state == 0 then
         l.state = 1
