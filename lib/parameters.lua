@@ -1,5 +1,5 @@
--- lib/parameters.lua | v1.5.7
--- FIX: MOD1-3 Params, Sync Divisions
+-- lib/parameters.lua | v1.5.8
+-- FIX: 21 Sync Divisions for ARP and MODs
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -8,7 +8,7 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.5.7")
+    params:add_separator("LTRA v1.5.8")
     
     params:add_group("GLOBAL", 4)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
@@ -83,8 +83,11 @@ function Params.init(g_ref)
         end)
     end
     
+    local sync_opts = {}
+    for _, v in ipairs(Consts.SYNC_DIVS) do table.insert(sync_opts, v.name) end
+
     params:add_group("ARP", 10)
-    params:add_option("arp_div", "Clock Div", {"1/4", "1/8", "1/16", "1/32"}, 2)
+    params:add_option("arp_div", "Clock Div", sync_opts, 10) -- Default 1/4
     params:add_control("arp_chaos", "Chaos Prob", controlspec.new(0,1,"lin",0.01,0.2))
     params:add_number("arp_length", "Length", 1, 8, 8)
     params:add_number("arp_octaves", "Octaves", 1, 3, 1)
@@ -115,13 +118,10 @@ function Params.init(g_ref)
     params:add_control("filt2_drive", "Filt 2 Drive", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("filt2_drive", function(x) Bridge.set_param("filt2_drive", x) end)
 
-    local sync_opts = {}
-    for _, v in ipairs(Consts.SYNC_DIVS) do table.insert(sync_opts, v.name) end
-
     params:add_group("MODULATION", 32) 
     for i=1, 3 do
         params:add_binary("mod"..i.."_lfo_sync", "MOD"..i.." LFO Sync", "toggle", 0)
-        params:add_option("mod"..i.."_lfo_div", "MOD"..i.." LFO Div", sync_opts, 8)
+        params:add_option("mod"..i.."_lfo_div", "MOD"..i.." LFO Div", sync_opts, 10)
         params:add_control("mod"..i.."_lfo_rate", "MOD"..i.." LFO Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
         params:set_action("mod"..i.."_lfo_rate", function(x) if params:get("mod"..i.."_lfo_sync")==0 then Bridge.set_param("mod"..i.."_lfo_rate", x) end end)
         params:add_control("mod"..i.."_lfo_shape", "MOD"..i.." LFO Shape", controlspec.new(0,1,"lin",0.01,0))
@@ -130,7 +130,7 @@ function Params.init(g_ref)
         params:set_action("mod"..i.."_depth", function(x) Bridge.set_param("mod"..i.."_depth", x) end)
         
         params:add_binary("mod"..i.."_chaos_sync", "MOD"..i.." Chaos Sync", "toggle", 0)
-        params:add_option("mod"..i.."_chaos_div", "MOD"..i.." Chaos Div", sync_opts, 8)
+        params:add_option("mod"..i.."_chaos_div", "MOD"..i.." Chaos Div", sync_opts, 10)
         params:add_control("mod"..i.."_chaos_rate", "MOD"..i.." Chaos Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
         params:set_action("mod"..i.."_chaos_rate", function(x) if params:get("mod"..i.."_chaos_sync")==0 then Bridge.set_param("mod"..i.."_chaos_rate", x) end end)
         params:add_control("mod"..i.."_chaos_slew", "MOD"..i.." Chaos Slew", controlspec.new(0,1,"lin",0.01,0.1))
