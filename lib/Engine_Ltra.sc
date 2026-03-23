@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.11
-// FIX: Variable Envelopes (Replaced Vactrol), FxTape Filter
+// lib/Engine_Ltra.sc | v1.5.12
+// FIX: Restored Vactrol Topology (LagUD) with Variable Attack/Release
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -18,10 +18,11 @@ Engine_Ltra : CroneEngine {
                 spread1=0, spread2=0, spread3=0, spread4=0, 
                 gate1=0, gate2=0, gate3=0, gate4=0,
                 
-                // FIX: Variable Envelopes
+                // FIX: Variable Envelopes for Vactrol
                 env_atk1=0.01, env_atk2=0.01, env_atk3=0.01, env_atk4=0.01,
-                env_rel1=0.5, env_rel2=0.5, env_rel3=0.5, env_rel4=0.5,
+                env_rel1=0.2, env_rel2=0.2, env_rel3=0.2, env_rel4=0.2,
                 
+                t_arp1=0, t_arp2=0, t_arp3=0, t_arp4=0,
                 arp_cv1=0, arp_cv2=0, arp_cv3=0, arp_cv4=0,
                 
                 mod1_lfo_rate=0.5, mod1_lfo_shape=0, mod1_depth=1,
@@ -39,7 +40,6 @@ Engine_Ltra : CroneEngine {
                 filt1_type=1, filt2_type=0, 
                 filt1_drive=0, filt2_drive=0, 
                 
-                // FIX: Added tapecho_filter
                 tapecho_time=0.3, tapecho_feedback=0.4, tapecho_wow_flutter=0.1,
                 tapecho_erosion=0.0, tapecho_drive=1.0, tapecho_filter=8000, delay_send=0.5,
                 
@@ -68,7 +68,6 @@ Engine_Ltra : CroneEngine {
             var s_vol1, s_vol2, s_vol3, s_vol4;
             var s_filt1, s_filt2;
             var vca1, vca2, vca3, vca4;
-            var env1, env2, env3, env4;
             
             var tape_in, local_in, shared_wow, shared_flutter, shared_mod;
             var shared_dust_trig, shared_dropout_env, dt_mono, tape_del_mono;
@@ -107,6 +106,13 @@ Engine_Ltra : CroneEngine {
                 var pul = Pulse.ar(f.clip(20, 20000), 0.5);
                 var sin = SinOsc.ar(f.clip(20, 20000));
                 SelectX.ar(s.clip(0,4),[noise, blurred_saw, tri, pul, sin]) 
+            };
+            
+            // FIX: Restored Vactrol Topology with Variable Attack/Release
+            var mk_vactrol = { |g, t, atk, rel| 
+                var arp_env = Decay2.kr(Trig.kr(t, 0.01), 0.005, 0.2);
+                var combined = (g + arp_env).clip(0, 1);
+                LagUD.kr(combined, atk, rel) 
             };
 
             var calc_mod = { |dest_name, arp_val|
@@ -198,16 +204,11 @@ Engine_Ltra : CroneEngine {
             vca3 = (s_vol3.squared + m_amp3).clip(0, 1);
             vca4 = (s_vol4.squared + m_amp4).clip(0, 1);
 
-            // FIX: Variable Envelopes (ASR)
-            env1 = EnvGen.kr(Env.asr(env_atk1, 1.0, env_rel1), gate1);
-            env2 = EnvGen.kr(Env.asr(env_atk2, 1.0, env_rel2), gate2);
-            env3 = EnvGen.kr(Env.asr(env_atk3, 1.0, env_rel3), gate3);
-            env4 = EnvGen.kr(Env.asr(env_atk4, 1.0, env_rel4), gate4);
-
-            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1)), (shape1 + (m_shape1*4)).clip(0,4)) * vca1 * env1;
-            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2)), (shape2 + (m_shape2*4)).clip(0,4)) * vca2 * env2;
-            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3)), (shape3 + (m_shape3*4)).clip(0,4)) * vca3 * env3;
-            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4)), (shape4 + (m_shape4*4)).clip(0,4)) * vca4 * env4;
+            // FIX: Apply Variable Vactrol
+            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1)), (shape1 + (m_shape1*4)).clip(0,4)) * vca1 * mk_vactrol.(gate1, t_arp1, env_atk1, env_rel1);
+            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2)), (shape2 + (m_shape2*4)).clip(0,4)) * vca2 * mk_vactrol.(gate2, t_arp2, env_atk2, env_rel2);
+            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3)), (shape3 + (m_shape3*4)).clip(0,4)) * vca3 * mk_vactrol.(gate3, t_arp3, env_atk3, env_rel3);
+            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4)), (shape4 + (m_shape4*4)).clip(0,4)) * vca4 * mk_vactrol.(gate4, t_arp4, env_atk4, env_rel4);
 
             sig_mix = (Pan2.ar(o1, pan1.clip(-1,1)) + Pan2.ar(o2, pan2.clip(-1,1)) + Pan2.ar(o3, pan3.clip(-1,1)) + Pan2.ar(o4, pan4.clip(-1,1))) * 0.125;
 
@@ -226,7 +227,7 @@ Engine_Ltra : CroneEngine {
             wf_kr = Lag.kr(tapecho_wow_flutter, 0.1);
             ero_kr = Lag.kr(tapecho_erosion, 0.1);
             drive_kr = Lag.kr(tapecho_drive, 0.1);
-            filter_kr = Lag.kr(tapecho_filter, 0.1); // FIX: Continuous Filter
+            filter_kr = Lag.kr(tapecho_filter, 0.1); 
 
             local_in = LocalIn.ar(1);
             local_in = local_in * (1.0 - Trig.kr(clear_trig, 0.05));
@@ -251,7 +252,6 @@ Engine_Ltra : CroneEngine {
             filt_mono = LPF.ar(sat_mono, ero_lpf_freq);
             filt_mono = BLowShelf.ar(filt_mono, 120, 1.0, ero_bass_cut);
 
-            // FIX: Continuous Filter applied to repeats
             tone_filt_mono = LPF.ar(filt_mono, filter_kr.clip(20, 18000));
 
             final_mono = tone_filt_mono * (1.0 - (shared_dropout_env * ero_kr).clip(0.0, 0.9));
