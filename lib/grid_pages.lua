@@ -1,6 +1,5 @@
--- lib/grid_pages.lua | v1.5.12
--- lib/grid_pages.lua
--- FIX: Restored Row 6/7 Layout, Looper Breathing Visuals
+-- lib/grid_pages.lua | v1.5.13
+-- FIX: Looper Fading Visuals
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -66,7 +65,6 @@ local function check_hold()
     end
     
     if held_x then
-        -- FIX: Restored Row 6 and Row 7 Menu Mapping
         if held_y == 6 then
             if held_x <= 4 then Globals.menu_mode = Consts.MENU.OSC; Globals.menu_target = held_x
             elseif held_x >= 6 and held_x <= 8 then Globals.menu_mode = Consts.MENU.MOD; Globals.menu_target = held_x - 5
@@ -120,7 +118,6 @@ local function check_hold()
 end
 
 local function draw_snapshots()
-    -- FIX: Snapshots on Row 7, Cols 6-11
     for i=1, 6 do
         local x = i + 5
         local b = Consts.BRIGHT.BG_NAV 
@@ -134,18 +131,17 @@ local function draw_loopers()
     for i=1, 4 do
         local x = i + 6
         local state = Globals.loopers[i].state
-        local b = Consts.BRIGHT.BG_NAV -- 0: Empty (Dim)
+        local b = Consts.BRIGHT.BG_NAV 
         
-        -- FIX: Looper Breathing Visuals
         if state == 1 or state == 3 then 
-            -- 1: Rec, 3: Dub -> Breathing
             b = math.floor(util.linlin(-1, 1, 5, 15, math.sin(now * 6)))
         elseif state == 2 then 
-            -- 2: Play -> Bright
             b = Consts.BRIGHT.VAL_HIGH
         elseif state == 4 then 
-            -- 4: Stop (with audio) -> Low but visible
             b = Consts.BRIGHT.VAL_LOW
+        elseif state == 5 then 
+            -- FIX: Fast blink for Fading state
+            b = math.floor(util.linlin(-1, 1, 2, 15, math.sin(now * 15)))
         end
         led_safe(x, 8, b)
     end
@@ -158,7 +154,6 @@ function Pages.redraw()
     if Globals.page == 1 then
         Matrix.draw(HW, led_safe)
         
-        -- FIX: Restored Row 6 Layout
         for i=1, 4 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
         
         local mod1 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[1] or 0))
@@ -177,7 +172,6 @@ function Pages.redraw()
         led_safe(14, 6, Consts.BRIGHT.BG_DASHBOARD)
         led_safe(16, 6, Consts.BRIGHT.BG_DASHBOARD) 
         
-        -- FIX: Row 7 Layout (ENV + Snapshots)
         for i=1, 4 do led_safe(i, 7, Consts.BRIGHT.BG_DASHBOARD) end
         draw_snapshots() 
         
@@ -338,7 +332,6 @@ function Pages.key(x, y, z)
                 end
             end
         end
-        -- FIX: Snapshots on Row 7, Cols 6-11
         if y == 7 and x >= 6 and x <= 11 then
             if z == 0 then
                 local snap_idx = x - 5
