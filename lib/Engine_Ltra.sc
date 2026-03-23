@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.9
-// FIX: Purged old FX params, +12dB Reverb Gain, Unipolar Chaos
+// lib/Engine_Ltra.sc | v1.5.10
+// FIX: Namespace Isolation (tapecho_*, blossomverb_*) to prevent Norns Mod collisions
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -35,11 +35,13 @@ Engine_Ltra : CroneEngine {
                 filt1_type=1, filt2_type=0, 
                 filt1_drive=0, filt2_drive=0, 
                 
-                fx_tape_time=0.3, fx_tape_feedback=0.4, fx_tape_wow_flutter=0.1,
-                fx_tape_erosion=0.0, fx_tape_drive=1.0, fx_tape_tone=1, delay_send=0.5,
+                // FIX: Isolated Namespace for Tape Echo
+                tapecho_time=0.3, tapecho_feedback=0.4, tapecho_wow_flutter=0.1,
+                tapecho_erosion=0.0, tapecho_drive=1.0, tapecho_tone=1, delay_send=0.5,
                 
-                fx_blossom_decay=4.75, fx_blossom_bloom=1.80, fx_blossom_damp=3500,
-                fx_blossom_predelay=0.110, fx_blossom_mod_rate=0.300, fx_blossom_mod_depth=0.002, reverb_mix=0.0,
+                // FIX: Isolated Namespace for Blossom Reverb
+                blossomverb_decay=4.75, blossomverb_bloom=1.80, blossomverb_damp=3500,
+                blossomverb_predelay=0.110, blossomverb_mod_rate=0.300, blossomverb_mod_depth=0.002, reverb_mix=0.0,
                 
                 system_dirt=0, dust_dens=0, 
                 clear_trig=0, t_reset=0;
@@ -190,8 +192,9 @@ Engine_Ltra : CroneEngine {
             m_filt1 = calc_mod.("filt1", arp_cv1) * 5000; 
             m_filt2 = calc_mod.("filt2", arp_cv1) * 5000;
             
-            m_delay_t = calc_mod.("delay_time", arp_cv1) * 0.1; 
-            m_delay_f = calc_mod.("delay_fb", arp_cv1);
+            // FIX: Matrix Modulation targets the new isolated namespace strings
+            m_delay_t = calc_mod.("tapecho_time", arp_cv1) * 0.1; 
+            m_delay_f = calc_mod.("tapecho_feedback", arp_cv1);
 
             vca1 = (s_vol1.squared + m_amp1).clip(0, 1);
             vca2 = (s_vol2.squared + m_amp2).clip(0, 1);
@@ -215,12 +218,13 @@ Engine_Ltra : CroneEngine {
             dust_sig = Decay2.ar(Dust.ar([dust_dens, dust_dens]), 0.001, 0.01) * PinkNoise.ar * system_dirt;
             dirt_sig = hiss + hum + dust_sig;
 
-            time_kr = Lag.kr(fx_tape_time, 0.1);
-            fb_kr = Lag.kr(fx_tape_feedback, 0.1);
-            wf_kr = Lag.kr(fx_tape_wow_flutter, 0.1);
-            ero_kr = Lag.kr(fx_tape_erosion, 0.1);
-            drive_kr = Lag.kr(fx_tape_drive, 0.1);
-            tone_kr = fx_tape_tone;
+            // FIX: Read from isolated namespace
+            time_kr = Lag.kr(tapecho_time, 0.1);
+            fb_kr = Lag.kr(tapecho_feedback, 0.1);
+            wf_kr = Lag.kr(tapecho_wow_flutter, 0.1);
+            ero_kr = Lag.kr(tapecho_erosion, 0.1);
+            drive_kr = Lag.kr(tapecho_drive, 0.1);
+            tone_kr = tapecho_tone;
 
             local_in = LocalIn.ar(1);
             local_in = local_in * (1.0 - Trig.kr(clear_trig, 0.05));
@@ -265,12 +269,13 @@ Engine_Ltra : CroneEngine {
             tape_sig_l = LeakDC.ar(eq_var_l);
             tape_sig_r = LeakDC.ar(eq_var_r);
 
-            decay_kr = Lag.kr(fx_blossom_decay, 0.1);
-            bloom_kr = Lag.kr(fx_blossom_bloom, 0.1);
-            damp_kr = Lag.kr(fx_blossom_damp, 0.1);
-            predelay_kr = Lag.kr(fx_blossom_predelay, 0.1);
-            mod_rate_kr = Lag.kr(fx_blossom_mod_rate, 0.1);
-            mod_depth_kr = Lag.kr(fx_blossom_mod_depth, 0.1);
+            // FIX: Read from isolated namespace
+            decay_kr = Lag.kr(blossomverb_decay, 0.1);
+            bloom_kr = Lag.kr(blossomverb_bloom, 0.1);
+            damp_kr = Lag.kr(blossomverb_damp, 0.1);
+            predelay_kr = Lag.kr(blossomverb_predelay, 0.1);
+            mod_rate_kr = Lag.kr(blossomverb_mod_rate, 0.1);
+            mod_depth_kr = Lag.kr(blossomverb_mod_depth, 0.1);
 
             rev_in = DelayN.ar([tape_sig_l, tape_sig_r], 1.0, predelay_kr) * 0.1;
 
@@ -294,7 +299,6 @@ Engine_Ltra : CroneEngine {
             rev_filt_l = LPF.ar(ap_l, damp_kr);
             rev_filt_r = LPF.ar(ap_r, damp_kr);
 
-            // FIX: +12dB Reverb Gain (* 4.0)
             rev_out_l = ((LeakDC.ar(rev_filt_l) * 0.05).tanh * 3.6).softclip * 4.0;
             rev_out_r = ((LeakDC.ar(rev_filt_r) * 0.05).tanh * 3.6).softclip * 4.0;
             
