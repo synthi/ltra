@@ -1,5 +1,5 @@
--- lib/storage.lua | v1.5.6
--- FIX: params.lookup iteration, Volatile State Saving
+-- lib/storage.lua | v1.5.11
+-- FIX: Softcut Audio Saving
 
 local Storage = {}
 local Globals
@@ -30,6 +30,14 @@ function Storage.save_sidecar(pset_number)
     local data_path = _path.data .. "ltra/pset_" .. pset_number .. ".data"
     tab.save(data, data_path)
     
+    -- FIX: Save Looper Audio
+    local timestamp = os.date("%Y%m%d_%H%M%S")
+    for i=1, 4 do
+        local audio_path = _path.audio .. "ltra/snapshots/pset_" .. pset_number .. "_trk_" .. i .. "_" .. timestamp .. ".wav"
+        local start_pos = (i-1) * 30
+        softcut.buffer_write_mono(audio_path, start_pos, 30, 1)
+    end
+    
     print("LTRA: Save Complete.")
 end
 
@@ -56,15 +64,13 @@ end
 function Storage.save_snapshot(slot)
     local snap = { params={}, volatile={} }
     
-    -- FIX: Correct iteration over params.lookup dictionary
     for id, idx in pairs(params.lookup) do
         local p = params.params[idx]
-        if p.t ~= 4 then -- Skip groups/separators
+        if p.t ~= 4 then 
             snap.params[id] = p:get()
         end
     end
     
-    -- FIX: Save volatile state (Latch and Gates)
     snap.volatile.latch_mode = Globals.latch_mode
     snap.volatile.voices_latched = {}
     for i=1, 4 do snap.volatile.voices_latched[i] = Globals.voices[i].latched end
@@ -81,7 +87,6 @@ function Storage.load_snapshot(slot)
         params:set(id, val) 
     end
     
-    -- FIX: Restore volatile state
     if snap.volatile then
         Globals.latch_mode = snap.volatile.latch_mode
         for i=1, 4 do 
