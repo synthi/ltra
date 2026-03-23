@@ -1,6 +1,5 @@
--- ltra.lua | v1.5.0
--- LTRA: Main Script
--- FIX: Removed Loopers, Added Garbage Collection
+-- lib/ltra.lua | v1.6.0
+-- FIX: Safe Init Timing, Default Latch State
 
 engine.name = 'Ltra'
 
@@ -24,7 +23,7 @@ local g_state
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v1.5.0 (Golden Master)...")
+    print("LTRA: Initializing v1.6.0 (Golden Master)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
@@ -32,6 +31,10 @@ function init()
     g_state = Globals.new()
     g_state.tap_last = 0
     g_state.loaded = false 
+    
+    -- FIX: Default Latch ON for immediate sound
+    g_state.latch_mode = true
+    for i=1, 4 do g_state.voices[i].latched = true end
     
     Bridge.init(g_state)
     Scales.init(g_state)
@@ -48,7 +51,7 @@ function init()
     GridPages.set_hw(GridHW)
     
     clock.run(function()
-        clock.sleep(0.5)
+        clock.sleep(1.0) -- FIX: Wait for SC to fully compile SynthDef
         Midi16n.init(g_state, UI)
         Bridge.query_config()
         
@@ -56,12 +59,8 @@ function init()
         g_state.dirty = true
         
         g_state.loaded = true
-        print("LTRA: System Ready.")
+        print("LTRA: System Ready. Audio Engine Active.")
     end)
-    
-    Bridge.set_filter_tone(1, 0.0)
-    Bridge.set_filter_tone(2, 0.0)
-    Bridge.set_param("delay_send", 0.5)
     
     local fps = metro.init()
     fps.time = 1/15 
