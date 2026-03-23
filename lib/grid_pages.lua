@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v1.5.6
--- FIX: ARP Menu Hold, Snapshot Save Logic
+-- lib/grid_pages.lua | v1.5.7
+-- FIX: MOD1-3 Dashboard Mapping
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -56,8 +56,7 @@ local function check_hold()
     
     if held then
         if held <= 4 then Globals.menu_mode = Consts.MENU.OSC; Globals.menu_target = held
-        elseif held == 6 or held == 7 then Globals.menu_mode = Consts.MENU.LFO; Globals.menu_target = (held==6 and 1 or 2)
-        elseif held == 8 then Globals.menu_mode = Consts.MENU.CHAOS
+        elseif held >= 6 and held <= 8 then Globals.menu_mode = Consts.MENU.MOD; Globals.menu_target = (held - 5)
         elseif held == 9 then Globals.menu_mode = Consts.MENU.OUTLINE
         elseif held == 11 or held == 12 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = (held==11 and 1 or 2)
         elseif held == 13 then Globals.menu_mode = Consts.MENU.DELAY
@@ -68,7 +67,6 @@ local function check_hold()
         return
     end
 
-    -- FIX: ARP Menu Hold
     if Globals.button_state[12] and Globals.button_state[12][8] then
         local press_time = Globals.grid_timers[12][8] or 0
         if util.time() - press_time > 0.3 then
@@ -84,7 +82,7 @@ local function check_hold()
                 local press_time = Globals.grid_timers[x][y] or 0
                 if util.time() - press_time > 0.3 then
                     Globals.menu_mode = Consts.MENU.MATRIX
-                    local src_name = ({[1]="LFO1",[2]="LFO2",[3]="CHAOS",[4]="OUTLINE"})[y]
+                    local src_name = ({[1]="MOD1",[2]="MOD2",[3]="MOD3",[4]="OUTLINE"})[y]
                     local dest_name = Consts.COL_TO_DEST_NAMES[x] or "UNK"
                     if dest_name == "DELAY T" then dest_name = "DELAY_T" end
                     if dest_name == "DELAY F" then dest_name = "DELAY_F" end
@@ -117,13 +115,13 @@ function Pages.redraw()
     if Globals.page == 1 then
         Matrix.draw(HW, led_safe)
         for i=1, 4 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
-        local lfo1 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.lfo_vals[1] or 0))
-        led_safe(6, 6, lfo1); local lfo2 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.lfo_vals[2] or 0))
-        led_safe(7, 6, lfo2)
         
-        local chaos_raw = Globals.visuals.chaos_val or 0
-        local chaos_led = math.floor(util.linlin(-1, 1, 2, 13, chaos_raw))
-        led_safe(8, 6, chaos_led)
+        local mod1 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[1] or 0))
+        led_safe(6, 6, mod1)
+        local mod2 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[2] or 0))
+        led_safe(7, 6, mod2)
+        local mod3 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[3] or 0))
+        led_safe(8, 6, mod3)
         
         local outline_val = math.floor(util.linlin(0, 1, 2, 13, Globals.visuals.outline_val or 0))
         led_safe(9, 6, outline_val)
@@ -231,7 +229,7 @@ function Pages.key(x, y, z)
                 if util.time() - press_time < 0.3 then
                     Matrix.key(x, y, 1) 
                     
-                    local src_name = ({[1]="LFO1",[2]="LFO2",[3]="CHAOS",[4]="OUTLINE"})[y]
+                    local src_name = ({[1]="MOD1",[2]="MOD2",[3]="MOD3",[4]="OUTLINE"})[y]
                     local dest_name = Consts.COL_TO_DEST_NAMES[x] or "UNK"
                     if dest_name == "DELAY T" then dest_name = "DELAY_T" end
                     if dest_name == "DELAY F" then dest_name = "DELAY_F" end
