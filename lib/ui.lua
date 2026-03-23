@@ -1,5 +1,5 @@
--- lib/ui.lua | v1.5.13
--- FIX: Added Pan to ENV Menu
+-- lib/ui.lua | v1.5.14
+-- FIX: ARP Menu Page 2, ENV Menu Pan
 
 local UI = {}
 local Globals
@@ -36,7 +36,6 @@ local function draw_menu()
         
     elseif mode == Consts.MENU.ENV then
         screen.move(5,10); screen.text("ENV "..t.." EDIT")
-        -- FIX: Added Pan to E1
         screen.move(5,25); screen.text("E1 Pan: "..string.format("%.2f", params:get("osc"..t.."_pan")))
         screen.move(5,35); screen.text("E2 Attack: "..string.format("%.3fs", params:get("env_atk"..t)))
         screen.move(5,45); screen.text("E3 Release: "..string.format("%.3fs", params:get("env_rel"..t)))
@@ -78,8 +77,8 @@ local function draw_menu()
             screen.move(5,45); screen.text("E3 Gate: "..string.format("%.2f", params:get("arp_gate_len")))
         else
             screen.move(5,10); screen.text("ARP SETTINGS (2/2)")
-            screen.move(5,25); screen.text("E1 Length: "..params:get("arp_length").." bits")
-            screen.move(5,35); screen.text("E2 Octaves: "..params:get("arp_octaves"))
+            screen.move(5,35); screen.text("E2 Length: "..params:get("arp_length").." bits")
+            screen.move(5,45); screen.text("E3 Octaves: "..params:get("arp_octaves"))
         end
         screen.move(5,58); screen.text("K3: PAGE")
         
@@ -175,7 +174,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.13")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.14")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
