@@ -1,5 +1,5 @@
--- lib/mod_matrix.lua | v1.5.3
--- FIX: Matrix Toggle updates params directly
+-- lib/mod_matrix.lua | v1.5.4
+-- FIX: Morph to Shape Translation
 
 local Matrix = {}
 local Globals
@@ -11,7 +11,7 @@ function Matrix.init(g_ref) Globals = g_ref end
 local ROW_TO_SOURCE = { [1]="LFO1",[2]="LFO2", [3]="CHAOS",[4]="OUTLINE" }
 local COL_TO_DEST = {
     [1]="PITCH1",[2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
-    [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",
+    [5]="AMP1",   [6]="AMP2",   [7]="AMP3",[8]="AMP4",
     [9]="MORPH1",[10]="MORPH2", [11]="MORPH3",[12]="MORPH4",
     [13]="FILT1", [14]="FILT2",[15]="DELAY_T",[16]="DELAY_F"
 }
@@ -34,7 +34,6 @@ function Matrix.key(x, y, z)
         end
         if current_val < 0.01 then next_val = 1.0 end
         
-        -- FIX: Update via params to trigger action and UI sync
         local id = "mat_"..src_name.."_"..dest_name
         params:set(id, next_val)
     end
