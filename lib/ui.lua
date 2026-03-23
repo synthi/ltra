@@ -1,5 +1,5 @@
--- lib/ui.lua | v1.5.10
--- FIX: Read from isolated namespace (tapecho_*, blossomverb_*)
+-- lib/ui.lua | v1.5.11
+-- FIX: ENV Menu, Matrix Menu K2
 
 local UI = {}
 local Globals
@@ -34,29 +34,34 @@ local function draw_menu()
         local arp_state = params:get("osc"..t.."_arp") == 1 and "ON" or "OFF"
         screen.move(5,58); screen.text("K2: ARP["..arp_state.."]  K3: PAGE")
         
+    elseif mode == Consts.MENU.ENV then
+        screen.move(5,10); screen.text("ENV "..t.." EDIT")
+        screen.move(5,25); screen.text("E2 Attack: "..string.format("%.3fs", params:get("env_atk"..t)))
+        screen.move(5,35); screen.text("E3 Release: "..string.format("%.3fs", params:get("env_rel"..t)))
+        
     elseif mode == Consts.MENU.MOD then
         if Globals.mod_menu_page == 1 then
             screen.move(5,10); screen.text("MOD "..t.." LFO (1/2)")
             screen.move(5,25); screen.text("E1 Shape: "..string.format("%.2f", params:get("mod"..t.."_lfo_shape")))
-            screen.move(5,35); screen.text("E2 Depth: "..string.format("%.2f", params:get("mod"..t.."_depth")))
             if params:get("mod"..t.."_lfo_sync") == 1 then
                 local div = params:get("mod"..t.."_lfo_div")
-                screen.move(5,45); screen.text("E3 Div: "..Consts.SYNC_DIVS[div].name)
+                screen.move(5,35); screen.text("E2 Div: "..Consts.SYNC_DIVS[div].name)
             else
-                screen.move(5,45); screen.text("E3 Rate: "..string.format("%.2f Hz", params:get("mod"..t.."_lfo_rate")))
+                screen.move(5,35); screen.text("E2 Rate: "..string.format("%.2f Hz", params:get("mod"..t.."_lfo_rate")))
             end
+            screen.move(5,45); screen.text("E3 Depth: "..string.format("%.2f", params:get("mod"..t.."_depth")))
             local sync_str = params:get("mod"..t.."_lfo_sync") == 1 and "ON" or "OFF"
             screen.move(5,58); screen.text("K2: SYNC["..sync_str.."]  K3: PAGE")
         else
             screen.move(5,10); screen.text("MOD "..t.." CHAOS (2/2)")
             screen.move(5,25); screen.text("E1 Mix: "..string.format("%.2f", params:get("mod"..t.."_mix")))
-            screen.move(5,35); screen.text("E2 Slew: "..string.format("%.2f", params:get("mod"..t.."_chaos_slew")))
             if params:get("mod"..t.."_chaos_sync") == 1 then
                 local div = params:get("mod"..t.."_chaos_div")
-                screen.move(5,45); screen.text("E3 Div: "..Consts.SYNC_DIVS[div].name)
+                screen.move(5,35); screen.text("E2 Div: "..Consts.SYNC_DIVS[div].name)
             else
-                screen.move(5,45); screen.text("E3 Rate: "..string.format("%.2f Hz", params:get("mod"..t.."_chaos_rate")))
+                screen.move(5,35); screen.text("E2 Rate: "..string.format("%.2f Hz", params:get("mod"..t.."_chaos_rate")))
             end
+            screen.move(5,45); screen.text("E3 Slew: "..string.format("%.2f", params:get("mod"..t.."_chaos_slew")))
             local sync_str = params:get("mod"..t.."_chaos_sync") == 1 and "ON" or "OFF"
             screen.move(5,58); screen.text("K2: SYNC["..sync_str.."]  K3: PAGE")
         end
@@ -92,12 +97,11 @@ local function draw_menu()
         screen.move(5,58); screen.text("K2: TYPE["..type_str.."]")
 
     elseif mode == Consts.MENU.DELAY then
-        -- FIX: Read from isolated namespace
         if Globals.delay_menu_page == 1 then
             screen.move(5,10); screen.text("FX TAPE (1/2)")
-            screen.move(5,25); screen.text("E1 Time: "..string.format("%.2f s", params:get("tapecho_time")))
-            screen.move(5,35); screen.text("E2 Fdbk: "..string.format("%.2f", params:get("tapecho_feedback")))
-            screen.move(5,45); screen.text("E3 Send: "..string.format("%.2f", params:get("delay_send")))
+            screen.move(5,25); screen.text("E1 Send: "..string.format("%.2f", params:get("delay_send")))
+            screen.move(5,35); screen.text("E2 Time: "..string.format("%.2f s", params:get("tapecho_time")))
+            screen.move(5,45); screen.text("E3 Fdbk: "..string.format("%.2f", params:get("tapecho_feedback")))
         else
             screen.move(5,10); screen.text("FX TAPE (2/2)")
             screen.move(5,25); screen.text("E1 Drive: "..string.format("%.2f", params:get("tapecho_drive")))
@@ -107,7 +111,6 @@ local function draw_menu()
         screen.move(5,58); screen.text("K3: PAGE")
         
     elseif mode == Consts.MENU.REVERB then
-        -- FIX: Read from isolated namespace
         if Globals.reverb_menu_page == 1 then
             screen.move(5,10); screen.text("FX BLOSSOM (1/3)")
             screen.move(5,25); screen.text("E1 Mix: "..string.format("%.2f", params:get("reverb_mix")))
@@ -147,9 +150,9 @@ local function draw_menu()
             screen.move(5,40); screen.text("AMT: " .. string.format("%.2f %s", val, q_str))
             
             if dst_idx <= 4 then
-                screen.move(5,55); screen.text("E2: Mode  E3: Amt")
+                screen.move(5,55); screen.text("K2: Mode  E3: Amt")
             else
-                screen.move(5,55); screen.text("E3: Adjust  K2: Inv")
+                screen.move(5,55); screen.text("E3: Adjust")
             end
         end
     end
@@ -170,7 +173,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.10")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.11")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
