@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v1.5.2
--- FIX: Filter Encoders, Output Menu Encoders
+-- lib/controls_enc.lua | v1.5.5
+-- FIX: OSC Menu Pages, Chaos Amp
 
 local Enc = {}
 local Globals
@@ -16,9 +16,15 @@ function Enc.delta(n, d)
         local m = Globals.menu_mode
         
         if m == Consts.MENU.OSC then
-            if n==1 then params:delta("osc"..t.."_octave", d)
-            elseif n==2 then params:delta("osc"..t.."_shape", d)
-            elseif n==3 then params:delta("osc"..t.."_tune", d) end
+            if Globals.osc_menu_page == 1 then
+                if n==1 then params:delta("osc"..t.."_octave", d)
+                elseif n==2 then params:delta("osc"..t.."_shape", d)
+                elseif n==3 then params:delta("osc"..t.."_tune", d) end
+            else
+                if n==1 then params:delta("osc"..t.."_drift", d)
+                elseif n==2 then params:delta("osc"..t.."_spread", d)
+                elseif n==3 then params:delta("osc"..t.."_vol", d) end
+            end
             
         elseif m == Consts.MENU.LFO then
             if n==1 then params:delta("lfo"..t.."_shape", d)
@@ -28,7 +34,7 @@ function Enc.delta(n, d)
         elseif m == Consts.MENU.CHAOS then
             if n==1 then params:delta("chaos_rate", d)
             elseif n==2 then params:delta("chaos_slew", d)
-            end
+            elseif n==3 then params:delta("chaos_amp", d) end
             
         elseif m == Consts.MENU.OUTLINE then
             if n==1 then params:delta("outline_src", d)
@@ -49,7 +55,7 @@ function Enc.delta(n, d)
             elseif n==2 then params:delta("reverb_decay", d)
             elseif n==3 then params:delta("reverb_damp", d) end
             
-        elseif m == Consts.MENU.LOOPER then -- Re-purposed as OUTPUT
+        elseif m == Consts.MENU.LOOPER then 
             if n==1 then params:delta("monitor_vol", d)
             elseif n==2 then params:delta("master_vol", d)
             elseif n==3 then params:delta("system_dirt", d) end
