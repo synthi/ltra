@@ -1,5 +1,5 @@
--- lib/parameters.lua | v1.5.1
--- FIX: System Param Collisions, Exact Group Counting
+-- lib/parameters.lua | v1.6.0
+-- FIX: Real Cutoff Filters, Default Latch
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -8,9 +8,8 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.5.1")
+    params:add_separator("LTRA v1.6.0")
     
-    -- GLOBAL: 4 params
     params:add_group("GLOBAL", 4)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("master_vol", function(x) audio.level_dac(x) end)
@@ -36,7 +35,6 @@ function Params.init(g_ref)
     params:add_control("monitor_vol", "Monitor In", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("monitor_vol", function(x) audio.level_adc(x) end)
 
-    -- VOICES: 6 params each
     for i=1,4 do
         params:add_group("VOICE "..i, 6)
         
@@ -79,11 +77,10 @@ function Params.init(g_ref)
         end)
     end
     
-    -- ARP: 7 params
     params:add_group("ARP", 7)
     params:add_option("arp_div", "Clock Div", {"1/4", "1/8", "1/16", "1/32"}, 2)
     params:add_control("arp_chaos", "Chaos Prob", controlspec.new(0,1,"lin",0.01,0.2))
-    params:add_binary("latch_mode", "Latch", "toggle", 0)
+    params:add_binary("latch_mode", "Latch", "toggle", 1) -- FIX: Default ON
     params:set_action("latch_mode", function(x) if Globals then Globals.latch_mode=(x==1); Globals.dirty=true end end)
     for i=1,4 do
         params:add_control("arp_cv"..i, "Arp CV "..i, controlspec.new(0,1,"lin",0,0))
@@ -91,22 +88,23 @@ function Params.init(g_ref)
         params:set_action("arp_cv"..i, function(x) Bridge.set_param("arp_cv"..i, x) end)
     end
 
-    -- FILTERS: 6 params
-    params:add_group("FILTERS", 6)
-    params:add_control("filt1_tone", "Filt 1 Tone", controlspec.new(-1,1,"lin",0.01,0))
-    params:set_action("filt1_tone", function(x) Bridge.set_filter_tone(1, x) end)
-    params:add_control("filt2_tone", "Filt 2 Tone", controlspec.new(-1,1,"lin",0.01,0))
-    params:set_action("filt2_tone", function(x) Bridge.set_filter_tone(2, x) end)
+    -- FIX: Real Cutoff Filters
+    params:add_group("FILTERS", 7)
+    params:add_control("filt1_cutoff", "Filt 1 Cutoff", controlspec.new(20,18000,"exp",1,18000))
+    params:set_action("filt1_cutoff", function(x) Bridge.set_param("filt1_cutoff", x) end)
+    params:add_control("filt2_cutoff", "Filt 2 Cutoff", controlspec.new(20,18000,"exp",1,18000))
+    params:set_action("filt2_cutoff", function(x) Bridge.set_param("filt2_cutoff", x) end)
     params:add_control("filt1_res", "Filt 1 Res", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("filt1_res", function(x) Bridge.set_param("filt1_res", x) end)
     params:add_control("filt2_res", "Filt 2 Res", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("filt2_res", function(x) Bridge.set_param("filt2_res", x) end)
-    params:add_control("filt_drive", "Drive", controlspec.new(0,1,"lin",0.01,0))
-    params:set_action("filt_drive", function(x) Bridge.set_param("filt1_drive", x); Bridge.set_param("filt2_drive", x) end)
-    params:add_binary("filt_type", "Type", "toggle", 0)
-    params:set_action("filt_type", function(x) Bridge.set_param("filt_type", x) end)
+    params:add_binary("filt1_type", "Filt 1 Type (LP/HP)", "toggle", 0)
+    params:set_action("filt1_type", function(x) Bridge.set_param("filt1_type", x) end)
+    params:add_binary("filt2_type", "Filt 2 Type (LP/HP)", "toggle", 0)
+    params:set_action("filt2_type", function(x) Bridge.set_param("filt2_type", x) end)
+    params:add_binary("filt_model", "Model (SVF/MOOG)", "toggle", 0)
+    params:set_action("filt_model", function(x) Bridge.set_param("filt_model", x) end)
 
-    -- MODULATION: 10 params
     params:add_group("MODULATION", 10)
     params:add_control("lfo1_rate", "LFO1 Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
     params:set_action("lfo1_rate", function(x) Bridge.set_param("lfo1_rate", x) end)
@@ -131,7 +129,6 @@ function Params.init(g_ref)
     params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0.1, 1))
     params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
 
-    -- SPACE: 12 params
     params:add_group("SPACE", 12)
     params:add_control("system_dirt", "Dirt", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("system_dirt", function(x) Bridge.set_param("system_dirt", x) end)
