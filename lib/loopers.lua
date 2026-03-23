@@ -1,112 +1,107 @@
--- code/ltra/lib/loopers.lua | v1.4.10
--- LTRA: Softcut Manager
--- FIX: Removed non-existent API call (level_cut_eng) to prevent Maiden Crash
+-- lib/loopers.lua | v1.5.11
+-- NEW: 4 Async Loopers via Softcut
 
 local Loopers = {}
 local Globals
-local Consts = require 'ltra/lib/consts'
-local held_keys = { {}, {}, {} } 
 
 function Loopers.init(g_ref)
     Globals = g_ref
     
-    audio.level_adc_cut(1) 
+    -- Route Engine to Softcut
+    audio.level_eng_cut(1)
+    -- Prevent Softcut feedback loop
+    audio.level_cut_cut(0)
     
-    for i=1, 3 do
-        local pair = Consts.LOOPER_PAIRS[i]
-        local bounds = Consts.LOOPER_BOUNDS[i]
-        for _, v in ipairs(pair) do
-            softcut.enable(v, 1); softcut.buffer(v, (v%2 == 1) and 1 or 2)
-            softcut.level(v, 1.0); softcut.loop(v, 1)
-            softcut.loop_start(v, bounds.min); softcut.loop_end(v, bounds.max)
-            softcut.position(v, bounds.min); softcut.play(v, 1)
-            softcut.rate(v, 1.0); softcut.fade_time(v, 0.05)
-            softcut.post_filter_lp(v, 1.0); softcut.post_filter_dry(v, 0.0)
-            softcut.post_filter_fc(v, 18000); softcut.post_filter_rq(v, 2.0)
-            
-            softcut.phase_quant(v, 0.1) 
-        end
-    end
-    
-    softcut.event_phase(function(v, pos)
-        if v == 1 or v == 3 or v == 5 then
-            local track_idx = (v+1)/2
-            local bounds = Consts.LOOPER_BOUNDS[track_idx]
-            local len = bounds.max - bounds.min
-            local rel_pos = (pos - bounds.min) / len
-            
-            if Globals and Globals.visuals then
-                Globals.visuals.tape_heads[track_idx] = util.clamp(rel_pos, 0, 1)
-                
-                if Globals.page == 3 and Globals.menu_mode == Consts.MENU.NONE then
-                    Globals.dirty = true
-                end
-            end
-        end
-    end)
-end
-
-function Loopers.configure_audio_routing(g_ref)
-    -- FIX CRÍTICO: Eliminada la llamada a audio.level_cut_eng(1.0) que no existe en Norns.
-    -- Mantenemos el ruteo legal hacia el DAC para que Softcut sea audible.
-    audio.level_cut_dac(1.0)
-    print("LTRA: Audio Routing Active (Cut->DAC)")
-end
-
-function Loopers.handle_grid_input(track_idx, x, z)
-    local t = Globals.tracks[track_idx]
-    local bounds = Consts.LOOPER_BOUNDS[track_idx]
-    local len = bounds.max - bounds.min
-    local offset = (track_idx-1)*5
-    local local_x = x - offset
-    if local_x < 1 or local_x > 5 then return end
-    
-    if z == 1 then held_keys[track_idx][x] = util.time()
-    else held_keys[track_idx][x] = nil end
-    
-    local count = 0
-    local min_x, max_x = 100, 0
-    for k, _ in pairs(held_keys[track_idx]) do
-        count = count + 1
-        if k < min_x then min_x = k end
-        if k > max_x then max_x = k end
-    end
-    
-    local pair = Consts.LOOPER_PAIRS[track_idx]
-    
-    if count == 1 then
-        local rel_pos = (min_x - offset - 1) / 4 
-        local abs_pos = bounds.min + (rel_pos * len)
-        for _, v in ipairs(pair) do softcut.position(v, abs_pos) end
-    elseif count == 2 then
-        local rel_start = (min_x - offset - 1) / 4
-        local rel_end = (max_x - offset - 1) / 4
-        if rel_end <= rel_start then rel_end = rel_start + 0.1 end
-        local abs_start = bounds.min + (rel_start * len)
-        local abs_end = bounds.min + (rel_end * len)
-        for _, v in ipairs(pair) do 
-            softcut.loop_start(v, abs_start); softcut.loop_end(v, abs_end)
-        end
+    for i=1, 4 do
+        softcut.enable(i, 1)
+        softcut.buffer(i, 1)
+        softcut.level(i, 1.0)
+        softcut.loop(i, 1)
+        softcut.rate(i, 1.0)
+        softcut.fade_time(i, 0.1)
+        softcut.post_filter_fc(i, 18000)
+        
+        -- Mono mix from stereo engine
+        softcut.level_input_cut(1, i, 1.0)
+        softcut.level_input_cut(2, i, 1.0)
+        
+        -- Pan distribution
+        if i==1 then softcut.pan(i, -0.5)
+        elseif i==2 then softcut.pan(i, 0.5)
+        elseif i==3 then softcut.pan(i, -1.0)
+        elseif i==4 then softcut.pan(i, 1.0) end
+        
+        -- 30s buffer per looper
+        local start_pos = (i-1) * 30
+        softcut.loop_start(i, start_pos)
+        softcut.loop_end(i, start_pos + 30)
+        softcut.position(i, start_pos)
+        
+        -- State: 0=Empty, 1=Rec, 2=Play, 3=Dub, 4=Stop
+        Globals.loopers = Globals.loopers or {}
+        Globals.loopers[i] = { state = 0, start_pos = start_pos, end_pos = start_pos + 30 }
     end
 end
 
-function Loopers.transport_action(track_idx, action)
-    local t = Globals.tracks[track_idx]
-    local pair = Consts.LOOPER_PAIRS[track_idx]
-    if action == "press" then
-        if t.state == 1 then t.state = 2; for _, v in ipairs(pair) do softcut.pre_level(v, 0.0); softcut.rec_level(v, 1.0); softcut.rec(v, 1) end
-        elseif t.state == 2 then t.state = 3; for _, v in ipairs(pair) do softcut.rec(v, 0) end
-        elseif t.state == 3 then t.state = 4; for _, v in ipairs(pair) do softcut.pre_level(v, t.feedback); softcut.rec_level(v, 1.0); softcut.rec(v, 1) end
-        elseif t.state == 4 then t.state = 3; for _, v in ipairs(pair) do softcut.rec(v, 0) end end
-    elseif action == "hold" then
-        t.state = 1
-        local bounds = Consts.LOOPER_BOUNDS[track_idx]
-        for _, v in ipairs(pair) do 
-            softcut.rec(v, 0); softcut.rate(v, 1.0)
-            softcut.loop_start(v, bounds.min); softcut.loop_end(v, bounds.max)
-            softcut.position(v, bounds.min); softcut.pre_level(v, 1.0)
+function Loopers.handle_button(idx, shift)
+    local l = Globals.loopers[idx]
+    
+    if shift then
+        if l.state == 2 or l.state == 3 then
+            l.state = 4
+            softcut.play(idx, 0)
+            softcut.rec(idx, 0)
+        elseif l.state == 4 then
+            l.state = 2
+            softcut.play(idx, 1)
         end
+        return
     end
+    
+    if l.state == 0 then
+        -- Empty -> Rec
+        l.state = 1
+        softcut.position(idx, l.start_pos)
+        softcut.rec_level(idx, 1.0)
+        softcut.pre_level(idx, 0.0)
+        softcut.rec(idx, 1)
+        softcut.play(idx, 1)
+    elseif l.state == 1 then
+        -- Rec -> Play (Close Loop)
+        l.state = 2
+        softcut.position_cut(idx) -- Query position to close loop
+    elseif l.state == 2 then
+        -- Play -> Dub
+        l.state = 3
+        softcut.rec_level(idx, 1.0)
+        softcut.pre_level(idx, 1.0)
+        softcut.rec(idx, 1)
+    elseif l.state == 3 then
+        -- Dub -> Play
+        l.state = 2
+        softcut.rec(idx, 0)
+    elseif l.state == 4 then
+        -- Stop -> Play
+        l.state = 2
+        softcut.play(idx, 1)
+    end
+end
+
+function Loopers.handle_position(idx, pos)
+    local l = Globals.loopers[idx]
+    if l.state == 2 then
+        l.end_pos = pos
+        softcut.loop_end(idx, pos)
+        softcut.rec(idx, 0)
+    end
+end
+
+function Loopers.clear(idx)
+    local l = Globals.loopers[idx]
+    l.state = 0
+    softcut.rec(idx, 0)
+    softcut.play(idx, 0)
+    softcut.buffer_clear_region(l.start_pos, 30)
 end
 
 return Loopers
