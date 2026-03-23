@@ -1,5 +1,5 @@
--- lib/mod_matrix.lua | v1.5.1
--- FIX: Removed z==1 check to allow grid_pages to control execution
+-- lib/mod_matrix.lua | v1.6.0
+-- FIX: Matrix Visual Grouping (A-B-A-B-A)
 
 local Matrix = {}
 local Globals
@@ -10,13 +10,13 @@ function Matrix.init(g_ref) Globals = g_ref end
 
 local ROW_TO_SOURCE = { [1]="LFO1",[2]="LFO2", [3]="CHAOS", [4]="OUTLINE" }
 local COL_TO_DEST = {
-    [1]="PITCH1", [2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
+    [1]="PITCH1",[2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
     [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",
-    [9]="MORPH1",[10]="MORPH2", [11]="MORPH3", [12]="MORPH4",[13]="FILT1", [14]="FILT2",  [15]="DELAY_T",[16]="DELAY_F"
+    [9]="MORPH1",[10]="MORPH2", [11]="MORPH3",[12]="MORPH4",
+    [13]="FILT1", [14]="FILT2",[15]="DELAY_T",[16]="DELAY_F"
 }
 
 function Matrix.key(x, y, z)
-    -- FIX: z check removed. grid_pages.lua now decides WHEN to call this (on release)
     local src_name = ROW_TO_SOURCE[y]
     local dest_name = COL_TO_DEST[x]
     
@@ -51,7 +51,7 @@ function Matrix.draw(hw, led_func)
         if y == 1 then mod_val = Globals.visuals.lfo_vals[1] or 0
         elseif y == 2 then mod_val = Globals.visuals.lfo_vals[2] or 0 
         elseif y == 3 then mod_val = Globals.visuals.chaos_val or 0 
-        elseif y == 4 then mod_val = (Globals.visuals.amp_l or 0) * 2 - 1 
+        elseif y == 4 then mod_val = (Globals.visuals.outline_val or 0) * 2 - 1 
         end
         
         local anim_offset = math.abs(mod_val) 
@@ -60,11 +60,12 @@ function Matrix.draw(hw, led_func)
             local src_idx = Consts.SOURCES[ROW_TO_SOURCE[y]]
             local val = Globals.matrix[src_idx][x]
             
+            -- FIX: Correct Visual Grouping
             local bg = Consts.BRIGHT.BG_MATRIX_A
             if x > 4 and x <= 8 then bg = Consts.BRIGHT.BG_MATRIX_B end 
-            if x > 12 then 
-                if x%2==0 then bg = Consts.BRIGHT.BG_MATRIX_B else bg = Consts.BRIGHT.BG_MATRIX_A end
-            end
+            if x > 8 and x <= 12 then bg = Consts.BRIGHT.BG_MATRIX_A end
+            if x > 12 and x <= 14 then bg = Consts.BRIGHT.BG_MATRIX_B end
+            if x > 14 then bg = Consts.BRIGHT.BG_MATRIX_A end
             
             local active_b = nil
             if val > 0.01 then
