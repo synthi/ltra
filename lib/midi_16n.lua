@@ -1,5 +1,5 @@
--- lib/midi_16n.lua | v1.5.7
--- FIX: MOD1-3 Faders, Delay Faders Controlspec Mapping
+-- lib/midi_16n.lua | v1.5.8
+-- FIX: Bulletproof Math Mapping for Faders
 
 local Midi16n = {}
 local Globals
@@ -46,6 +46,7 @@ local function process_fader(id, val)
     Globals.fader_values[id] = val
     Globals.fader_virtual[id] = norm
     
+    -- FIX: Pure Math Mapping (No API dependency)
     if func == "pitch1" then params:set("osc1_pitch", norm); trigger_popup(name, string.format("%.2f", norm))
     elseif func == "pitch2" then params:set("osc2_pitch", norm); trigger_popup(name, string.format("%.2f", norm))
     elseif func == "pitch3" then params:set("osc3_pitch", norm); trigger_popup(name, string.format("%.2f", norm))
@@ -55,43 +56,43 @@ local function process_fader(id, val)
     elseif func == "amp3" then params:set("osc3_vol", norm); trigger_popup(name, string.format("%.2f", norm))
     elseif func == "amp4" then params:set("osc4_vol", norm); trigger_popup(name, string.format("%.2f", norm))
     elseif func == "filt1" then 
-        local hz = params:lookup_param("filt1_cutoff").controlspec:map(norm)
+        local hz = util.linexp(0, 1, 20, 18000, norm)
         params:set("filt1_cutoff", hz); trigger_popup(name, string.format("%.0f Hz", hz))
     elseif func == "filt2" then 
-        local hz = params:lookup_param("filt2_cutoff").controlspec:map(norm)
+        local hz = util.linexp(0, 1, 20, 18000, norm)
         params:set("filt2_cutoff", hz); trigger_popup(name, string.format("%.0f Hz", hz))
     elseif func == "mod1" then 
         if params:get("mod1_lfo_sync") == 1 then
-            local div = math.floor(norm * 14) + 1
+            local div = math.floor(norm * 20) + 1
             params:set("mod1_lfo_div", div)
             trigger_popup("MOD1 SYNC", Consts.SYNC_DIVS[div].name)
         else
-            local hz = params:lookup_param("mod1_lfo_rate").controlspec:map(norm)
+            local hz = util.linexp(0, 1, 0.01, 20, norm)
             params:set("mod1_lfo_rate", hz); trigger_popup("MOD1 RATE", string.format("%.2f Hz", hz))
         end
     elseif func == "mod2" then 
         if params:get("mod2_lfo_sync") == 1 then
-            local div = math.floor(norm * 14) + 1
+            local div = math.floor(norm * 20) + 1
             params:set("mod2_lfo_div", div)
             trigger_popup("MOD2 SYNC", Consts.SYNC_DIVS[div].name)
         else
-            local hz = params:lookup_param("mod2_lfo_rate").controlspec:map(norm)
+            local hz = util.linexp(0, 1, 0.01, 20, norm)
             params:set("mod2_lfo_rate", hz); trigger_popup("MOD2 RATE", string.format("%.2f Hz", hz))
         end
     elseif func == "mod3" then 
         if params:get("mod3_lfo_sync") == 1 then
-            local div = math.floor(norm * 14) + 1
+            local div = math.floor(norm * 20) + 1
             params:set("mod3_lfo_div", div)
             trigger_popup("MOD3 SYNC", Consts.SYNC_DIVS[div].name)
         else
-            local hz = params:lookup_param("mod3_lfo_rate").controlspec:map(norm)
+            local hz = util.linexp(0, 1, 0.01, 20, norm)
             params:set("mod3_lfo_rate", hz); trigger_popup("MOD3 RATE", string.format("%.2f Hz", hz))
         end
     elseif func == "tape_time" then 
-        local t = params:lookup_param("fx_tape_time").controlspec:map(norm)
+        local t = util.linexp(0, 1, 0.01, 2.0, norm)
         params:set("fx_tape_time", t); trigger_popup("TAPE TIME", string.format("%.2f s", t))
     elseif func == "tape_fb" then 
-        local fb = params:lookup_param("fx_tape_feedback").controlspec:map(norm)
+        local fb = util.linlin(0, 1, 0.0, 1.2, norm)
         params:set("fx_tape_feedback", fb); trigger_popup("TAPE FB", string.format("%.2f", fb))
     elseif func == "delay_send" then 
         params:set("delay_send", norm); trigger_popup(name, string.format("%.2f", norm))
