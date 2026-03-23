@@ -1,5 +1,5 @@
--- lib/ltra.lua | v1.5.7
--- FIX: MOD1-3 Sync Watcher
+-- ltra.lua | v1.5.11
+-- FIX: Init Loopers
 
 engine.name = 'Ltra'
 
@@ -17,13 +17,14 @@ local Arp = require('ltra/lib/arp')
 local Enc = require('ltra/lib/controls_enc')
 local Keys = require('ltra/lib/controls_key')
 local Storage = require('ltra/lib/storage')
+local Loopers = require('ltra/lib/loopers') -- FIX: Added Loopers
 
 local g_state
 
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v1.5.7 (Golden Master 3)...")
+    print("LTRA: Initializing v1.5.11 (Golden Master 5)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
@@ -44,6 +45,7 @@ function init()
     Enc.init(g_state)
     Keys.init(g_state)
     Storage.init(g_state)
+    Loopers.init(g_state) -- FIX: Init Loopers
     
     GridPages.init(g_state, nil)
     GridHW.init(g_state, 1, GridPages)
