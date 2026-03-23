@@ -1,5 +1,5 @@
--- lib/controls_key.lua | v1.5.0
--- FIX: Removed Loopers
+-- lib/controls_key.lua | v1.5.2
+-- FIX: Matrix Invert Logic, Filter Type Toggle
 
 local Keys = {}
 local Globals
@@ -25,8 +25,8 @@ function Keys.event(n, z)
             
         elseif Globals.menu_mode == Consts.MENU.FILTER then
             if n==2 then 
-                local curr = params:get("filt_type")
-                params:set("filt_type", 1-curr)
+                local curr = params:get("filt"..t.."_type")
+                params:set("filt"..t.."_type", 1-curr)
             end
             
         elseif Globals.menu_mode == Consts.MENU.MATRIX then
@@ -36,6 +36,7 @@ function Keys.event(n, z)
                 if src_idx and dst_idx then
                     local current = Globals.matrix[src_idx][dst_idx]
                     local id = "mat_"..Globals.menu_target.src_name.."_"..Globals.menu_target.dest_name
+                    -- FIX: Invert mathematically
                     params:set(id, current * -1)
                 end
             end
