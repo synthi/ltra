@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v1.5.2
--- FIX: Latch Toggle Logic, Output Menu (Col 16)
+-- lib/grid_pages.lua | v1.5.3
+-- FIX: User Scales Logic (Row 2)
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -61,7 +61,7 @@ local function check_hold()
         elseif held == 11 or held == 12 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = (held==11 and 1 or 2)
         elseif held == 13 then Globals.menu_mode = Consts.MENU.DELAY
         elseif held == 14 then Globals.menu_mode = Consts.MENU.REVERB
-        elseif held == 16 then Globals.menu_mode = Consts.MENU.LOOPER -- Re-purposed as OUTPUT
+        elseif held == 16 then Globals.menu_mode = Consts.MENU.LOOPER 
         end
         Globals.dirty = true
         return
@@ -115,12 +115,21 @@ function Pages.redraw()
         led_safe(9, 6, outline_val)
         
         for i=11, 14 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
-        led_safe(16, 6, Consts.BRIGHT.BG_DASHBOARD) -- Output Menu LED
+        led_safe(16, 6, Consts.BRIGHT.BG_DASHBOARD) 
         draw_snapshots() 
     end
     
     if Globals.page == 2 then
-        for x=1, 16 do led_safe(x, 1, (x==Globals.scale.current_idx) and 11 or 2) end
+        -- FIX: Row 1 (Presets) and Row 2 (User Scales)
+        for x=1, 16 do 
+            led_safe(x, 1, (Globals.scale.current_idx == x) and 11 or 2) 
+            local u_idx = x + 16
+            local is_mod = Globals.scale.custom_slots[x] and Globals.scale.custom_slots[x].modified
+            local b = is_mod and 6 or 1
+            if Globals.scale.current_idx == u_idx then b = 11 end
+            led_safe(x, 2, b)
+        end
+        
         local blacks = {false, true, false, true, false, false, true, false, true, false, true, false}
         for i=1, 12 do
             local x = i + 2
@@ -163,7 +172,6 @@ function Pages.key(x, y, z)
             Globals.tap_last = now; return
         end
         
-        -- FIX: Latch Toggle Logic
         if x <= 4 then
             local Bridge = require 'ltra/lib/engine_bridge'
             if z == 1 then
@@ -187,7 +195,7 @@ function Pages.key(x, y, z)
         end
         
         if x >= 14 and z == 1 then
-            local page_map = {[14]=1, [15]=2}
+            local page_map = {[14]=1,[15]=2}
             if page_map[x] then Globals.page = page_map[x]; Globals.dirty = true end
             return
         end
@@ -229,17 +237,19 @@ function Pages.key(x, y, z)
     
     if Globals.page == 2 then
         if y == 1 and z == 1 then 
-            Globals.scale.current_idx = x
-            Globals.dirty=true 
-            Scales.update_all_voices()
+            params:set("scale_idx", x)
+        end
+        if y == 2 and z == 1 then 
+            params:set("scale_idx", x + 16)
         end
         if y == 6 and z == 1 and x>=3 and x<=14 then 
-            Globals.scale.root_note = x - 2
-            Globals.dirty=true 
-            Scales.update_all_voices()
+            params:set("scale_root", x - 2)
         end
         if z == 1 and (y == 4 or y == 5) and x >= 3 and x <= 14 then
             local note = x - 3 
+            if Globals.scale.current_idx <= 16 then
+                params:set("scale_idx", Globals.scale.current_idx + 16)
+            end
             Scales.toggle_custom_note(note)
             Scales.update_all_voices()
         end
