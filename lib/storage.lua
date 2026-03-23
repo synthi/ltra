@@ -1,5 +1,5 @@
--- lib/storage.lua | v1.5.0
--- FIX: Removed Softcut, Added Clear Delay on Load
+-- lib/storage.lua | v1.5.5
+-- FIX: Save ALL params, Delete Snapshot
 
 local Storage = {}
 local Globals
@@ -55,13 +55,11 @@ end
 
 function Storage.save_snapshot(slot)
     local snap = { params={} }
+    -- FIX: Save absolutely everything
     for _, id in ipairs(params.lookup) do
         local p = params:lookup_param(id)
-        for _, pat in ipairs(Consts.SNAPSHOT_PATTERNS) do
-            if string.find(p.id, pat) then
-                snap.params[p.id] = p:get()
-                break
-            end
+        if p.t ~= 4 then -- Don't save groups/separators
+            snap.params[p.id] = p:get()
         end
     end
     Globals.snapshots[slot] = snap
@@ -75,6 +73,11 @@ function Storage.load_snapshot(slot)
         params:set(id, val) 
     end
     print("LTRA: Snapshot "..slot.." loaded.")
+end
+
+function Storage.delete_snapshot(slot)
+    Globals.snapshots[slot] = nil
+    print("LTRA: Snapshot "..slot.." deleted.")
 end
 
 return Storage
