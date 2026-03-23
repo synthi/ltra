@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.6
-// FIX: FxTape and FxBlossom Integration
+// lib/Engine_Ltra.sc | v1.5.7
+// FIX: MOD1-3 Architecture, Unipolar Chaos
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -19,24 +19,33 @@ Engine_Ltra : CroneEngine {
                 gate1=0, gate2=0, gate3=0, gate4=0,
                 t_arp1=0, t_arp2=0, t_arp3=0, t_arp4=0,
                 arp_cv1=0, arp_cv2=0, arp_cv3=0, arp_cv4=0,
-                lfo1_rate=0.5, lfo1_shape=0, lfo1_depth=1,
-                lfo2_rate=0.2, lfo2_shape=2, lfo2_depth=1,
-                chaos_rate=0.5, chaos_slew=0.1, chaos_amp=1.0, 
+                
+                // FIX: MOD1, MOD2, MOD3 Params
+                mod1_lfo_rate=0.5, mod1_lfo_shape=0, mod1_depth=1,
+                mod1_chaos_rate=0.5, mod1_chaos_slew=0.1, mod1_mix=0.0,
+                
+                mod2_lfo_rate=0.5, mod2_lfo_shape=0, mod2_depth=1,
+                mod2_chaos_rate=0.5, mod2_chaos_slew=0.1, mod2_mix=0.0,
+                
+                mod3_lfo_rate=0.5, mod3_lfo_shape=0, mod3_depth=1,
+                mod3_chaos_rate=0.5, mod3_chaos_slew=0.1, mod3_mix=0.0,
+                
                 outline_source=0, outline_gain=1.0,
                 filt1_cutoff=32, filt2_cutoff=14200, 
                 filt1_res=0, filt2_res=0,
                 filt1_type=1, filt2_type=0, 
                 filt1_drive=0, filt2_drive=0, 
-                // FxTape Params
                 fx_tape_time=0.3, fx_tape_feedback=0.4, fx_tape_wow_flutter=0.1,
                 fx_tape_erosion=0.0, fx_tape_drive=1.0, fx_tape_tone=1, delay_send=0.5,
-                // FxBlossom Params
                 fx_blossom_decay=4.75, fx_blossom_bloom=1.80, fx_blossom_damp=3500,
                 fx_blossom_predelay=0.110, fx_blossom_mod_rate=0.300, fx_blossom_mod_depth=0.002, reverb_mix=0.0,
                 system_dirt=0, dust_dens=0, 
                 clear_trig=0, t_reset=0;
 
-            var lfo1, lfo2, chaos_sig, rungler_clk, rungler_val;
+            var mod1_lfo, mod1_chaos, mod1_sig;
+            var mod2_lfo, mod2_chaos, mod2_sig;
+            var mod3_lfo, mod3_chaos, mod3_sig;
+            
             var outline_sig, env_int, env_ext;
             var m_pitch1, m_pitch2, m_pitch3, m_pitch4;
             var m_amp1, m_amp2, m_amp3, m_amp4;
@@ -53,7 +62,6 @@ Engine_Ltra : CroneEngine {
             var s_filt1, s_filt2;
             var vca1, vca2, vca3, vca4;
             
-            // FxTape Vars
             var tape_in, local_in, shared_wow, shared_flutter, shared_mod;
             var shared_dust_trig, shared_dropout_env, dt_mono, tape_del_mono;
             var sat_mono, ero_lpf_freq, ero_bass_cut, filt_mono, tone_freq, tone_filt_mono, final_mono;
@@ -61,7 +69,6 @@ Engine_Ltra : CroneEngine {
             var tape_sig_l, tape_sig_r;
             var time_kr, fb_kr, wf_kr, ero_kr, drive_kr, tone_kr;
 
-            // FxBlossom Vars
             var rev_in, lfo_l, lfo_r, combs_l, combs_r, cross_l_rev, cross_r_rev;
             var ap_l, ap_r, rev_filt_l, rev_filt_r, rev_out_l, rev_out_r;
             var decay_kr, bloom_kr, damp_kr, predelay_kr, mod_rate_kr, mod_depth_kr;
@@ -101,17 +108,17 @@ Engine_Ltra : CroneEngine {
             };
 
             var calc_mod = { |dest_name, arp_val|
-                (lfo1 * NamedControl.kr(("mod_lfo1_" ++ dest_name).asSymbol, 0)) +
-                (lfo2 * NamedControl.kr(("mod_lfo2_" ++ dest_name).asSymbol, 0)) +
-                (chaos_sig * NamedControl.kr(("mod_chaos_" ++ dest_name).asSymbol, 0)) +
+                (mod1_sig * NamedControl.kr(("mod_mod1_" ++ dest_name).asSymbol, 0)) +
+                (mod2_sig * NamedControl.kr(("mod_mod2_" ++ dest_name).asSymbol, 0)) +
+                (mod3_sig * NamedControl.kr(("mod_mod3_" ++ dest_name).asSymbol, 0)) +
                 (outline_sig * NamedControl.kr(("mod_outline_" ++ dest_name).asSymbol, 0)) +
                 (arp_val * NamedControl.kr(("mod_arp_" ++ dest_name).asSymbol, 0));
             };
             
             var calc_mod_pitch = { |dest_name, arp_val|
-                var raw_lfo1 = lfo1 * NamedControl.kr(("mod_lfo1_" ++ dest_name).asSymbol, 0) * 24.0;
-                var raw_lfo2 = lfo2 * NamedControl.kr(("mod_lfo2_" ++ dest_name).asSymbol, 0) * 24.0;
-                var raw_chaos = chaos_sig * NamedControl.kr(("mod_chaos_" ++ dest_name).asSymbol, 0) * 24.0;
+                var raw_mod1 = mod1_sig * NamedControl.kr(("mod_mod1_" ++ dest_name).asSymbol, 0) * 24.0;
+                var raw_mod2 = mod2_sig * NamedControl.kr(("mod_mod2_" ++ dest_name).asSymbol, 0) * 24.0;
+                var raw_mod3 = mod3_sig * NamedControl.kr(("mod_mod3_" ++ dest_name).asSymbol, 0) * 24.0;
                 var raw_outline = outline_sig * NamedControl.kr(("mod_outline_" ++ dest_name).asSymbol, 0) * 24.0;
                 var raw_arp = arp_val * NamedControl.kr(("mod_arp_" ++ dest_name).asSymbol, 0) * 24.0;
                 
@@ -122,13 +129,13 @@ Engine_Ltra : CroneEngine {
                     (oct * 12) + Select.kr(pc, scale_map);
                 };
                 
-                var q_lfo1 = Select.kr(NamedControl.kr(("quant_lfo1_" ++ dest_name).asSymbol, 1),[raw_lfo1, quantize_fn.(raw_lfo1)]);
-                var q_lfo2 = Select.kr(NamedControl.kr(("quant_lfo2_" ++ dest_name).asSymbol, 1),[raw_lfo2, quantize_fn.(raw_lfo2)]);
-                var q_chaos = Select.kr(NamedControl.kr(("quant_chaos_" ++ dest_name).asSymbol, 1),[raw_chaos, quantize_fn.(raw_chaos)]);
+                var q_mod1 = Select.kr(NamedControl.kr(("quant_mod1_" ++ dest_name).asSymbol, 1),[raw_mod1, quantize_fn.(raw_mod1)]);
+                var q_mod2 = Select.kr(NamedControl.kr(("quant_mod2_" ++ dest_name).asSymbol, 1),[raw_mod2, quantize_fn.(raw_mod2)]);
+                var q_mod3 = Select.kr(NamedControl.kr(("quant_mod3_" ++ dest_name).asSymbol, 1),[raw_mod3, quantize_fn.(raw_mod3)]);
                 var q_outline = Select.kr(NamedControl.kr(("quant_outline_" ++ dest_name).asSymbol, 1),[raw_outline, quantize_fn.(raw_outline)]);
                 var q_arp = Select.kr(NamedControl.kr(("quant_arp_" ++ dest_name).asSymbol, 1),[raw_arp, quantize_fn.(raw_arp)]);
                 
-                (q_lfo1 + q_lfo2 + q_chaos + q_outline + q_arp) / 12.0;
+                (q_mod1 + q_mod2 + q_mod3 + q_outline + q_arp) / 12.0;
             };
 
             s_freq1 = Lag.kr(freq1, lag); s_freq2 = Lag.kr(freq2, lag);
@@ -137,23 +144,35 @@ Engine_Ltra : CroneEngine {
             s_vol3 = Lag.kr(vol3, lag);   s_vol4 = Lag.kr(vol4, lag);
             s_filt1 = Lag.kr(filt1_cutoff, lag); s_filt2 = Lag.kr(filt2_cutoff, lag);
 
-            lfo1 = SelectX.kr(lfo1_shape * 3,[
-                LFPulse.kr(lfo1_rate, 0, 0.5), 
-                (LFSaw.kr(lfo1_rate, 0) + 1) * 0.5, 
-                (LFTri.kr(lfo1_rate, 0) + 1) * 0.5, 
-                (SinOsc.kr(lfo1_rate, 0) + 1) * 0.5
-            ]) * lfo1_depth;
-            
-            lfo2 = SelectX.kr(lfo2_shape * 3,[
-                LFPulse.kr(lfo2_rate, 0, 0.5), 
-                (LFSaw.kr(lfo2_rate, 0) + 1) * 0.5, 
-                (LFTri.kr(lfo2_rate, 0) + 1) * 0.5, 
-                (SinOsc.kr(lfo2_rate, 0) + 1) * 0.5
-            ]) * lfo2_depth;
-            
-            rungler_clk = Impulse.kr(chaos_rate * 4);
-            rungler_val = Latch.kr(WhiteNoise.kr, rungler_clk); 
-            chaos_sig = Slew.kr(rungler_val, chaos_slew * 10, chaos_slew * 10) * chaos_amp;
+            // FIX: MOD1 Generation (Strictly Unipolar 0 to 1)
+            mod1_lfo = SelectX.kr(mod1_lfo_shape * 3,[
+                LFPulse.kr(mod1_lfo_rate, 0, 0.5), 
+                (LFSaw.kr(mod1_lfo_rate, 0) + 1) * 0.5, 
+                (LFTri.kr(mod1_lfo_rate, 0) + 1) * 0.5, 
+                (SinOsc.kr(mod1_lfo_rate, 0) + 1) * 0.5
+            ]);
+            mod1_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod1_chaos_rate * 4)), mod1_chaos_slew * 10, mod1_chaos_slew * 10);
+            mod1_sig = SelectX.kr(mod1_mix,[mod1_lfo, mod1_chaos]) * mod1_depth;
+
+            // FIX: MOD2 Generation
+            mod2_lfo = SelectX.kr(mod2_lfo_shape * 3,[
+                LFPulse.kr(mod2_lfo_rate, 0, 0.5), 
+                (LFSaw.kr(mod2_lfo_rate, 0) + 1) * 0.5, 
+                (LFTri.kr(mod2_lfo_rate, 0) + 1) * 0.5, 
+                (SinOsc.kr(mod2_lfo_rate, 0) + 1) * 0.5
+            ]);
+            mod2_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod2_chaos_rate * 4)), mod2_chaos_slew * 10, mod2_chaos_slew * 10);
+            mod2_sig = SelectX.kr(mod2_mix,[mod2_lfo, mod2_chaos]) * mod2_depth;
+
+            // FIX: MOD3 Generation
+            mod3_lfo = SelectX.kr(mod3_lfo_shape * 3,[
+                LFPulse.kr(mod3_lfo_rate, 0, 0.5), 
+                (LFSaw.kr(mod3_lfo_rate, 0) + 1) * 0.5, 
+                (LFTri.kr(mod3_lfo_rate, 0) + 1) * 0.5, 
+                (SinOsc.kr(mod3_lfo_rate, 0) + 1) * 0.5
+            ]);
+            mod3_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod3_chaos_rate * 4)), mod3_chaos_slew * 10, mod3_chaos_slew * 10);
+            mod3_sig = SelectX.kr(mod3_mix, [mod3_lfo, mod3_chaos]) * mod3_depth;
 
             env_int = LagUD.kr((gate1+gate2+gate3+gate4).clip(0,1), 0.01, 0.5);
             env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); 
@@ -197,7 +216,6 @@ Engine_Ltra : CroneEngine {
             dust_sig = Decay2.ar(Dust.ar([dust_dens, dust_dens]), 0.001, 0.01) * PinkNoise.ar * system_dirt;
             dirt_sig = hiss + hum + dust_sig;
 
-            // --- FxTape Integration ---
             time_kr = Lag.kr(fx_tape_time, 0.1);
             fb_kr = Lag.kr(fx_tape_feedback, 0.1);
             wf_kr = Lag.kr(fx_tape_wow_flutter, 0.1);
@@ -248,7 +266,6 @@ Engine_Ltra : CroneEngine {
             tape_sig_l = LeakDC.ar(eq_var_l);
             tape_sig_r = LeakDC.ar(eq_var_r);
 
-            // --- FxBlossom Integration ---
             decay_kr = Lag.kr(fx_blossom_decay, 0.1);
             bloom_kr = Lag.kr(fx_blossom_bloom, 0.1);
             damp_kr = Lag.kr(fx_blossom_damp, 0.1);
@@ -291,7 +308,8 @@ Engine_Ltra : CroneEngine {
             osc_trig = Impulse.kr(15);
             amp_l = Amplitude.kr(sig_post[0]);
             amp_r = Amplitude.kr(sig_post[1]);
-            SendReply.kr(osc_trig, '/ltra/visuals',[amp_l, amp_r, lfo1, lfo2, chaos_sig, outline_sig]);
+            // FIX: Send MOD1, MOD2, MOD3 telemetry
+            SendReply.kr(osc_trig, '/ltra/visuals',[amp_l, amp_r, mod1_sig, mod2_sig, mod3_sig, outline_sig]);
 
         }).add;
 
