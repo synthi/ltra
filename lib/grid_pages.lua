@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v1.5.3
--- FIX: User Scales Logic (Row 2)
+-- lib/grid_pages.lua | v1.5.4
+-- FIX: Latch Release Logic, Snapshot Save Logic, Delay Matrix Menu
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -75,6 +75,10 @@ local function check_hold()
                     Globals.menu_mode = Consts.MENU.MATRIX
                     local src_name = ({[1]="LFO1",[2]="LFO2",[3]="CHAOS",[4]="OUTLINE"})[y]
                     local dest_name = Consts.COL_TO_DEST_NAMES[x] or "UNK"
+                    -- FIX: Correct Delay String for Matrix Menu
+                    if dest_name == "DELAY T" then dest_name = "DELAY_T" end
+                    if dest_name == "DELAY F" then dest_name = "DELAY_F" end
+                    
                     Globals.menu_target = {x=x, y=y, src_name=src_name, dest_name=dest_name} 
                     Globals.dirty = true
                     return
@@ -120,7 +124,6 @@ function Pages.redraw()
     end
     
     if Globals.page == 2 then
-        -- FIX: Row 1 (Presets) and Row 2 (User Scales)
         for x=1, 16 do 
             led_safe(x, 1, (Globals.scale.current_idx == x) and 11 or 2) 
             local u_idx = x + 16
@@ -156,6 +159,14 @@ function Pages.key(x, y, z)
     if y == 8 then
         if x == 5 and z == 1 then
             Globals.latch_mode = not Globals.latch_mode
+            -- FIX: Release all notes when Latch is turned off
+            if not Globals.latch_mode then
+                local Bridge = require 'ltra/lib/engine_bridge'
+                for i=1, 4 do 
+                    Globals.voices[i].latched = false 
+                    Bridge.set_gate(i, 0)
+                end
+            end
             Globals.dirty = true; return
         end
         if x == 12 and z == 1 then
@@ -210,6 +221,9 @@ function Pages.key(x, y, z)
                     
                     local src_name = ({[1]="LFO1",[2]="LFO2",[3]="CHAOS",[4]="OUTLINE"})[y]
                     local dest_name = Consts.COL_TO_DEST_NAMES[x] or "UNK"
+                    if dest_name == "DELAY T" then dest_name = "DELAY_T" end
+                    if dest_name == "DELAY F" then dest_name = "DELAY_F" end
+                    
                     local src_idx = Consts.SOURCES[src_name]
                     local val = Globals.matrix[src_idx][x]
                     
@@ -227,10 +241,14 @@ function Pages.key(x, y, z)
             end
         end
         if y == 7 and x <= 6 then
-            if z == 1 then Storage.load_snapshot(x)
-            else
+            -- FIX: Snapshot Save/Load Logic (Trigger on Release)
+            if z == 0 then
                 local press_time = Globals.grid_timers[x][y]
-                if util.time() - press_time > 1.0 then Storage.save_snapshot(x) end
+                if util.time() - press_time > 1.0 then 
+                    Storage.save_snapshot(x) 
+                else
+                    Storage.load_snapshot(x)
+                end
             end
         end
     end
