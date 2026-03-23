@@ -1,5 +1,5 @@
--- lib/engine_bridge.lua | v1.5.6
--- FIX: Added FxTape and FxBlossom param routing
+-- lib/engine_bridge.lua | v1.5.7
+-- FIX: MOD1-3 Telemetry
 
 local Bridge = {}
 local Globals
@@ -14,9 +14,10 @@ function Bridge.handle_osc(path, args)
         if Globals.visuals then
             Globals.visuals.amp_l = args[1]
             Globals.visuals.amp_r = args[2]
-            Globals.visuals.lfo_vals[1] = args[3]
-            Globals.visuals.lfo_vals[2] = args[4]
-            Globals.visuals.chaos_val = args[5] or 0
+            Globals.visuals.mod_vals = Globals.visuals.mod_vals or {}
+            Globals.visuals.mod_vals[1] = args[3]
+            Globals.visuals.mod_vals[2] = args[4]
+            Globals.visuals.mod_vals[3] = args[5]
             Globals.visuals.outline_val = args[6] or 0 
             
             Globals.dirty = true
