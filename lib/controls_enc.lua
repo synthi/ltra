@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v1.5.10
--- FIX: Write to isolated namespace (tapecho_*, blossomverb_*)
+-- lib/controls_enc.lua | v1.5.11
+-- FIX: ENV Menu, MOD Menu Layout, Matrix E2 removed
 
 local Enc = {}
 local Globals
@@ -26,27 +26,29 @@ function Enc.delta(n, d)
                 elseif n==3 then params:delta("osc"..t.."_vol", d) end
             end
             
+        elseif m == Consts.MENU.ENV then
+            if n==2 then params:delta("env_atk"..t, d)
+            elseif n==3 then params:delta("env_rel"..t, d) end
+            
         elseif m == Consts.MENU.MOD then
             if Globals.mod_menu_page == 1 then
                 if n==1 then params:delta("mod"..t.."_lfo_shape", d)
-                elseif n==2 then params:delta("mod"..t.."_depth", d)
-                elseif n==3 then 
+                elseif n==2 then 
                     if params:get("mod"..t.."_lfo_sync") == 1 then
                         params:delta("mod"..t.."_lfo_div", d)
                     else
                         params:delta("mod"..t.."_lfo_rate", d) 
                     end
-                end
+                elseif n==3 then params:delta("mod"..t.."_depth", d) end
             else
                 if n==1 then params:delta("mod"..t.."_mix", d)
-                elseif n==2 then params:delta("mod"..t.."_chaos_slew", d)
-                elseif n==3 then 
+                elseif n==2 then 
                     if params:get("mod"..t.."_chaos_sync") == 1 then
                         params:delta("mod"..t.."_chaos_div", d)
                     else
                         params:delta("mod"..t.."_chaos_rate", d) 
                     end
-                end
+                elseif n==3 then params:delta("mod"..t.."_chaos_slew", d) end
             end
             
         elseif m == Consts.MENU.ARP then
@@ -69,11 +71,10 @@ function Enc.delta(n, d)
             elseif n==3 then params:delta("filt"..t.."_res", d) end
             
         elseif m == Consts.MENU.DELAY then
-            -- FIX: Write to isolated namespace
             if Globals.delay_menu_page == 1 then
-                if n==1 then params:delta("tapecho_time", d)
-                elseif n==2 then params:delta("tapecho_feedback", d)
-                elseif n==3 then params:delta("delay_send", d) end
+                if n==1 then params:delta("delay_send", d)
+                elseif n==2 then params:delta("tapecho_time", d)
+                elseif n==3 then params:delta("tapecho_feedback", d) end
             else
                 if n==1 then params:delta("tapecho_drive", d)
                 elseif n==2 then params:delta("tapecho_erosion", d)
@@ -81,7 +82,6 @@ function Enc.delta(n, d)
             end
             
         elseif m == Consts.MENU.REVERB then
-            -- FIX: Write to isolated namespace
             if Globals.reverb_menu_page == 1 then
                 if n==1 then params:delta("reverb_mix", d)
                 elseif n==2 then params:delta("blossomverb_decay", d)
@@ -104,17 +104,6 @@ function Enc.delta(n, d)
             local dst_idx = Consts.DESTINATIONS[Globals.menu_target.dest_name]
             
             if src_idx and dst_idx then
-                if n==2 and dst_idx <= 4 then
-                    if d > 0 or d < 0 then 
-                        local current_q = Globals.matrix_quant[src_idx][dst_idx]
-                        local new_q = 1 - current_q
-                        Globals.matrix_quant[src_idx][dst_idx] = new_q
-                        
-                        local idx = string.match(Globals.menu_target.dest_name, "(%d+)$") or ""
-                        Bridge.set_matrix_quant(Globals.menu_target.src_name:lower(), "pitch", idx, new_q)
-                    end
-                end
-                
                 if n==3 then
                     local current = Globals.matrix[src_idx][dst_idx]
                     local new_val = util.clamp(current + d*0.01, -1, 1)
