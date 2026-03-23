@@ -1,5 +1,5 @@
--- lib/parameters.lua | v1.5.4
--- FIX: Morph to Shape Translation
+-- lib/parameters.lua | v1.5.5
+-- FIX: Added Drift, Spread, Chaos Amp
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -8,7 +8,7 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.5.4")
+    params:add_separator("LTRA v1.5.5")
     
     params:add_group("GLOBAL", 4)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
@@ -36,7 +36,7 @@ function Params.init(g_ref)
     params:set_action("monitor_vol", function(x) audio.level_adc(x) end)
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 6)
+        params:add_group("VOICE "..i, 8) -- FIX: Increased to 8
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -65,6 +65,13 @@ function Params.init(g_ref)
             if Globals then Globals.voices[i].tune=x end
             if Globals and Globals.loaded then Scales.update_all_voices() end
         end)
+        
+        -- FIX: Drift and Spread
+        params:add_control("osc"..i.."_drift", "Drift", controlspec.new(0,1,"lin",0.01,0))
+        params:set_action("osc"..i.."_drift", function(x) Bridge.set_param("drift"..i, x) end)
+        
+        params:add_control("osc"..i.."_spread", "Spread", controlspec.new(0,1,"lin",0.01,0))
+        params:set_action("osc"..i.."_spread", function(x) Bridge.set_param("spread"..i, x) end)
         
         params:add_binary("osc"..i.."_arp", "Arp Mode", "toggle", 0)
         params:set_action("osc"..i.."_arp", function(x) 
@@ -106,7 +113,7 @@ function Params.init(g_ref)
     params:add_control("filt2_drive", "Filt 2 Drive", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("filt2_drive", function(x) Bridge.set_param("filt2_drive", x) end)
 
-    params:add_group("MODULATION", 10)
+    params:add_group("MODULATION", 11) -- FIX: Increased to 11
     params:add_control("lfo1_rate", "LFO1 Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
     params:set_action("lfo1_rate", function(x) Bridge.set_param("lfo1_rate", x) end)
     params:add_control("lfo1_depth", "LFO1 Depth", controlspec.new(0,1,"lin",0.01,1))
@@ -125,6 +132,9 @@ function Params.init(g_ref)
     params:set_action("chaos_rate", function(x) Bridge.set_param("chaos_rate", x) end)
     params:add_control("chaos_slew", "Chaos Slew", controlspec.new(0,1,"lin",0.01,0.1))
     params:set_action("chaos_slew", function(x) Bridge.set_param("chaos_slew", x) end)
+    params:add_control("chaos_amp", "Chaos Amp", controlspec.new(0,1,"lin",0.01,1.0)) -- FIX: Chaos Amp
+    params:set_action("chaos_amp", function(x) Bridge.set_param("chaos_amp", x) end)
+    
     params:add_option("outline_src", "Outline Source", {"Internal Gates", "External Audio"}, 1)
     params:set_action("outline_src", function(x) Bridge.set_param("outline_source", x-1) end)
     params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0.1, 1))
@@ -165,10 +175,11 @@ function Params.init(g_ref)
                 if Globals then Globals.matrix[s_idx][d_idx] = x end
                 local idx = string.match(d_name, "(%d+)$") or ""
                 local bridge_dest = d_name:lower():gsub("%d", "")
+                if bridge_dest == "filt" then bridge_dest = "filt" end 
+                if bridge_dest == "morph" then bridge_dest = "shape" end 
+                -- FIX: Delay strings match SC exactly
                 if bridge_dest == "delay_t" then bridge_dest = "delay_time" end
                 if bridge_dest == "delay_f" then bridge_dest = "delay_fb" end
-                if bridge_dest == "filt" then bridge_dest = "filt" end 
-                if bridge_dest == "morph" then bridge_dest = "shape" end -- FIX: Shape Translation
                 Bridge.set_matrix(s_name:lower(), bridge_dest, idx, x)
             end)
         end
