@@ -1,6 +1,5 @@
--- code/ltra/lib/mod_matrix.lua | v1.4.7
--- LTRA: Matrix Logic
--- FIX: Full Visual Feedback (Chaos/Outline Animation)
+-- lib/mod_matrix.lua | v1.5.1
+-- FIX: Removed z==1 check to allow grid_pages to control execution
 
 local Matrix = {}
 local Globals
@@ -9,58 +8,50 @@ local Consts = require 'ltra/lib/consts'
 
 function Matrix.init(g_ref) Globals = g_ref end
 
-local ROW_TO_SOURCE = { [1]="LFO1", [2]="LFO2", [3]="CHAOS", [4]="OUTLINE" }
+local ROW_TO_SOURCE = { [1]="LFO1",[2]="LFO2", [3]="CHAOS", [4]="OUTLINE" }
 local COL_TO_DEST = {
     [1]="PITCH1", [2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
     [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",
-    [9]="MORPH1", [10]="MORPH2", [11]="MORPH3", [12]="MORPH4",
-    [13]="FILT1", [14]="FILT2",  [15]="DELAY_T", [16]="DELAY_F"
+    [9]="MORPH1",[10]="MORPH2", [11]="MORPH3", [12]="MORPH4",[13]="FILT1", [14]="FILT2",  [15]="DELAY_T",[16]="DELAY_F"
 }
 
 function Matrix.key(x, y, z)
-    if z == 1 then
-        -- La lógica de cambio de valor se maneja principalmente vía Encoder (E3)
-        -- Pero mantenemos el toggle básico aquí por si acaso
-        local src_name = ROW_TO_SOURCE[y]
-        local dest_name = COL_TO_DEST[x]
+    -- FIX: z check removed. grid_pages.lua now decides WHEN to call this (on release)
+    local src_name = ROW_TO_SOURCE[y]
+    local dest_name = COL_TO_DEST[x]
+    
+    if src_name and dest_name then
+        local src_idx = Consts.SOURCES[src_name]
+        local current_val = Globals.matrix[src_idx][x]
         
-        if src_name and dest_name then
-            local src_idx = Consts.SOURCES[src_name]
-            local current_val = Globals.matrix[src_idx][x]
-            
-            -- Ciclo simple para edición rápida sin encoder
-            local next_val = Consts.MATRIX_CYCLES[1]
-            for i, v in ipairs(Consts.MATRIX_CYCLES) do
-                if math.abs(current_val - v) < 0.05 then
-                    if i < #Consts.MATRIX_CYCLES then next_val = Consts.MATRIX_CYCLES[i+1]
-                    else next_val = Consts.MATRIX_CYCLES[1] end
-                    break
-                end
+        local next_val = Consts.MATRIX_CYCLES[1]
+        for i, v in ipairs(Consts.MATRIX_CYCLES) do
+            if math.abs(current_val - v) < 0.05 then
+                if i < #Consts.MATRIX_CYCLES then next_val = Consts.MATRIX_CYCLES[i+1]
+                else next_val = Consts.MATRIX_CYCLES[1] end
+                break
             end
-            if current_val < 0.01 then next_val = 1.0 end
-            
-            -- Actualizar Lua
-            Globals.matrix[src_idx][x] = next_val
-            
-            -- Actualizar Engine
-            local idx = string.match(dest_name, "(%d+)$") or ""
-            local bridge_dest = dest_name:lower():gsub("%d", "")
-            if bridge_dest == "delay_t" then bridge_dest = "delay_time" end
-            if bridge_dest == "delay_f" then bridge_dest = "delay_fb" end
-            
-            Bridge.set_matrix(src_name:lower(), bridge_dest, idx, next_val)
         end
+        if current_val < 0.01 then next_val = 1.0 end
+        
+        Globals.matrix[src_idx][x] = next_val
+        
+        local idx = string.match(dest_name, "(%d+)$") or ""
+        local bridge_dest = dest_name:lower():gsub("%d", "")
+        if bridge_dest == "delay_t" then bridge_dest = "delay_time" end
+        if bridge_dest == "delay_f" then bridge_dest = "delay_fb" end
+        
+        Bridge.set_matrix(src_name:lower(), bridge_dest, idx, next_val)
     end
 end
 
 function Matrix.draw(hw, led_func)
     for y=1, 4 do
-        -- FIX: Calcular animación basada en la fuente real
         local mod_val = 0
         if y == 1 then mod_val = Globals.visuals.lfo_vals[1] or 0
         elseif y == 2 then mod_val = Globals.visuals.lfo_vals[2] or 0 
-        elseif y == 3 then mod_val = Globals.visuals.chaos_val or 0 -- Chaos Real
-        elseif y == 4 then mod_val = (Globals.visuals.amp_l or 0) * 2 - 1 -- Outline (Audio Proxy)
+        elseif y == 3 then mod_val = Globals.visuals.chaos_val or 0 
+        elseif y == 4 then mod_val = (Globals.visuals.amp_l or 0) * 2 - 1 
         end
         
         local anim_offset = math.abs(mod_val) 
@@ -80,7 +71,6 @@ function Matrix.draw(hw, led_func)
                 local base = 6
                 if val > 0.4 then base = 9 end
                 if val > 0.8 then base = 11 end
-                -- Sumar animación al brillo base
                 active_b = math.min(15, math.floor(base + (anim_offset * 3)))
             end
             
