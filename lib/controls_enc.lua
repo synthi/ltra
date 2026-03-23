@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v1.5.0
--- FIX: Added Octave Control, Removed Loopers
+-- lib/controls_enc.lua | v1.5.2
+-- FIX: Filter Encoders, Output Menu Encoders
 
 local Enc = {}
 local Globals
@@ -16,8 +16,8 @@ function Enc.delta(n, d)
         local m = Globals.menu_mode
         
         if m == Consts.MENU.OSC then
-            if n==1 then params:delta("osc"..t.."_shape", d)
-            elseif n==2 then params:delta("osc"..t.."_octave", d)
+            if n==1 then params:delta("osc"..t.."_octave", d)
+            elseif n==2 then params:delta("osc"..t.."_shape", d)
             elseif n==3 then params:delta("osc"..t.."_tune", d) end
             
         elseif m == Consts.MENU.LFO then
@@ -35,13 +35,9 @@ function Enc.delta(n, d)
             elseif n==2 then params:delta("outline_gain", d) end
             
         elseif m == Consts.MENU.FILTER then
-            if n==1 then 
-                local p = (t==1) and "filt1_tone" or "filt2_tone"
-                params:delta(p, d*0.1)
-            elseif n==2 then 
-                local p = (t==1) and "filt1_res" or "filt2_res"
-                params:delta(p, d)
-            elseif n==3 then params:delta("filt_drive", d) end
+            if n==1 then params:delta("filt"..t.."_drive", d)
+            elseif n==2 then params:delta("filt"..t.."_cutoff", d)
+            elseif n==3 then params:delta("filt"..t.."_res", d) end
             
         elseif m == Consts.MENU.DELAY then
             if n==1 then params:delta("delay_spread", d)
@@ -52,6 +48,11 @@ function Enc.delta(n, d)
             if n==1 then params:delta("reverb_mix", d)
             elseif n==2 then params:delta("reverb_decay", d)
             elseif n==3 then params:delta("reverb_damp", d) end
+            
+        elseif m == Consts.MENU.LOOPER then -- Re-purposed as OUTPUT
+            if n==1 then params:delta("monitor_vol", d)
+            elseif n==2 then params:delta("master_vol", d)
+            elseif n==3 then params:delta("system_dirt", d) end
             
         elseif m == Consts.MENU.MATRIX then
             local src_idx = Consts.SOURCES[Globals.menu_target.src_name]
@@ -71,7 +72,7 @@ function Enc.delta(n, d)
                 
                 if n==3 then
                     local current = Globals.matrix[src_idx][dst_idx]
-                    local new_val = util.clamp(current + d*0.01, 0, 1)
+                    local new_val = util.clamp(current + d*0.01, -1, 1)
                     local id = "mat_"..Globals.menu_target.src_name.."_"..Globals.menu_target.dest_name
                     params:set(id, new_val)
                     
@@ -87,7 +88,7 @@ function Enc.delta(n, d)
         return
     end
     
-    if n==1 then params:delta("output_level", d)
+    if n==1 then params:delta("master_vol", d)
     elseif n==2 then params:delta("scale_idx", d)
     elseif n==3 then params:delta("scale_root", d) end
 end
