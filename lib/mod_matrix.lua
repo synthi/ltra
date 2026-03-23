@@ -1,5 +1,5 @@
--- lib/mod_matrix.lua | v1.6.0
--- FIX: Matrix Visual Grouping (A-B-A-B-A)
+-- lib/mod_matrix.lua | v1.5.3
+-- FIX: Matrix Toggle updates params directly
 
 local Matrix = {}
 local Globals
@@ -8,7 +8,7 @@ local Consts = require 'ltra/lib/consts'
 
 function Matrix.init(g_ref) Globals = g_ref end
 
-local ROW_TO_SOURCE = { [1]="LFO1",[2]="LFO2", [3]="CHAOS", [4]="OUTLINE" }
+local ROW_TO_SOURCE = { [1]="LFO1",[2]="LFO2", [3]="CHAOS",[4]="OUTLINE" }
 local COL_TO_DEST = {
     [1]="PITCH1",[2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
     [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",
@@ -34,14 +34,9 @@ function Matrix.key(x, y, z)
         end
         if current_val < 0.01 then next_val = 1.0 end
         
-        Globals.matrix[src_idx][x] = next_val
-        
-        local idx = string.match(dest_name, "(%d+)$") or ""
-        local bridge_dest = dest_name:lower():gsub("%d", "")
-        if bridge_dest == "delay_t" then bridge_dest = "delay_time" end
-        if bridge_dest == "delay_f" then bridge_dest = "delay_fb" end
-        
-        Bridge.set_matrix(src_name:lower(), bridge_dest, idx, next_val)
+        -- FIX: Update via params to trigger action and UI sync
+        local id = "mat_"..src_name.."_"..dest_name
+        params:set(id, next_val)
     end
 end
 
@@ -60,7 +55,6 @@ function Matrix.draw(hw, led_func)
             local src_idx = Consts.SOURCES[ROW_TO_SOURCE[y]]
             local val = Globals.matrix[src_idx][x]
             
-            -- FIX: Correct Visual Grouping
             local bg = Consts.BRIGHT.BG_MATRIX_A
             if x > 4 and x <= 8 then bg = Consts.BRIGHT.BG_MATRIX_B end 
             if x > 8 and x <= 12 then bg = Consts.BRIGHT.BG_MATRIX_A end
@@ -68,10 +62,10 @@ function Matrix.draw(hw, led_func)
             if x > 14 then bg = Consts.BRIGHT.BG_MATRIX_A end
             
             local active_b = nil
-            if val > 0.01 then
+            if math.abs(val) > 0.01 then
                 local base = 6
-                if val > 0.4 then base = 9 end
-                if val > 0.8 then base = 11 end
+                if math.abs(val) > 0.4 then base = 9 end
+                if math.abs(val) > 0.8 then base = 11 end
                 active_b = math.min(15, math.floor(base + (anim_offset * 3)))
             end
             
