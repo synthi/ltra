@@ -1,5 +1,5 @@
--- lib/controls_key.lua | v1.5.2
--- FIX: Matrix Invert Logic, Filter Type Toggle
+-- lib/controls_key.lua | v1.5.5
+-- FIX: OSC Menu Page Toggle (K3)
 
 local Keys = {}
 local Globals
@@ -21,6 +21,8 @@ function Keys.event(n, z)
             if n==2 then 
                 local curr = params:get("osc"..t.."_arp")
                 params:set("osc"..t.."_arp", 1-curr)
+            elseif n==3 then
+                Globals.osc_menu_page = (Globals.osc_menu_page == 1) and 2 or 1
             end
             
         elseif Globals.menu_mode == Consts.MENU.FILTER then
@@ -36,7 +38,6 @@ function Keys.event(n, z)
                 if src_idx and dst_idx then
                     local current = Globals.matrix[src_idx][dst_idx]
                     local id = "mat_"..Globals.menu_target.src_name.."_"..Globals.menu_target.dest_name
-                    -- FIX: Invert mathematically
                     params:set(id, current * -1)
                 end
             end
