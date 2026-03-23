@@ -1,5 +1,5 @@
--- lib/engine_bridge.lua | v1.5.0
--- FIX: Clear Delay Command, Removed Loopers
+-- lib/engine_bridge.lua | v1.6.0
+-- FIX: Outline Telemetry Parsing
 
 local Bridge = {}
 local Globals
@@ -17,8 +17,8 @@ function Bridge.handle_osc(path, args)
             Globals.visuals.lfo_vals[1] = args[3]
             Globals.visuals.lfo_vals[2] = args[4]
             Globals.visuals.chaos_val = args[5] or 0
+            Globals.visuals.outline_val = args[6] or 0 -- FIX: Outline Telemetry
             
-            -- FIX: Always update dirty to prevent UI deadlocks
             Globals.dirty = true
         end
     elseif path == "/ltra/config" then
@@ -60,8 +60,7 @@ function Bridge.trigger_arp(idx) engine.set_engine_param("t_arp"..idx, 1) end
 function Bridge.reset_lfo() engine.set_engine_param("t_reset", 1) end
 
 function Bridge.set_filter_tone(idx, val)
-    local tone = util.linlin(0, 1, -1.0, 1.0, val)
-    engine.set_engine_param("filt"..idx.."_tone", tone)
+    -- Obsolete, replaced by direct cutoff control in params
 end
 
 function Bridge.set_matrix(src, dest, idx, val)
