@@ -1,4 +1,4 @@
--- lib/loopers.lua
+-- lib/loopers.lua v1.5.14
 -- FIX: 80s Buffer Allocation, Bidirectional Fade In/Out Logic
 
 local Loopers = {}
