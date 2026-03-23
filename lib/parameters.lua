@@ -1,5 +1,5 @@
--- lib/parameters.lua | v1.5.8
--- FIX: 21 Sync Divisions for ARP and MODs
+-- lib/parameters.lua | v1.5.10
+-- FIX: Namespace Isolation (tapecho_*, blossomverb_*)
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -8,7 +8,7 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.5.8")
+    params:add_separator("LTRA v1.5.10")
     
     params:add_group("GLOBAL", 4)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
@@ -87,7 +87,7 @@ function Params.init(g_ref)
     for _, v in ipairs(Consts.SYNC_DIVS) do table.insert(sync_opts, v.name) end
 
     params:add_group("ARP", 10)
-    params:add_option("arp_div", "Clock Div", sync_opts, 10) -- Default 1/4
+    params:add_option("arp_div", "Clock Div", sync_opts, 10) 
     params:add_control("arp_chaos", "Chaos Prob", controlspec.new(0,1,"lin",0.01,0.2))
     params:add_number("arp_length", "Length", 1, 8, 8)
     params:add_number("arp_octaves", "Octaves", 1, 3, 1)
@@ -145,6 +145,7 @@ function Params.init(g_ref)
     params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0.1, 1))
     params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
 
+    -- FIX: Isolated Namespace for Space FX
     params:add_group("SPACE", 15)
     params:add_control("system_dirt", "Dirt", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("system_dirt", function(x) Bridge.set_param("system_dirt", x) end)
@@ -153,31 +154,33 @@ function Params.init(g_ref)
     
     params:add_control("delay_send", "Delay Send", controlspec.new(0,1,"lin",0.01,0.5))
     params:set_action("delay_send", function(x) Bridge.set_param("delay_send", x) end)
-    params:add_control("fx_tape_time", "Tape Time", controlspec.new(0.01,2.0,"exp",0.01,0.3))
-    params:set_action("fx_tape_time", function(x) Bridge.set_param("fx_tape_time", x) end)
-    params:add_control("fx_tape_feedback", "Tape Feedback", controlspec.new(0,1.2,"lin",0.01,0.4))
-    params:set_action("fx_tape_feedback", function(x) Bridge.set_param("fx_tape_feedback", x) end)
-    params:add_control("fx_tape_wow_flutter", "Tape Wow/Flut", controlspec.new(0,1.0,"lin",0.01,0.1))
-    params:set_action("fx_tape_wow_flutter", function(x) Bridge.set_param("fx_tape_wow_flutter", x) end)
-    params:add_control("fx_tape_erosion", "Tape Erosion", controlspec.new(0,1.0,"lin",0.01,0.0))
-    params:set_action("fx_tape_erosion", function(x) Bridge.set_param("fx_tape_erosion", x) end)
-    params:add_control("fx_tape_drive", "Tape Drive", controlspec.new(0.1,5.0,"lin",0.01,1.0))
-    params:set_action("fx_tape_drive", function(x) Bridge.set_param("fx_tape_drive", x) end)
+    
+    params:add_control("tapecho_time", "Tape Time", controlspec.new(0.01,2.0,"exp",0.01,0.3))
+    params:set_action("tapecho_time", function(x) Bridge.set_param("tapecho_time", x) end)
+    params:add_control("tapecho_feedback", "Tape Feedback", controlspec.new(0,1.2,"lin",0.01,0.4))
+    params:set_action("tapecho_feedback", function(x) Bridge.set_param("tapecho_feedback", x) end)
+    params:add_control("tapecho_wow_flutter", "Tape Wow/Flut", controlspec.new(0,1.0,"lin",0.01,0.1))
+    params:set_action("tapecho_wow_flutter", function(x) Bridge.set_param("tapecho_wow_flutter", x) end)
+    params:add_control("tapecho_erosion", "Tape Erosion", controlspec.new(0,1.0,"lin",0.01,0.0))
+    params:set_action("tapecho_erosion", function(x) Bridge.set_param("tapecho_erosion", x) end)
+    params:add_control("tapecho_drive", "Tape Drive", controlspec.new(0.1,5.0,"lin",0.01,1.0))
+    params:set_action("tapecho_drive", function(x) Bridge.set_param("tapecho_drive", x) end)
     
     params:add_control("reverb_mix", "Reverb Mix", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("reverb_mix", function(x) Bridge.set_param("reverb_mix", x) end)
-    params:add_control("fx_blossom_decay", "Rev Decay", controlspec.new(0.1,100.0,"exp",0.1,4.75))
-    params:set_action("fx_blossom_decay", function(x) Bridge.set_param("fx_blossom_decay", x) end)
-    params:add_control("fx_blossom_bloom", "Rev Bloom", controlspec.new(0.01,2.0,"lin",0.01,1.80))
-    params:set_action("fx_blossom_bloom", function(x) Bridge.set_param("fx_blossom_bloom", x) end)
-    params:add_control("fx_blossom_damp", "Rev Damp", controlspec.new(200,18000,"exp",1,3500))
-    params:set_action("fx_blossom_damp", function(x) Bridge.set_param("fx_blossom_damp", x) end)
-    params:add_control("fx_blossom_predelay", "Rev Predelay", controlspec.new(0.0,1.0,"lin",0.01,0.110))
-    params:set_action("fx_blossom_predelay", function(x) Bridge.set_param("fx_blossom_predelay", x) end)
-    params:add_control("fx_blossom_mod_rate", "Rev Mod Rate", controlspec.new(0.0,10.0,"lin",0.01,0.300))
-    params:set_action("fx_blossom_mod_rate", function(x) Bridge.set_param("fx_blossom_mod_rate", x) end)
-    params:add_control("fx_blossom_mod_depth", "Rev Mod Depth", controlspec.new(0.0,0.002,"lin",0.0001,0.002))
-    params:set_action("fx_blossom_mod_depth", function(x) Bridge.set_param("fx_blossom_mod_depth", x) end)
+    
+    params:add_control("blossomverb_decay", "Rev Decay", controlspec.new(0.1,100.0,"exp",0.1,4.75))
+    params:set_action("blossomverb_decay", function(x) Bridge.set_param("blossomverb_decay", x) end)
+    params:add_control("blossomverb_bloom", "Rev Bloom", controlspec.new(0.01,2.0,"lin",0.01,1.80))
+    params:set_action("blossomverb_bloom", function(x) Bridge.set_param("blossomverb_bloom", x) end)
+    params:add_control("blossomverb_damp", "Rev Damp", controlspec.new(200,18000,"exp",1,3500))
+    params:set_action("blossomverb_damp", function(x) Bridge.set_param("blossomverb_damp", x) end)
+    params:add_control("blossomverb_predelay", "Rev Predelay", controlspec.new(0.0,1.0,"lin",0.01,0.110))
+    params:set_action("blossomverb_predelay", function(x) Bridge.set_param("blossomverb_predelay", x) end)
+    params:add_control("blossomverb_mod_rate", "Rev Mod Rate", controlspec.new(0.0,10.0,"lin",0.01,0.300))
+    params:set_action("blossomverb_mod_rate", function(x) Bridge.set_param("blossomverb_mod_rate", x) end)
+    params:add_control("blossomverb_mod_depth", "Rev Mod Depth", controlspec.new(0.0,0.002,"lin",0.0001,0.002))
+    params:set_action("blossomverb_mod_depth", function(x) Bridge.set_param("blossomverb_mod_depth", x) end)
 
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
@@ -190,8 +193,6 @@ function Params.init(g_ref)
                 local bridge_dest = d_name:lower():gsub("%d", "")
                 if bridge_dest == "filt" then bridge_dest = "filt" end 
                 if bridge_dest == "morph" then bridge_dest = "shape" end 
-                if bridge_dest == "delay_t" then bridge_dest = "delay_time" end
-                if bridge_dest == "delay_f" then bridge_dest = "delay_fb" end
                 Bridge.set_matrix(s_name:lower(), bridge_dest, idx, x)
             end)
         end
