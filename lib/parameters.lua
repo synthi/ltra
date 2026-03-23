@@ -1,5 +1,5 @@
--- lib/parameters.lua | v1.5.6
--- FIX: FxTape, FxBlossom, Sync Params, ARP Params
+-- lib/parameters.lua | v1.5.7
+-- FIX: MOD1-3 Architecture, FxTape/FxBlossom Params
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -8,7 +8,7 @@ local Scales = require 'ltra/lib/scales'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.5.6")
+    params:add_separator("LTRA v1.5.7")
     
     params:add_group("GLOBAL", 4)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
@@ -83,7 +83,6 @@ function Params.init(g_ref)
         end)
     end
     
-    -- FIX: ARP Params
     params:add_group("ARP", 10)
     params:add_option("arp_div", "Clock Div", {"1/4", "1/8", "1/16", "1/32"}, 2)
     params:add_control("arp_chaos", "Chaos Prob", controlspec.new(0,1,"lin",0.01,0.2))
@@ -116,41 +115,34 @@ function Params.init(g_ref)
     params:add_control("filt2_drive", "Filt 2 Drive", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("filt2_drive", function(x) Bridge.set_param("filt2_drive", x) end)
 
-    -- FIX: Sync Params
-    params:add_group("MODULATION", 17) 
-    params:add_binary("lfo1_sync", "LFO1 Sync", "toggle", 0)
-    params:add_option("lfo1_div", "LFO1 Div", {"4 bars", "2 bars", "1 bar", "1/2", "1/4", "1/8", "1/16", "1/32"}, 5)
-    params:add_control("lfo1_rate", "LFO1 Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
-    params:set_action("lfo1_rate", function(x) if params:get("lfo1_sync")==0 then Bridge.set_param("lfo1_rate", x) end end)
-    params:add_control("lfo1_depth", "LFO1 Depth", controlspec.new(0,1,"lin",0.01,1))
-    params:set_action("lfo1_depth", function(x) Bridge.set_param("lfo1_depth", x) end)
-    params:add_control("lfo1_shape", "LFO1 Shape", controlspec.new(0,1,"lin",0.01,0))
-    params:set_action("lfo1_shape", function(x) Bridge.set_param("lfo1_shape", x) end)
-    
-    params:add_binary("lfo2_sync", "LFO2 Sync", "toggle", 0)
-    params:add_option("lfo2_div", "LFO2 Div", {"4 bars", "2 bars", "1 bar", "1/2", "1/4", "1/8", "1/16", "1/32"}, 5)
-    params:add_control("lfo2_rate", "LFO2 Rate", controlspec.new(0.01,20,"exp",0.01,0.2))
-    params:set_action("lfo2_rate", function(x) if params:get("lfo2_sync")==0 then Bridge.set_param("lfo2_rate", x) end end)
-    params:add_control("lfo2_depth", "LFO2 Depth", controlspec.new(0,1,"lin",0.01,1))
-    params:set_action("lfo2_depth", function(x) Bridge.set_param("lfo2_depth", x) end)
-    params:add_control("lfo2_shape", "LFO2 Shape", controlspec.new(0,1,"lin",0.01,0))
-    params:set_action("lfo2_shape", function(x) Bridge.set_param("lfo2_shape", x) end)
-    
-    params:add_binary("chaos_sync", "Chaos Sync", "toggle", 0)
-    params:add_option("chaos_div", "Chaos Div", {"4 bars", "2 bars", "1 bar", "1/2", "1/4", "1/8", "1/16", "1/32"}, 5)
-    params:add_control("chaos_rate", "Chaos Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
-    params:set_action("chaos_rate", function(x) if params:get("chaos_sync")==0 then Bridge.set_param("chaos_rate", x) end end)
-    params:add_control("chaos_slew", "Chaos Slew", controlspec.new(0,1,"lin",0.01,0.1))
-    params:set_action("chaos_slew", function(x) Bridge.set_param("chaos_slew", x) end)
-    params:add_control("chaos_amp", "Chaos Amp", controlspec.new(0,1,"lin",0.01,1.0)) 
-    params:set_action("chaos_amp", function(x) Bridge.set_param("chaos_amp", x) end)
+    -- FIX: MOD1, MOD2, MOD3 Architecture
+    params:add_group("MODULATION", 32) 
+    for i=1, 3 do
+        params:add_binary("mod"..i.."_lfo_sync", "MOD"..i.." LFO Sync", "toggle", 0)
+        params:add_option("mod"..i.."_lfo_div", "MOD"..i.." LFO Div", {"1/1 D", "1/1", "1/1 T", "1/2 D", "1/2", "1/2 T", "1/4 D", "1/4", "1/4 T", "1/8 D", "1/8", "1/8 T", "1/16 D", "1/16", "1/16 T"}, 8)
+        params:add_control("mod"..i.."_lfo_rate", "MOD"..i.." LFO Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
+        params:set_action("mod"..i.."_lfo_rate", function(x) if params:get("mod"..i.."_lfo_sync")==0 then Bridge.set_param("mod"..i.."_lfo_rate", x) end end)
+        params:add_control("mod"..i.."_lfo_shape", "MOD"..i.." LFO Shape", controlspec.new(0,1,"lin",0.01,0))
+        params:set_action("mod"..i.."_lfo_shape", function(x) Bridge.set_param("mod"..i.."_lfo_shape", x) end)
+        params:add_control("mod"..i.."_depth", "MOD"..i.." Depth", controlspec.new(0,1,"lin",0.01,1))
+        params:set_action("mod"..i.."_depth", function(x) Bridge.set_param("mod"..i.."_depth", x) end)
+        
+        params:add_binary("mod"..i.."_chaos_sync", "MOD"..i.." Chaos Sync", "toggle", 0)
+        params:add_option("mod"..i.."_chaos_div", "MOD"..i.." Chaos Div", {"1/1 D", "1/1", "1/1 T", "1/2 D", "1/2", "1/2 T", "1/4 D", "1/4", "1/4 T", "1/8 D", "1/8", "1/8 T", "1/16 D", "1/16", "1/16 T"}, 8)
+        params:add_control("mod"..i.."_chaos_rate", "MOD"..i.." Chaos Rate", controlspec.new(0.01,20,"exp",0.01,0.5))
+        params:set_action("mod"..i.."_chaos_rate", function(x) if params:get("mod"..i.."_chaos_sync")==0 then Bridge.set_param("mod"..i.."_chaos_rate", x) end end)
+        params:add_control("mod"..i.."_chaos_slew", "MOD"..i.." Chaos Slew", controlspec.new(0,1,"lin",0.01,0.1))
+        params:set_action("mod"..i.."_chaos_slew", function(x) Bridge.set_param("mod"..i.."_chaos_slew", x) end)
+        
+        params:add_control("mod"..i.."_mix", "MOD"..i.." Mix", controlspec.new(0,1,"lin",0.01,0.0)) 
+        params:set_action("mod"..i.."_mix", function(x) Bridge.set_param("mod"..i.."_mix", x) end)
+    end
     
     params:add_option("outline_src", "Outline Source", {"Internal Gates", "External Audio"}, 1)
     params:set_action("outline_src", function(x) Bridge.set_param("outline_source", x-1) end)
     params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0.1, 1))
     params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
 
-    -- FIX: FxTape and FxBlossom Params
     params:add_group("SPACE", 15)
     params:add_control("system_dirt", "Dirt", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("system_dirt", function(x) Bridge.set_param("system_dirt", x) end)
