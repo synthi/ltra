@@ -1,5 +1,5 @@
--- lib/midi_16n.lua | v1.5.9
--- FIX: Pure Math Mapping for Faders (Bulletproof)
+-- lib/midi_16n.lua | v1.5.10
+-- FIX: Write to isolated namespace (tapecho_*)
 
 local Midi16n = {}
 local Globals
@@ -8,7 +8,7 @@ local UI_Ref = nil
 
 local FADER_FUNC = {
     [1]="pitch1",[2]="pitch2", [3]="pitch3",[4]="pitch4",
-    [5]="amp1",   [6]="amp2",   [7]="amp3",   [8]="amp4",
+    [5]="amp1",[6]="amp2",   [7]="amp3",   [8]="amp4",
     [9]="filt1",[10]="filt2", [11]="mod1",[12]="mod2",[13]="mod3",  [14]="tape_time",[15]="tape_fb",[16]="delay_send"
 }
 
@@ -46,7 +46,6 @@ local function process_fader(id, val)
     Globals.fader_values[id] = val
     Globals.fader_virtual[id] = norm
     
-    -- FIX: Pure Math Mapping (No API dependency)
     if func == "pitch1" then params:set("osc1_pitch", norm); trigger_popup(name, string.format("%.2f", norm))
     elseif func == "pitch2" then params:set("osc2_pitch", norm); trigger_popup(name, string.format("%.2f", norm))
     elseif func == "pitch3" then params:set("osc3_pitch", norm); trigger_popup(name, string.format("%.2f", norm))
@@ -67,7 +66,7 @@ local function process_fader(id, val)
             params:set("mod1_lfo_div", div)
             trigger_popup("MOD1 SYNC", Consts.SYNC_DIVS[div].name)
         else
-            local hz = 0.01 * math.exp(norm * math.log(20.0 / 0.01))
+            local hz = util.linexp(0, 1, 0.01, 20, norm)
             params:set("mod1_lfo_rate", hz); trigger_popup("MOD1 RATE", string.format("%.2f Hz", hz))
         end
     elseif func == "mod2" then 
@@ -76,7 +75,7 @@ local function process_fader(id, val)
             params:set("mod2_lfo_div", div)
             trigger_popup("MOD2 SYNC", Consts.SYNC_DIVS[div].name)
         else
-            local hz = 0.01 * math.exp(norm * math.log(20.0 / 0.01))
+            local hz = util.linexp(0, 1, 0.01, 20, norm)
             params:set("mod2_lfo_rate", hz); trigger_popup("MOD2 RATE", string.format("%.2f Hz", hz))
         end
     elseif func == "mod3" then 
@@ -85,15 +84,17 @@ local function process_fader(id, val)
             params:set("mod3_lfo_div", div)
             trigger_popup("MOD3 SYNC", Consts.SYNC_DIVS[div].name)
         else
-            local hz = 0.01 * math.exp(norm * math.log(20.0 / 0.01))
+            local hz = util.linexp(0, 1, 0.01, 20, norm)
             params:set("mod3_lfo_rate", hz); trigger_popup("MOD3 RATE", string.format("%.2f Hz", hz))
         end
     elseif func == "tape_time" then 
-        local t = 0.01 * math.exp(norm * math.log(2.0 / 0.01))
-        params:set("fx_tape_time", t); trigger_popup("TAPE TIME", string.format("%.2f s", t))
+        local t = util.linexp(0, 1, 0.01, 2.0, norm)
+        -- FIX: Write to isolated namespace
+        params:set("tapecho_time", t); trigger_popup("TAPE TIME", string.format("%.2f s", t))
     elseif func == "tape_fb" then 
-        local fb = norm * 1.2
-        params:set("fx_tape_feedback", fb); trigger_popup("TAPE FB", string.format("%.2f", fb))
+        local fb = util.linlin(0, 1, 0.0, 1.2, norm)
+        -- FIX: Write to isolated namespace
+        params:set("tapecho_feedback", fb); trigger_popup("TAPE FB", string.format("%.2f", fb))
     elseif func == "delay_send" then 
         params:set("delay_send", norm); trigger_popup(name, string.format("%.2f", norm))
     end
