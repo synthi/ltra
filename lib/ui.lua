@@ -1,5 +1,5 @@
--- lib/ui.lua | v1.5.7
--- FIX: MOD Menus, Delay/Reverb Pagination
+-- lib/ui.lua | v1.5.8
+-- FIX: New Grid Layout Menus
 
 local UI = {}
 local Globals
@@ -64,7 +64,8 @@ local function draw_menu()
     elseif mode == Consts.MENU.ARP then
         if Globals.arp_menu_page == 1 then
             screen.move(5,10); screen.text("ARP SETTINGS (1/2)")
-            local div_opts = {"1/4", "1/8", "1/16", "1/32"}
+            local div_opts = {}
+            for _, v in ipairs(Consts.SYNC_DIVS) do table.insert(div_opts, v.name) end
             screen.move(5,25); screen.text("E1 Div: "..div_opts[params:get("arp_div")])
             screen.move(5,35); screen.text("E2 Chaos: "..string.format("%.2f", params:get("arp_chaos")))
             screen.move(5,45); screen.text("E3 Gate: "..string.format("%.2f", params:get("arp_gate_len")))
@@ -167,7 +168,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.7")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.8")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
