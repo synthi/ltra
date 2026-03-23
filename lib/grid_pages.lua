@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v1.5.5
--- FIX: Snapshot State Machine (Double Click, Hold, Empty/Full)
+-- lib/grid_pages.lua | v1.5.6
+-- FIX: ARP Menu Hold, Snapshot Save Logic
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -13,7 +13,6 @@ function Pages.init(g_ref, hw_ref)
     Globals = g_ref
     HW = hw_ref 
     Matrix.init(g_ref)
-    -- FIX: Snapshot State Init
     Globals.snap_state = { last_click_time = {}, defer_id = {} }
 end
 
@@ -67,6 +66,16 @@ local function check_hold()
         end
         Globals.dirty = true
         return
+    end
+
+    -- FIX: ARP Menu Hold
+    if Globals.button_state[12] and Globals.button_state[12][8] then
+        local press_time = Globals.grid_timers[12][8] or 0
+        if util.time() - press_time > 0.3 then
+            Globals.menu_mode = Consts.MENU.ARP
+            Globals.dirty = true
+            return
+        end
     end
 
     for y=1, 4 do
@@ -169,18 +178,21 @@ function Pages.key(x, y, z)
             end
             Globals.dirty = true; return
         end
-        if x == 12 and z == 1 then
-            local now = util.time()
-            if Globals.tap_last then
-                local diff = now - Globals.tap_last
-                if diff > 0.1 and diff < 2.0 then
-                    local bpm = 60 / diff
-                    params:set("clock_tempo", bpm)
-                    Globals.ui_popup.active = true; Globals.ui_popup.text = "TAP BPM"; Globals.ui_popup.val = string.format("%.1f", bpm); Globals.ui_popup.deadline = now + 1
-                    Globals.dirty = true
+        if x == 12 and z == 0 then
+            local press_time = Globals.grid_timers[x][y] or 0
+            if util.time() - press_time < 0.3 then
+                local now = util.time()
+                if Globals.tap_last then
+                    local diff = now - Globals.tap_last
+                    if diff > 0.1 and diff < 2.0 then
+                        local bpm = 60 / diff
+                        params:set("clock_tempo", bpm)
+                        Globals.ui_popup.active = true; Globals.ui_popup.text = "TAP BPM"; Globals.ui_popup.val = string.format("%.1f", bpm); Globals.ui_popup.deadline = now + 1
+                        Globals.dirty = true
+                    end
                 end
+                Globals.tap_last = now; return
             end
-            Globals.tap_last = now; return
         end
         
         if x <= 4 then
@@ -241,7 +253,6 @@ function Pages.key(x, y, z)
             end
         end
         if y == 7 and x <= 6 then
-            -- FIX: Snapshot State Machine
             if z == 0 then
                 local press_time = Globals.grid_timers[x][y]
                 local duration = util.time() - press_time
@@ -258,14 +269,12 @@ function Pages.key(x, y, z)
                     Globals.snap_state.last_click_time[x] = now
                     
                     if (now - last) < 0.4 then
-                        -- Double Click
                         if Globals.snap_state.defer_id[x] then clock.cancel(Globals.snap_state.defer_id[x]) end
                         if is_filled then
                             Storage.delete_snapshot(x)
                             Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..x; Globals.ui_popup.val = "DELETED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
                         end
                     else
-                        -- Single Click (Wait for potential double click)
                         Globals.snap_state.defer_id[x] = clock.run(function()
                             clock.sleep(0.4)
                             if not is_filled then
