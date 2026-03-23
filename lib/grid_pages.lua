@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v1.6.0
--- FIX: Page 2 Menu Leak, Matrix Colors, Outline LED, Strict z==0
+-- lib/grid_pages.lua | v1.5.2
+-- FIX: Latch Toggle Logic, Output Menu (Col 16)
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -45,7 +45,6 @@ local function draw_nav_bar()
 end
 
 local function check_hold()
-    -- FIX: Only check dashboard hold if on Page 1
     if Globals.page ~= 1 then return end
     
     local y = 6
@@ -62,6 +61,7 @@ local function check_hold()
         elseif held == 11 or held == 12 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = (held==11 and 1 or 2)
         elseif held == 13 then Globals.menu_mode = Consts.MENU.DELAY
         elseif held == 14 then Globals.menu_mode = Consts.MENU.REVERB
+        elseif held == 16 then Globals.menu_mode = Consts.MENU.LOOPER -- Re-purposed as OUTPUT
         end
         Globals.dirty = true
         return
@@ -111,11 +111,11 @@ function Pages.redraw()
         local chaos_led = math.floor(util.linlin(-1, 1, 2, 13, chaos_raw))
         led_safe(8, 6, chaos_led)
         
-        -- FIX: Outline LED uses actual telemetry
         local outline_val = math.floor(util.linlin(0, 1, 2, 13, Globals.visuals.outline_val or 0))
         led_safe(9, 6, outline_val)
         
         for i=11, 14 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
+        led_safe(16, 6, Consts.BRIGHT.BG_DASHBOARD) -- Output Menu LED
         draw_snapshots() 
     end
     
@@ -147,9 +147,6 @@ function Pages.key(x, y, z)
     if y == 8 then
         if x == 5 and z == 1 then
             Globals.latch_mode = not Globals.latch_mode
-            if Globals.latch_mode then
-                for i=1, 4 do if Globals.button_state[i][8] then Globals.voices[i].latched = true end end
-            end
             Globals.dirty = true; return
         end
         if x == 12 and z == 1 then
@@ -165,17 +162,30 @@ function Pages.key(x, y, z)
             end
             Globals.tap_last = now; return
         end
+        
+        -- FIX: Latch Toggle Logic
         if x <= 4 then
             local Bridge = require 'ltra/lib/engine_bridge'
-            if z == 1 then 
-                Bridge.set_gate(x, 1)
-                if Globals.latch_mode then Globals.voices[x].latched = true end
-            else 
-                if not Globals.voices[x].latched then Bridge.set_gate(x, 0)
-                elseif not Globals.latch_mode then Globals.voices[x].latched = false; Bridge.set_gate(x, 0) end
+            if z == 1 then
+                if Globals.latch_mode then
+                    if Globals.voices[x].latched then
+                        Globals.voices[x].latched = false
+                        Bridge.set_gate(x, 0)
+                    else
+                        Globals.voices[x].latched = true
+                        Bridge.set_gate(x, 1)
+                    end
+                else
+                    Bridge.set_gate(x, 1)
+                end
+            else
+                if not Globals.latch_mode then
+                    Bridge.set_gate(x, 0)
+                end
             end
             return
         end
+        
         if x >= 14 and z == 1 then
             local page_map = {[14]=1, [15]=2}
             if page_map[x] then Globals.page = page_map[x]; Globals.dirty = true end
@@ -185,7 +195,6 @@ function Pages.key(x, y, z)
     
     if Globals.page == 1 then
         if y <= 4 then 
-            -- FIX: Strict z==0 for Matrix changes
             if z == 0 then
                 local press_time = Globals.grid_timers[x][y] or 0
                 if util.time() - press_time < 0.3 then
