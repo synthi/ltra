@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v1.5.6
--- FIX: ARP Menu Pages, Sync Logic
+-- lib/controls_enc.lua | v1.5.7
+-- FIX: MOD Menus, Delay/Reverb Pagination
 
 local Enc = {}
 local Globals
@@ -26,26 +26,28 @@ function Enc.delta(n, d)
                 elseif n==3 then params:delta("osc"..t.."_vol", d) end
             end
             
-        elseif m == Consts.MENU.LFO then
-            if n==1 then params:delta("lfo"..t.."_shape", d)
-            elseif n==2 then params:delta("lfo"..t.."_depth", d)
-            elseif n==3 then 
-                if params:get("lfo"..t.."_sync") == 1 then
-                    params:delta("lfo"..t.."_div", d)
-                else
-                    params:delta("lfo"..t.."_rate", d) 
+        elseif m == Consts.MENU.MOD then
+            if Globals.mod_menu_page == 1 then
+                if n==1 then params:delta("mod"..t.."_lfo_shape", d)
+                elseif n==2 then params:delta("mod"..t.."_depth", d)
+                elseif n==3 then 
+                    if params:get("mod"..t.."_lfo_sync") == 1 then
+                        params:delta("mod"..t.."_lfo_div", d)
+                    else
+                        params:delta("mod"..t.."_lfo_rate", d) 
+                    end
+                end
+            else
+                if n==1 then params:delta("mod"..t.."_mix", d)
+                elseif n==2 then params:delta("mod"..t.."_chaos_slew", d)
+                elseif n==3 then 
+                    if params:get("mod"..t.."_chaos_sync") == 1 then
+                        params:delta("mod"..t.."_chaos_div", d)
+                    else
+                        params:delta("mod"..t.."_chaos_rate", d) 
+                    end
                 end
             end
-            
-        elseif m == Consts.MENU.CHAOS then
-            if n==1 then 
-                if params:get("chaos_sync") == 1 then
-                    params:delta("chaos_div", d)
-                else
-                    params:delta("chaos_rate", d) 
-                end
-            elseif n==2 then params:delta("chaos_slew", d)
-            elseif n==3 then params:delta("chaos_amp", d) end
             
         elseif m == Consts.MENU.ARP then
             if Globals.arp_menu_page == 1 then
@@ -67,14 +69,28 @@ function Enc.delta(n, d)
             elseif n==3 then params:delta("filt"..t.."_res", d) end
             
         elseif m == Consts.MENU.DELAY then
-            if n==1 then params:delta("fx_tape_drive", d)
-            elseif n==2 then params:delta("fx_tape_erosion", d)
-            elseif n==3 then params:delta("fx_tape_wow_flutter", d) end
+            if Globals.delay_menu_page == 1 then
+                if n==1 then params:delta("fx_tape_time", d)
+                elseif n==2 then params:delta("fx_tape_feedback", d)
+                elseif n==3 then params:delta("delay_send", d) end
+            else
+                if n==1 then params:delta("fx_tape_drive", d)
+                elseif n==2 then params:delta("fx_tape_erosion", d)
+                elseif n==3 then params:delta("fx_tape_wow_flutter", d) end
+            end
             
         elseif m == Consts.MENU.REVERB then
-            if n==1 then params:delta("reverb_mix", d)
-            elseif n==2 then params:delta("fx_blossom_decay", d)
-            elseif n==3 then params:delta("fx_blossom_damp", d) end
+            if Globals.reverb_menu_page == 1 then
+                if n==1 then params:delta("reverb_mix", d)
+                elseif n==2 then params:delta("fx_blossom_decay", d)
+                elseif n==3 then params:delta("fx_blossom_bloom", d) end
+            elseif Globals.reverb_menu_page == 2 then
+                if n==1 then params:delta("fx_blossom_damp", d)
+                elseif n==2 then params:delta("fx_blossom_predelay", d)
+                elseif n==3 then params:delta("fx_blossom_mod_rate", d) end
+            else
+                if n==1 then params:delta("fx_blossom_mod_depth", d) end
+            end
             
         elseif m == Consts.MENU.LOOPER then 
             if n==1 then params:delta("monitor_vol", d)
