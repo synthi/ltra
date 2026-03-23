@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v1.5.0
--- FIX: Removed Page 3 (Loopers)
+-- lib/grid_pages.lua | v1.5.1
+-- FIX: Matrix Hold vs Click Logic (Change on Release)
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -183,23 +183,28 @@ function Pages.key(x, y, z)
     
     if Globals.page == 1 then
         if y <= 4 then 
-            Matrix.key(x, y, z) 
-            if z == 1 then
-                local src_name = ({[1]="LFO1",[2]="LFO2",[3]="CHAOS",[4]="OUTLINE"})[y]
-                local dest_name = Consts.COL_TO_DEST_NAMES[x] or "UNK"
-                local src_idx = Consts.SOURCES[src_name]
-                local val = Globals.matrix[src_idx][x]
-                
-                local q_str = ""
-                if x <= 4 then 
-                    q_str = (Globals.matrix_quant[src_idx][x] == 1) and "[Q]" or "[F]"
+            -- FIX: Only trigger matrix change on release (z=0) if held < 300ms
+            if z == 0 then
+                local press_time = Globals.grid_timers[x][y] or 0
+                if util.time() - press_time < 0.3 then
+                    Matrix.key(x, y, 1) 
+                    
+                    local src_name = ({[1]="LFO1",[2]="LFO2",[3]="CHAOS",[4]="OUTLINE"})[y]
+                    local dest_name = Consts.COL_TO_DEST_NAMES[x] or "UNK"
+                    local src_idx = Consts.SOURCES[src_name]
+                    local val = Globals.matrix[src_idx][x]
+                    
+                    local q_str = ""
+                    if x <= 4 then 
+                        q_str = (Globals.matrix_quant[src_idx][x] == 1) and "[Q]" or "[F]"
+                    end
+                    
+                    Globals.ui_popup.active = true
+                    Globals.ui_popup.text = src_name.." > "..dest_name
+                    Globals.ui_popup.val = string.format("%.2f %s", val, q_str)
+                    Globals.ui_popup.deadline = util.time() + 1.5
+                    Globals.dirty = true
                 end
-                
-                Globals.ui_popup.active = true
-                Globals.ui_popup.text = src_name.." > "..dest_name
-                Globals.ui_popup.val = string.format("%.2f %s", val, q_str)
-                Globals.ui_popup.deadline = util.time() + 1.5
-                Globals.dirty = true
             end
         end
         if y == 7 and x <= 6 then
