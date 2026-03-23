@@ -1,6 +1,5 @@
--- code/ltra/lib/scales.lua | v1.4.8
--- LTRA: Scales Logic
--- FIX: Added update_all_voices() for live syncing
+-- lib/scales.lua | v1.5.3
+-- FIX: Scale Quantization Map, User Scales Init
 
 local Scales = {}
 local Consts = require 'ltra/lib/consts'
@@ -8,7 +7,24 @@ local musicutil = require 'musicutil'
 local Bridge = require 'ltra/lib/engine_bridge'
 local Globals 
 
-function Scales.init(g_ref) Globals = g_ref end
+function Scales.init(g_ref) 
+    Globals = g_ref 
+    
+    -- FIX: Initialize 16 User Scales
+    if not Globals.scale.custom_slots or #Globals.scale.custom_slots < 16 then
+        Globals.scale.custom_slots = {}
+        for i=1, 16 do
+            Globals.scale.custom_slots[i] = { modified = false, intervals = {} }
+            local preset = Consts.SCALES_A[i]
+            if not preset then preset = Consts.SCALES_B[i - #Consts.SCALES_A] end
+            if preset then
+                for _, v in ipairs(preset.intervals) do table.insert(Globals.scale.custom_slots[i].intervals, v) end
+            else
+                Globals.scale.custom_slots[i].intervals = {0, 2, 4, 5, 7, 9, 11}
+            end
+        end
+    end
+end
 
 local function get_root_freq()
     if not Globals or not Globals.scale then return 440 end
@@ -25,12 +41,12 @@ function Scales.get_freq(degree, octave)
     
     if idx <= #Consts.SCALES_A then
         def = Consts.SCALES_A[idx]
-    elseif idx <= #Consts.SCALES_A + #Consts.SCALES_B then
+    elseif idx <= 16 then
         def = Consts.SCALES_B[idx - #Consts.SCALES_A]
     else
-        local custom_idx = idx - (#Consts.SCALES_A + #Consts.SCALES_B)
+        local custom_idx = idx - 16
         if Globals.scale.custom_slots and Globals.scale.custom_slots[custom_idx] then
-            def = { type="TET", intervals=Globals.scale.custom_slots[custom_idx] }
+            def = { type="TET", intervals=Globals.scale.custom_slots[custom_idx].intervals }
         end
     end
     
@@ -55,19 +71,34 @@ function Scales.get_freq(degree, octave)
     end
 end
 
-function Scales.get_freq_from_voltage(volts)
-    local range = 60 
-    local degree = math.floor(volts * range)
-    return Scales.get_freq(degree, 0)
+-- FIX: Send Scale Map to SC for perfect quantization
+function Scales.update_scale_map()
+    if not Globals or not Globals.scale then return end
+    local active_notes = {}
+    for i=0, 11 do
+        if Scales.is_note_active(i) then table.insert(active_notes, i) end
+    end
+    if #active_notes == 0 then active_notes = {0} end
+    
+    for i=0, 11 do
+        local nearest_val = active_notes[1]
+        local min_d = 100
+        for _, n in ipairs(active_notes) do
+            if math.abs(i - n) < min_d then min_d = math.abs(i - n); nearest_val = n end
+            if math.abs(i - (n+12)) < min_d then min_d = math.abs(i - (n+12)); nearest_val = n+12 end
+            if math.abs(i - (n-12)) < min_d then min_d = math.abs(i - (n-12)); nearest_val = n-12 end
+        end
+        Bridge.set_param("scale_map_"..i, nearest_val)
+    end
 end
 
--- FIX 3.1: Actualizar todos los osciladores activos si la escala cambia
 function Scales.update_all_voices()
     if not Globals or not Globals.voices then return end
+    Scales.update_scale_map()
     for i=1, 4 do
         local pitch_val = params:get("osc"..i.."_pitch") or 0.5
-        local deg = math.floor(pitch_val * 60)
-        local hz = Scales.get_freq(deg, 0)
+        local deg = math.floor(pitch_val * 24)
+        local hz = Scales.get_freq(deg, params:get("osc"..i.."_octave") or 0)
         local tune = params:get("osc"..i.."_tune") or 0
         hz = hz * (2 ^ (tune / 12))
         Bridge.set_freq(i, hz)
@@ -77,26 +108,26 @@ end
 function Scales.toggle_custom_note(note_0_11)
     if not Globals or not Globals.scale then return end
     local idx = Globals.scale.current_idx
-    local total_fixed = #Consts.SCALES_A + #Consts.SCALES_B
-    if idx <= total_fixed then return end
+    if idx <= 16 then return end 
     
-    local custom_idx = idx - total_fixed
+    local custom_idx = idx - 16
     local slot = Globals.scale.custom_slots[custom_idx]
+    slot.modified = true
     
     local found = false
-    for i, n in ipairs(slot) do
+    for i, n in ipairs(slot.intervals) do
         if n == note_0_11 then
-            table.remove(slot, i)
+            table.remove(slot.intervals, i)
             found = true
             break
         end
     end
     
     if not found then
-        table.insert(slot, note_0_11)
-        table.sort(slot)
+        table.insert(slot.intervals, note_0_11)
+        table.sort(slot.intervals)
     end
-    if #slot == 0 then table.insert(slot, 0) end
+    if #slot.intervals == 0 then table.insert(slot.intervals, 0) end
     Globals.dirty = true
 end
 
@@ -106,11 +137,14 @@ function Scales.is_note_active(note_0_11)
     local intervals = {}
     
     if idx <= #Consts.SCALES_A then intervals = Consts.SCALES_A[idx].intervals
-    elseif idx <= #Consts.SCALES_A + #Consts.SCALES_B then 
-        return false 
+    elseif idx <= 16 then 
+        local b_idx = idx - #Consts.SCALES_A
+        if Consts.SCALES_B[b_idx] then intervals = Consts.SCALES_B[b_idx].intervals end
     else
-        local custom_idx = idx - (#Consts.SCALES_A + #Consts.SCALES_B)
-        intervals = Globals.scale.custom_slots[custom_idx]
+        local custom_idx = idx - 16
+        if Globals.scale.custom_slots[custom_idx] then
+            intervals = Globals.scale.custom_slots[custom_idx].intervals
+        end
     end
     
     if not intervals then return false end
