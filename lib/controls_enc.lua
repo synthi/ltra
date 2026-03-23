@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v1.5.5
--- FIX: OSC Menu Pages, Chaos Amp
+-- lib/controls_enc.lua | v1.5.6
+-- FIX: ARP Menu Pages, Sync Logic
 
 local Enc = {}
 local Globals
@@ -29,12 +29,33 @@ function Enc.delta(n, d)
         elseif m == Consts.MENU.LFO then
             if n==1 then params:delta("lfo"..t.."_shape", d)
             elseif n==2 then params:delta("lfo"..t.."_depth", d)
-            elseif n==3 then params:delta("lfo"..t.."_rate", d) end
+            elseif n==3 then 
+                if params:get("lfo"..t.."_sync") == 1 then
+                    params:delta("lfo"..t.."_div", d)
+                else
+                    params:delta("lfo"..t.."_rate", d) 
+                end
+            end
             
         elseif m == Consts.MENU.CHAOS then
-            if n==1 then params:delta("chaos_rate", d)
+            if n==1 then 
+                if params:get("chaos_sync") == 1 then
+                    params:delta("chaos_div", d)
+                else
+                    params:delta("chaos_rate", d) 
+                end
             elseif n==2 then params:delta("chaos_slew", d)
             elseif n==3 then params:delta("chaos_amp", d) end
+            
+        elseif m == Consts.MENU.ARP then
+            if Globals.arp_menu_page == 1 then
+                if n==1 then params:delta("arp_div", d)
+                elseif n==2 then params:delta("arp_chaos", d)
+                elseif n==3 then params:delta("arp_gate_len", d) end
+            else
+                if n==1 then params:delta("arp_length", d)
+                elseif n==2 then params:delta("arp_octaves", d) end
+            end
             
         elseif m == Consts.MENU.OUTLINE then
             if n==1 then params:delta("outline_src", d)
@@ -46,14 +67,14 @@ function Enc.delta(n, d)
             elseif n==3 then params:delta("filt"..t.."_res", d) end
             
         elseif m == Consts.MENU.DELAY then
-            if n==1 then params:delta("delay_spread", d)
-            elseif n==2 then params:delta("tape_erosion", d)
-            elseif n==3 then params:delta("tape_wow", d) end
+            if n==1 then params:delta("fx_tape_drive", d)
+            elseif n==2 then params:delta("fx_tape_erosion", d)
+            elseif n==3 then params:delta("fx_tape_wow_flutter", d) end
             
         elseif m == Consts.MENU.REVERB then
             if n==1 then params:delta("reverb_mix", d)
-            elseif n==2 then params:delta("reverb_decay", d)
-            elseif n==3 then params:delta("reverb_damp", d) end
+            elseif n==2 then params:delta("fx_blossom_decay", d)
+            elseif n==3 then params:delta("fx_blossom_damp", d) end
             
         elseif m == Consts.MENU.LOOPER then 
             if n==1 then params:delta("monitor_vol", d)
