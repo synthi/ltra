@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v1.5.9
--- FIX: Delay Menu Pagination
+-- lib/controls_enc.lua | v1.5.10
+-- FIX: Write to isolated namespace (tapecho_*, blossomverb_*)
 
 local Enc = {}
 local Globals
@@ -69,29 +69,29 @@ function Enc.delta(n, d)
             elseif n==3 then params:delta("filt"..t.."_res", d) end
             
         elseif m == Consts.MENU.DELAY then
+            -- FIX: Write to isolated namespace
             if Globals.delay_menu_page == 1 then
-                if n==1 then params:delta("fx_tape_time", d)
-                elseif n==2 then params:delta("fx_tape_feedback", d)
+                if n==1 then params:delta("tapecho_time", d)
+                elseif n==2 then params:delta("tapecho_feedback", d)
                 elseif n==3 then params:delta("delay_send", d) end
-            elseif Globals.delay_menu_page == 2 then
-                if n==1 then params:delta("fx_tape_drive", d)
-                elseif n==2 then params:delta("fx_tape_erosion", d)
-                elseif n==3 then params:delta("fx_tape_wow_flutter", d) end
             else
-                if n==1 then params:delta("fx_tape_tone", d) end
+                if n==1 then params:delta("tapecho_drive", d)
+                elseif n==2 then params:delta("tapecho_erosion", d)
+                elseif n==3 then params:delta("tapecho_wow_flutter", d) end
             end
             
         elseif m == Consts.MENU.REVERB then
+            -- FIX: Write to isolated namespace
             if Globals.reverb_menu_page == 1 then
                 if n==1 then params:delta("reverb_mix", d)
-                elseif n==2 then params:delta("fx_blossom_decay", d)
-                elseif n==3 then params:delta("fx_blossom_bloom", d) end
+                elseif n==2 then params:delta("blossomverb_decay", d)
+                elseif n==3 then params:delta("blossomverb_bloom", d) end
             elseif Globals.reverb_menu_page == 2 then
-                if n==1 then params:delta("fx_blossom_damp", d)
-                elseif n==2 then params:delta("fx_blossom_predelay", d)
-                elseif n==3 then params:delta("fx_blossom_mod_rate", d) end
+                if n==1 then params:delta("blossomverb_damp", d)
+                elseif n==2 then params:delta("blossomverb_predelay", d)
+                elseif n==3 then params:delta("blossomverb_mod_rate", d) end
             else
-                if n==1 then params:delta("fx_blossom_mod_depth", d) end
+                if n==1 then params:delta("blossomverb_mod_depth", d) end
             end
             
         elseif m == Consts.MENU.LOOPER then 
