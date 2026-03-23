@@ -1,27 +1,11 @@
--- lib/ui.lua | v1.5.0
--- FIX: Removed Loopers UI
+-- lib/ui.lua | v1.5.1
+-- FIX: Removed bottom arrows, UI Deadlock fix
 
 local UI = {}
 local Globals
 local Consts = require 'ltra/lib/consts'
 
 function UI.init(g_ref) Globals = g_ref end
-
-local function draw_ghost_arrows()
-    screen.level(15)
-    for i=1, 16 do
-        if Globals.fader_ghost[i] then
-            local phys = Globals.fader_values[i] / 127
-            local virt = Globals.fader_virtual[i]
-            local x = 2 + ((i-1) * 8)
-            local y = 62
-            if math.abs(phys - virt) > 0.05 then
-                if phys < virt then screen.move(x, y); screen.text("^")
-                else screen.move(x, y); screen.text("v") end
-            else screen.move(x, y); screen.text("-") end
-        end
-    end
-end
 
 local function draw_menu()
     screen.level(15); screen.rect(0,0,128,64); screen.fill(); screen.level(0)
@@ -106,15 +90,16 @@ function UI.redraw()
     if Globals.menu_mode ~= Consts.MENU.NONE then
         draw_menu()
     elseif Globals.ui_popup.active then
+        -- FIX: Force redraw when popup expires to clear the screen
         if util.time() > Globals.ui_popup.deadline then 
             Globals.ui_popup.active = false 
+            Globals.dirty = true
         else
             screen.level(15); screen.rect(10,20,108,20); screen.fill(); screen.level(0)
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
-        draw_ghost_arrows()
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.0")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.1")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
@@ -143,8 +128,6 @@ function UI.redraw()
         screen.level(15)
         screen.rect(110, 50, 4, -vu_l); screen.fill()
         screen.rect(116, 50, 4, -vu_r); screen.fill()
-        
-        draw_ghost_arrows()
     end
     screen.update()
 end
