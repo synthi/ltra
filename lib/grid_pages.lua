@@ -1,5 +1,5 @@
--- lib/grid_pages.lua v1.5.14
--- FIX: Visual Feedback for State 6 (Fading In)
+-- lib/grid_pages.lua | v1.5.14
+-- FIX: Triggers, Sustain, Loopers, Snapshots, Shift Logic
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -32,7 +32,9 @@ local function draw_nav_bar()
     local y = 8
     for i=1, 4 do 
         local b = Consts.BRIGHT.BG_TRIGGERS
-        if Globals.voices[i].latched then b = Consts.BRIGHT.VAL_HIGH end
+        if Globals.voices[i].latched then b = Consts.BRIGHT.VAL_HIGH 
+        elseif Globals.voices[i].sustained then b = Consts.BRIGHT.VAL_MED -- FIX: Sustain Visuals
+        elseif Globals.button_state[i] and Globals.button_state[i][8] then b = Consts.BRIGHT.TOUCH end
         led_safe(i, y, b) 
     end
     local latch_b = Globals.latch_mode and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
@@ -140,7 +142,6 @@ local function draw_loopers()
         elseif state == 4 then 
             b = Consts.BRIGHT.VAL_LOW
         elseif state == 5 or state == 6 then 
-            -- FIX: Fast blink for both Fading Out (5) and Fading In (6)
             b = math.floor(util.linlin(-1, 1, 2, 15, math.sin(now * 15)))
         end
         led_safe(x, 8, b)
@@ -219,7 +220,9 @@ function Pages.key(x, y, z)
                 local Bridge = require 'ltra/lib/engine_bridge'
                 for i=1, 4 do 
                     Globals.voices[i].latched = false 
-                    Bridge.set_gate(i, 0)
+                    if not Globals.voices[i].arp_enabled and not Globals.voices[i].sustained then
+                        Bridge.set_gate(i, 0)
+                    end
                 end
             end
             Globals.dirty = true; return
@@ -241,36 +244,47 @@ function Pages.key(x, y, z)
             end
         end
         
+        -- FIX: Triggers and Sustain Logic
         if x <= 4 then
             local Bridge = require 'ltra/lib/engine_bridge'
             if z == 1 then
-                if Globals.latch_mode then
-                    if Globals.voices[x].latched then
-                        Globals.voices[x].latched = false
-                        Bridge.set_gate(x, 0)
-                    else
-                        Globals.voices[x].latched = true
-                        Bridge.set_gate(x, 1)
+                if shift then
+                    Globals.voices[x].sustained = not Globals.voices[x].sustained
+                    if not Globals.voices[x].arp_enabled then
+                        Bridge.set_gate(x, Globals.voices[x].sustained and 1 or 0)
                     end
                 else
-                    Bridge.set_gate(x, 1)
+                    if Globals.latch_mode then
+                        Globals.voices[x].latched = not Globals.voices[x].latched
+                        if not Globals.voices[x].arp_enabled then
+                            Bridge.set_gate(x, Globals.voices[x].latched and 1 or 0)
+                        end
+                    else
+                        if not Globals.voices[x].arp_enabled then
+                            Bridge.set_gate(x, 1)
+                        end
+                    end
                 end
             else
-                if not Globals.latch_mode then
-                    Bridge.set_gate(x, 0)
+                if not shift and not Globals.latch_mode and not Globals.voices[x].sustained then
+                    if not Globals.voices[x].arp_enabled then
+                        Bridge.set_gate(x, 0)
+                    end
                 end
             end
+            Globals.dirty = true
             return
         end
         
+        -- FIX: Loopers Logic (Shift/Double Click = Clear, Hold = Stop)
         if x >= 7 and x <= 10 then
-            if z == 0 then
-                local idx = x - 6
-                local press_time = Globals.grid_timers[x][y]
-                local duration = util.time() - press_time
-                
-                if duration >= 1.0 then
-                    Loopers.clear(idx)
+            local idx = x - 6
+            if z == 1 then
+                Globals.looper_state.press_time[idx] = util.time()
+            else
+                local duration = util.time() - Globals.looper_state.press_time[idx]
+                if duration > 0.6 then
+                    Loopers.stop_looper(idx)
                 else
                     local now = util.time()
                     local last = Globals.looper_state.last_click_time[idx] or 0
@@ -278,11 +292,15 @@ function Pages.key(x, y, z)
                     
                     if (now - last) < 0.4 then
                         if Globals.looper_state.defer_id[idx] then clock.cancel(Globals.looper_state.defer_id[idx]) end
-                        Loopers.handle_button(idx, true) 
+                        Loopers.clear(idx)
                     else
                         Globals.looper_state.defer_id[idx] = clock.run(function()
                             clock.sleep(0.4)
-                            Loopers.handle_button(idx, shift)
+                            if shift then
+                                Loopers.clear(idx)
+                            else
+                                Loopers.handle_button(idx)
+                            end
                         end)
                     end
                 end
@@ -332,40 +350,31 @@ function Pages.key(x, y, z)
                 end
             end
         end
+        -- FIX: Snapshot Shift Logic
         if y == 7 and x >= 6 and x <= 11 then
             if z == 0 then
                 local snap_idx = x - 5
-                local press_time = Globals.grid_timers[x][y]
-                local duration = util.time() - press_time
-                local is_filled = (Globals.snapshots[snap_idx] ~= nil)
-                
-                if duration >= 0.8 then
-                    if is_filled then
-                        Storage.save_snapshot(snap_idx)
-                        Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "UPDATED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
-                    end
+                if shift then
+                    Storage.delete_snapshot(snap_idx)
+                    Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "DELETED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
                 else
-                    local now = util.time()
-                    local last = Globals.snap_state.last_click_time[snap_idx] or 0
-                    Globals.snap_state.last_click_time[snap_idx] = now
+                    local press_time = Globals.grid_timers[x][y]
+                    local duration = util.time() - press_time
+                    local is_filled = (Globals.snapshots[snap_idx] ~= nil)
                     
-                    if (now - last) < 0.4 then
-                        if Globals.snap_state.defer_id[snap_idx] then clock.cancel(Globals.snap_state.defer_id[snap_idx]) end
+                    if duration >= 0.8 then
                         if is_filled then
-                            Storage.delete_snapshot(snap_idx)
-                            Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "DELETED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+                            Storage.save_snapshot(snap_idx)
+                            Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "UPDATED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
                         end
                     else
-                        Globals.snap_state.defer_id[snap_idx] = clock.run(function()
-                            clock.sleep(0.4)
-                            if not is_filled then
-                                Storage.save_snapshot(snap_idx)
-                                Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "SAVED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
-                            else
-                                Storage.load_snapshot(snap_idx)
-                                Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "LOADED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
-                            end
-                        end)
+                        if not is_filled then
+                            Storage.save_snapshot(snap_idx)
+                            Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "SAVED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+                        else
+                            Storage.load_snapshot(snap_idx)
+                            Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "LOADED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+                        end
                     end
                 end
             end
