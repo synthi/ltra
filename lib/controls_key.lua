@@ -1,5 +1,5 @@
--- lib/controls_key.lua | v1.5.6
--- FIX: Sync Toggle, ARP Menu Page Toggle
+-- lib/controls_key.lua | v1.5.7
+-- FIX: MOD Sync Toggles, Delay/Reverb Pagination
 
 local Keys = {}
 local Globals
@@ -25,21 +25,33 @@ function Keys.event(n, z)
                 Globals.osc_menu_page = (Globals.osc_menu_page == 1) and 2 or 1
             end
             
-        elseif Globals.menu_mode == Consts.MENU.LFO then
-            if n==3 then
-                local curr = params:get("lfo"..t.."_sync")
-                params:set("lfo"..t.."_sync", 1-curr)
-            end
-            
-        elseif Globals.menu_mode == Consts.MENU.CHAOS then
-            if n==3 then
-                local curr = params:get("chaos_sync")
-                params:set("chaos_sync", 1-curr)
+        elseif Globals.menu_mode == Consts.MENU.MOD then
+            if n==2 then
+                if Globals.mod_menu_page == 1 then
+                    local curr = params:get("mod"..t.."_lfo_sync")
+                    params:set("mod"..t.."_lfo_sync", 1-curr)
+                else
+                    local curr = params:get("mod"..t.."_chaos_sync")
+                    params:set("mod"..t.."_chaos_sync", 1-curr)
+                end
+            elseif n==3 then
+                Globals.mod_menu_page = (Globals.mod_menu_page == 1) and 2 or 1
             end
             
         elseif Globals.menu_mode == Consts.MENU.ARP then
             if n==3 then
                 Globals.arp_menu_page = (Globals.arp_menu_page == 1) and 2 or 1
+            end
+            
+        elseif Globals.menu_mode == Consts.MENU.DELAY then
+            if n==3 then
+                Globals.delay_menu_page = (Globals.delay_menu_page == 1) and 2 or 1
+            end
+            
+        elseif Globals.menu_mode == Consts.MENU.REVERB then
+            if n==3 then
+                Globals.reverb_menu_page = Globals.reverb_menu_page + 1
+                if Globals.reverb_menu_page > 3 then Globals.reverb_menu_page = 1 end
             end
             
         elseif Globals.menu_mode == Consts.MENU.FILTER then
