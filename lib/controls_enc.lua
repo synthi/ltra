@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v1.5.7
--- FIX: MOD Menus, Delay/Reverb Pagination
+-- lib/controls_enc.lua | v1.5.9
+-- FIX: Delay Menu Pagination
 
 local Enc = {}
 local Globals
@@ -73,10 +73,12 @@ function Enc.delta(n, d)
                 if n==1 then params:delta("fx_tape_time", d)
                 elseif n==2 then params:delta("fx_tape_feedback", d)
                 elseif n==3 then params:delta("delay_send", d) end
-            else
+            elseif Globals.delay_menu_page == 2 then
                 if n==1 then params:delta("fx_tape_drive", d)
                 elseif n==2 then params:delta("fx_tape_erosion", d)
                 elseif n==3 then params:delta("fx_tape_wow_flutter", d) end
+            else
+                if n==1 then params:delta("fx_tape_tone", d) end
             end
             
         elseif m == Consts.MENU.REVERB then
