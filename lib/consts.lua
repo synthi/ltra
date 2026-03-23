@@ -1,5 +1,5 @@
--- lib/consts.lua | v1.5.9
--- FIX: 21 Sync Divisions, Restored Row 6 Layout
+-- lib/consts.lua | v1.5.11
+-- FIX: Added ENV menu, Updated Grid Layout
 
 local Consts = {}
 
@@ -29,10 +29,9 @@ Consts.COL_TO_DEST_NAMES = {
 
 Consts.MENU = {
     NONE=0, OSC=1, MOD=2, OUTLINE=4, 
-    FILTER=5, DELAY=6, REVERB=7, LOOPER=8, MATRIX=9, ARP=10
+    FILTER=5, DELAY=6, REVERB=7, LOOPER=8, MATRIX=9, ARP=10, ENV=11 -- FIX: Added ENV
 }
 
--- FIX: 21 Sync Divisions (4 bars to 1/64 + Dotted/Triplets)
 Consts.SYNC_DIVS = {
     {name="4 bars", v=16}, {name="3 bars", v=12}, {name="2 bars", v=8}, {name="1.5 bars", v=6},
     {name="1 bar", v=4}, {name="1/2 D", v=3}, {name="1/2", v=2}, {name="1/2 T", v=1.3333},
