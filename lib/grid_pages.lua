@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v1.5.4
--- FIX: Latch Release Logic, Snapshot Save Logic, Delay Matrix Menu
+-- lib/grid_pages.lua | v1.5.5
+-- FIX: Snapshot State Machine (Double Click, Hold, Empty/Full)
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -13,6 +13,8 @@ function Pages.init(g_ref, hw_ref)
     Globals = g_ref
     HW = hw_ref 
     Matrix.init(g_ref)
+    -- FIX: Snapshot State Init
+    Globals.snap_state = { last_click_time = {}, defer_id = {} }
 end
 
 function Pages.set_hw(h) HW = h end
@@ -75,7 +77,6 @@ local function check_hold()
                     Globals.menu_mode = Consts.MENU.MATRIX
                     local src_name = ({[1]="LFO1",[2]="LFO2",[3]="CHAOS",[4]="OUTLINE"})[y]
                     local dest_name = Consts.COL_TO_DEST_NAMES[x] or "UNK"
-                    -- FIX: Correct Delay String for Matrix Menu
                     if dest_name == "DELAY T" then dest_name = "DELAY_T" end
                     if dest_name == "DELAY F" then dest_name = "DELAY_F" end
                     
@@ -159,7 +160,6 @@ function Pages.key(x, y, z)
     if y == 8 then
         if x == 5 and z == 1 then
             Globals.latch_mode = not Globals.latch_mode
-            -- FIX: Release all notes when Latch is turned off
             if not Globals.latch_mode then
                 local Bridge = require 'ltra/lib/engine_bridge'
                 for i=1, 4 do 
@@ -241,13 +241,42 @@ function Pages.key(x, y, z)
             end
         end
         if y == 7 and x <= 6 then
-            -- FIX: Snapshot Save/Load Logic (Trigger on Release)
+            -- FIX: Snapshot State Machine
             if z == 0 then
                 local press_time = Globals.grid_timers[x][y]
-                if util.time() - press_time > 1.0 then 
-                    Storage.save_snapshot(x) 
+                local duration = util.time() - press_time
+                local is_filled = (Globals.snapshots[x] ~= nil)
+                
+                if duration >= 0.8 then
+                    if is_filled then
+                        Storage.save_snapshot(x)
+                        Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..x; Globals.ui_popup.val = "UPDATED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+                    end
                 else
-                    Storage.load_snapshot(x)
+                    local now = util.time()
+                    local last = Globals.snap_state.last_click_time[x] or 0
+                    Globals.snap_state.last_click_time[x] = now
+                    
+                    if (now - last) < 0.4 then
+                        -- Double Click
+                        if Globals.snap_state.defer_id[x] then clock.cancel(Globals.snap_state.defer_id[x]) end
+                        if is_filled then
+                            Storage.delete_snapshot(x)
+                            Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..x; Globals.ui_popup.val = "DELETED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+                        end
+                    else
+                        -- Single Click (Wait for potential double click)
+                        Globals.snap_state.defer_id[x] = clock.run(function()
+                            clock.sleep(0.4)
+                            if not is_filled then
+                                Storage.save_snapshot(x)
+                                Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..x; Globals.ui_popup.val = "SAVED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+                            else
+                                Storage.load_snapshot(x)
+                                Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..x; Globals.ui_popup.val = "LOADED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+                            end
+                        end)
+                    end
                 end
             end
         end
