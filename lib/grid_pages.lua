@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v1.5.13
--- FIX: Looper Fading Visuals
+-- lib/grid_pages.lua
+-- FIX: Visual Feedback for State 6 (Fading In)
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -139,8 +139,8 @@ local function draw_loopers()
             b = Consts.BRIGHT.VAL_HIGH
         elseif state == 4 then 
             b = Consts.BRIGHT.VAL_LOW
-        elseif state == 5 then 
-            -- FIX: Fast blink for Fading state
+        elseif state == 5 or state == 6 then 
+            -- FIX: Fast blink for both Fading Out (5) and Fading In (6)
             b = math.floor(util.linlin(-1, 1, 2, 15, math.sin(now * 15)))
         end
         led_safe(x, 8, b)
