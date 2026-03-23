@@ -1,5 +1,5 @@
--- lib/engine_bridge.lua | v1.6.0
--- FIX: Outline Telemetry Parsing
+-- lib/engine_bridge.lua | v1.5.4
+-- FIX: Morph to Shape Translation
 
 local Bridge = {}
 local Globals
@@ -17,7 +17,7 @@ function Bridge.handle_osc(path, args)
             Globals.visuals.lfo_vals[1] = args[3]
             Globals.visuals.lfo_vals[2] = args[4]
             Globals.visuals.chaos_val = args[5] or 0
-            Globals.visuals.outline_val = args[6] or 0 -- FIX: Outline Telemetry
+            Globals.visuals.outline_val = args[6] or 0 
             
             Globals.dirty = true
         end
@@ -39,6 +39,7 @@ function Bridge.sync_matrix()
                 if dest == "delay_t" then dest = "delay_time" end
                 if dest == "delay_f" then dest = "delay_fb" end
                 if dest == "filt" then dest = "filt" end 
+                if dest == "morph" then dest = "shape" end -- FIX: Shape Translation
                 
                 engine.set_engine_param("mod_" .. s_name:lower() .. "_" .. dest .. idx, val)
                 
@@ -60,7 +61,7 @@ function Bridge.trigger_arp(idx) engine.set_engine_param("t_arp"..idx, 1) end
 function Bridge.reset_lfo() engine.set_engine_param("t_reset", 1) end
 
 function Bridge.set_filter_tone(idx, val)
-    -- Obsolete, replaced by direct cutoff control in params
+    -- Obsolete
 end
 
 function Bridge.set_matrix(src, dest, idx, val)
