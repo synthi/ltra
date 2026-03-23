@@ -1,5 +1,5 @@
--- lib/ui.lua | v1.6.0
--- FIX: Filter Menu UI Update
+-- lib/ui.lua | v1.5.2
+-- FIX: Logarithmic VU Meters, Output Menu, Filter Menu
 
 local UI = {}
 local Globals
@@ -14,8 +14,8 @@ local function draw_menu()
     
     if mode == Consts.MENU.OSC then
         screen.move(5,10); screen.text("OSC "..t.." EDIT")
-        screen.move(5,25); screen.text("E1 Shape: "..string.format("%.2f", params:get("osc"..t.."_shape")))
-        screen.move(5,35); screen.text("E2 Octave: "..string.format("%+d", params:get("osc"..t.."_octave")))
+        screen.move(5,25); screen.text("E1 Octave: "..string.format("%+d", params:get("osc"..t.."_octave")))
+        screen.move(5,35); screen.text("E2 Shape: "..string.format("%.2f", params:get("osc"..t.."_shape")))
         screen.move(5,45); screen.text("E3 Tune: "..string.format("%.2f", params:get("osc"..t.."_tune")))
         local arp_state = params:get("osc"..t.."_arp") == 1 and "ON" or "OFF"
         screen.move(5,58); screen.text("K2: ARP["..arp_state.."]")
@@ -38,15 +38,13 @@ local function draw_menu()
         screen.move(5,35); screen.text("E2 Gain: "..string.format("%.1f", params:get("outline_gain")))
         
     elseif mode == Consts.MENU.FILTER then
-        screen.move(5,10); screen.text("FILTER EDIT")
-        local f_idx = t
-        -- FIX: Real Cutoff UI
-        screen.move(5,25); screen.text("E1 Cutoff: "..string.format("%.0f Hz", params:get("filt"..f_idx.."_cutoff")))
-        screen.move(5,35); screen.text("E2 Res: "..string.format("%.2f", params:get("filt"..f_idx.."_res")))
-        local type_str = params:get("filt"..f_idx.."_type") == 0 and "LP" or "HP"
-        screen.move(5,45); screen.text("E3 Type: "..type_str)
-        local model_str = params:get("filt_model") == 0 and "SVF" or "MOOG"
-        screen.move(5,58); screen.text("K2: MODEL ["..model_str.."]")
+        local f_name = (t==1) and "VADIM" or "DFM1"
+        screen.move(5,10); screen.text("FILTER "..t.." ("..f_name..")")
+        screen.move(5,25); screen.text("E1 Drive: "..string.format("%.2f", params:get("filt"..t.."_drive")))
+        screen.move(5,35); screen.text("E2 Cutoff: "..string.format("%.0f Hz", params:get("filt"..t.."_cutoff")))
+        screen.move(5,45); screen.text("E3 Res: "..string.format("%.2f", params:get("filt"..t.."_res")))
+        local type_str = params:get("filt"..t.."_type") == 0 and "LP" or "HP"
+        screen.move(5,58); screen.text("K2: TYPE ["..type_str.."]")
 
     elseif mode == Consts.MENU.DELAY then
         screen.move(5,10); screen.text("TAPE DELAY")
@@ -59,6 +57,12 @@ local function draw_menu()
         screen.move(5,25); screen.text("E1 Mix: "..string.format("%.2f", params:get("reverb_mix")))
         screen.move(5,35); screen.text("E2 Decay: "..string.format("%.1fs", params:get("reverb_decay")))
         screen.move(5,45); screen.text("E3 Damp: "..string.format("%.2f", params:get("reverb_damp")))
+        
+    elseif mode == Consts.MENU.LOOPER then -- Re-purposed as OUTPUT MENU
+        screen.move(5,10); screen.text("OUTPUT & SYSTEM")
+        screen.move(5,25); screen.text("E1 Monitor: "..string.format("%.2f", params:get("monitor_vol")))
+        screen.move(5,35); screen.text("E2 Master: "..string.format("%.2f", params:get("master_vol")))
+        screen.move(5,45); screen.text("E3 Dirt: "..string.format("%.2f", params:get("system_dirt")))
         
     elseif mode == Consts.MENU.MATRIX then
         screen.move(5,10); screen.text("MATRIX EDIT")
@@ -100,7 +104,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.6.0")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.2")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
@@ -124,8 +128,12 @@ function UI.redraw()
         end
         screen.move(0, 40); screen.text("Root: "..root_name)
         
-        local vu_l = util.clamp(Globals.visuals.amp_l * 40, 0, 40)
-        local vu_r = util.clamp(Globals.visuals.amp_r * 40, 0, 40)
+        -- FIX: Logarithmic VU Meters
+        local db_l = 20 * math.log10(math.max(0.0001, Globals.visuals.amp_l))
+        local db_r = 20 * math.log10(math.max(0.0001, Globals.visuals.amp_r))
+        local vu_l = util.clamp(util.linlin(-48, 0, 0, 40, db_l), 0, 40)
+        local vu_r = util.clamp(util.linlin(-48, 0, 0, 40, db_r), 0, 40)
+        
         screen.level(15)
         screen.rect(110, 50, 4, -vu_l); screen.fill()
         screen.rect(116, 50, 4, -vu_r); screen.fill()
