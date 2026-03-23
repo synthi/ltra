@@ -1,5 +1,5 @@
--- lib/controls_key.lua | v1.5.5
--- FIX: OSC Menu Page Toggle (K3)
+-- lib/controls_key.lua | v1.5.6
+-- FIX: Sync Toggle, ARP Menu Page Toggle
 
 local Keys = {}
 local Globals
@@ -23,6 +23,23 @@ function Keys.event(n, z)
                 params:set("osc"..t.."_arp", 1-curr)
             elseif n==3 then
                 Globals.osc_menu_page = (Globals.osc_menu_page == 1) and 2 or 1
+            end
+            
+        elseif Globals.menu_mode == Consts.MENU.LFO then
+            if n==3 then
+                local curr = params:get("lfo"..t.."_sync")
+                params:set("lfo"..t.."_sync", 1-curr)
+            end
+            
+        elseif Globals.menu_mode == Consts.MENU.CHAOS then
+            if n==3 then
+                local curr = params:get("chaos_sync")
+                params:set("chaos_sync", 1-curr)
+            end
+            
+        elseif Globals.menu_mode == Consts.MENU.ARP then
+            if n==3 then
+                Globals.arp_menu_page = (Globals.arp_menu_page == 1) and 2 or 1
             end
             
         elseif Globals.menu_mode == Consts.MENU.FILTER then
