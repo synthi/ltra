@@ -1,5 +1,7 @@
--- lib/arp.lua | v1.5.14
+-- lib/arp.lua | v1.5.16
 -- FIX: Active Voices Logic (Only Held/Latched/Sustained)
+-- lib/arp.lua
+-- FIX: Arp Gate Logic (Always close gate to re-trigger envelopes), Tempo-synced Gate Length
 
 local Arp = {}
 local Globals
@@ -10,6 +12,7 @@ local Consts = require 'ltra/lib/consts'
 function Arp.init(g_ref)
     Globals = g_ref
     Globals.arp.current_step = 0
+    Globals.arp.current_sync_val = 0.25
     
     Arp.clock_id = clock.run(function()
         while true do
@@ -17,6 +20,8 @@ function Arp.init(g_ref)
             local div_val = Consts.SYNC_DIVS[div_idx].v
             local bpm = params:get("clock_tempo") or 120
             local sync_val = (60 / bpm) * div_val
+            
+            Globals.arp.current_sync_val = sync_val
             
             clock.sleep(sync_val)
             Arp.tick()
@@ -90,18 +95,26 @@ function Arp.tick()
         
         Bridge.set_freq(target_voice, hz)
         
+        -- FIX: Calculate exact gate time based on tempo and ratio
+        local step_dur = Globals.arp.current_sync_val or 0.25
+        -- Clamp ratio to 0.95 max to ensure a tiny gap for envelope re-triggering
+        local gate_ratio = math.min(params:get("arp_gate_len") or 0.5, 0.95)
+        local gate_time = step_dur * gate_ratio
+        
         clock.run(function()
             Bridge.set_gate(target_voice, 1)
             if ratchet then
-                clock.sleep(0.05)
+                local r_time = step_dur / 4
+                clock.sleep(r_time)
                 Bridge.set_gate(target_voice, 0)
-                clock.sleep(0.05)
+                clock.sleep(r_time)
                 Bridge.set_gate(target_voice, 1)
+                gate_time = gate_time - (r_time * 2)
+                if gate_time < 0.01 then gate_time = 0.01 end
             end
-            clock.sleep(params:get("arp_gate_len") or 0.5)
-            if not Globals.voices[target_voice].latched and not Globals.voices[target_voice].sustained then
-                Bridge.set_gate(target_voice, 0)
-            end
+            clock.sleep(gate_time)
+            -- FIX: ALWAYS close the gate so the next note can attack properly
+            Bridge.set_gate(target_voice, 0)
         end)
     end
 end
