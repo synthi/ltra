@@ -1,5 +1,5 @@
--- lib/ui.lua | v1.5.8
--- FIX: New Grid Layout Menus
+-- lib/ui.lua | v1.5.9
+-- FIX: Delay Menu Pagination, FxTape Tone
 
 local UI = {}
 local Globals
@@ -93,15 +93,18 @@ local function draw_menu()
 
     elseif mode == Consts.MENU.DELAY then
         if Globals.delay_menu_page == 1 then
-            screen.move(5,10); screen.text("FX TAPE (1/2)")
+            screen.move(5,10); screen.text("FX TAPE (1/3)")
             screen.move(5,25); screen.text("E1 Time: "..string.format("%.2f s", params:get("fx_tape_time")))
             screen.move(5,35); screen.text("E2 Fdbk: "..string.format("%.2f", params:get("fx_tape_feedback")))
             screen.move(5,45); screen.text("E3 Send: "..string.format("%.2f", params:get("delay_send")))
-        else
-            screen.move(5,10); screen.text("FX TAPE (2/2)")
+        elseif Globals.delay_menu_page == 2 then
+            screen.move(5,10); screen.text("FX TAPE (2/3)")
             screen.move(5,25); screen.text("E1 Drive: "..string.format("%.2f", params:get("fx_tape_drive")))
             screen.move(5,35); screen.text("E2 Erosion: "..string.format("%.2f", params:get("fx_tape_erosion")))
             screen.move(5,45); screen.text("E3 Wow/Flut: "..string.format("%.2f", params:get("fx_tape_wow_flutter")))
+        else
+            screen.move(5,10); screen.text("FX TAPE (3/3)")
+            screen.move(5,25); screen.text("E1 Tone: "..string.format("%.0f", params:get("fx_tape_tone")))
         end
         screen.move(5,58); screen.text("K3: PAGE")
         
@@ -168,7 +171,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.8")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.9")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
