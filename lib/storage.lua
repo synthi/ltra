@@ -1,5 +1,7 @@
--- lib/storage.lua | v1.5.11
+-- lib/storage.lua | v1.5.15
 -- FIX: Softcut Audio Saving
+-- lib/storage.lua
+-- FIX: Added 'sustained' state to volatile snapshot saving/loading
 
 local Storage = {}
 local Globals
@@ -30,12 +32,11 @@ function Storage.save_sidecar(pset_number)
     local data_path = _path.data .. "ltra/pset_" .. pset_number .. ".data"
     tab.save(data, data_path)
     
-    -- FIX: Save Looper Audio
     local timestamp = os.date("%Y%m%d_%H%M%S")
     for i=1, 4 do
         local audio_path = _path.audio .. "ltra/snapshots/pset_" .. pset_number .. "_trk_" .. i .. "_" .. timestamp .. ".wav"
-        local start_pos = (i-1) * 30
-        softcut.buffer_write_mono(audio_path, start_pos, 30, 1)
+        local start_pos = (i-1) * 80
+        softcut.buffer_write_mono(audio_path, start_pos, 80, 1)
     end
     
     print("LTRA: Save Complete.")
@@ -73,7 +74,11 @@ function Storage.save_snapshot(slot)
     
     snap.volatile.latch_mode = Globals.latch_mode
     snap.volatile.voices_latched = {}
-    for i=1, 4 do snap.volatile.voices_latched[i] = Globals.voices[i].latched end
+    snap.volatile.voices_sustained = {} -- FIX: Save sustained state
+    for i=1, 4 do 
+        snap.volatile.voices_latched[i] = Globals.voices[i].latched 
+        snap.volatile.voices_sustained[i] = Globals.voices[i].sustained
+    end
     
     Globals.snapshots[slot] = snap
     print("LTRA: Snapshot "..slot.." saved to RAM.")
@@ -91,7 +96,12 @@ function Storage.load_snapshot(slot)
         Globals.latch_mode = snap.volatile.latch_mode
         for i=1, 4 do 
             Globals.voices[i].latched = snap.volatile.voices_latched[i]
-            Bridge.set_gate(i, snap.volatile.voices_latched[i] and 1 or 0)
+            -- FIX: Load sustained state (with fallback for old snapshots)
+            Globals.voices[i].sustained = snap.volatile.voices_sustained and snap.volatile.voices_sustained[i] or false
+            
+            -- FIX: Trigger gate immediately if latched OR sustained
+            local gate_val = (Globals.voices[i].latched or Globals.voices[i].sustained) and 1 or 0
+            Bridge.set_gate(i, gate_val)
         end
     end
     
