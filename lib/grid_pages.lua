@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v1.5.1
--- FIX: Matrix Hold vs Click Logic (Change on Release)
+-- lib/grid_pages.lua | v1.6.0
+-- FIX: Page 2 Menu Leak, Matrix Colors, Outline LED, Strict z==0
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -45,6 +45,9 @@ local function draw_nav_bar()
 end
 
 local function check_hold()
+    -- FIX: Only check dashboard hold if on Page 1
+    if Globals.page ~= 1 then return end
+    
     local y = 6
     local held = nil
     for x=1, 16 do
@@ -64,19 +67,17 @@ local function check_hold()
         return
     end
 
-    if Globals.page == 1 then
-        for y=1, 4 do
-            for x=1, 16 do
-                if Globals.button_state[x][y] then
-                    local press_time = Globals.grid_timers[x][y] or 0
-                    if util.time() - press_time > 0.3 then
-                        Globals.menu_mode = Consts.MENU.MATRIX
-                        local src_name = ({[1]="LFO1",[2]="LFO2",[3]="CHAOS",[4]="OUTLINE"})[y]
-                        local dest_name = Consts.COL_TO_DEST_NAMES[x] or "UNK"
-                        Globals.menu_target = {x=x, y=y, src_name=src_name, dest_name=dest_name} 
-                        Globals.dirty = true
-                        return
-                    end
+    for y=1, 4 do
+        for x=1, 16 do
+            if Globals.button_state[x][y] then
+                local press_time = Globals.grid_timers[x][y] or 0
+                if util.time() - press_time > 0.3 then
+                    Globals.menu_mode = Consts.MENU.MATRIX
+                    local src_name = ({[1]="LFO1",[2]="LFO2",[3]="CHAOS",[4]="OUTLINE"})[y]
+                    local dest_name = Consts.COL_TO_DEST_NAMES[x] or "UNK"
+                    Globals.menu_target = {x=x, y=y, src_name=src_name, dest_name=dest_name} 
+                    Globals.dirty = true
+                    return
                 end
             end
         end
@@ -110,7 +111,8 @@ function Pages.redraw()
         local chaos_led = math.floor(util.linlin(-1, 1, 2, 13, chaos_raw))
         led_safe(8, 6, chaos_led)
         
-        local outline_val = math.floor(util.linlin(0, 1, 2, 13, Globals.visuals.amp_l or 0))
+        -- FIX: Outline LED uses actual telemetry
+        local outline_val = math.floor(util.linlin(0, 1, 2, 13, Globals.visuals.outline_val or 0))
         led_safe(9, 6, outline_val)
         
         for i=11, 14 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
@@ -183,7 +185,7 @@ function Pages.key(x, y, z)
     
     if Globals.page == 1 then
         if y <= 4 then 
-            -- FIX: Only trigger matrix change on release (z=0) if held < 300ms
+            -- FIX: Strict z==0 for Matrix changes
             if z == 0 then
                 local press_time = Globals.grid_timers[x][y] or 0
                 if util.time() - press_time < 0.3 then
