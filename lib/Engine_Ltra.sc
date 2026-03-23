@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.1
-// FIX: NaN Blowups, Trigger Envelopes, t_reset
+// lib/Engine_Ltra.sc | v1.6.0
+// FIX: Indestructible DSP, Real Cutoff Filters, Outline Telemetry, Default Gates=1
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -12,24 +12,24 @@ Engine_Ltra : CroneEngine {
             arg out,
                 freq1=110, freq2=150, freq3=220, freq4=330,
                 shape1=2, shape2=2, shape3=2, shape4=2,
-                vol1=0.5, vol2=0.5, vol3=0.5, vol4=0.5,
+                vol1=0.8, vol2=0.8, vol3=0.8, vol4=0.8, // FIX: Default Vol
                 pan1=0, pan2=0, pan3=0, pan4=0,
-                gate1=0, gate2=0, gate3=0, gate4=0,
+                gate1=1, gate2=1, gate3=1, gate4=1, // FIX: Default Gates Open
                 t_arp1=0, t_arp2=0, t_arp3=0, t_arp4=0,
                 arp_cv1=0, arp_cv2=0, arp_cv3=0, arp_cv4=0,
                 lfo1_rate=0.5, lfo1_shape=0, lfo1_depth=1,
                 lfo2_rate=0.2, lfo2_shape=2, lfo2_depth=1,
                 chaos_rate=0.5, chaos_slew=0.1,
                 outline_source=0, outline_gain=1.0,
-                filt1_tone=0, filt2_tone=0, 
+                filt1_cutoff=18000, filt2_cutoff=18000, // FIX: Real Cutoff
                 filt1_res=0, filt2_res=0,
-                filt1_drive=0, filt2_drive=0, 
-                filt_type=0, 
+                filt1_type=0, filt2_type=0, // 0=LP, 1=HP
+                filt_model=0, // 0=SVF, 1=MOOG
                 delay_time=0.5, delay_fb=0.0, delay_send=0.5, delay_spread=0.0,
                 tape_wow=0, tape_flutter=0, tape_erosion=0,
                 reverb_mix=0, reverb_time=5, reverb_damp=0.5,
                 system_dirt=0, dust_dens=0, 
-                clear_trig=0, t_reset=0; // FIX: Added t_reset
+                clear_trig=0, t_reset=0;
 
             var lfo1, lfo2, chaos_sig, rungler_clk, rungler_val;
             var outline_sig, env_int, env_ext;
@@ -50,31 +50,28 @@ Engine_Ltra : CroneEngine {
 
             var mk_osc = { |f, s| 
                 var noise = PinkNoise.ar;
-                var saw_fm = VarSaw.ar(f * (1 + (noise * (1-s).clip(0,1) * 0.5)), 0, 0);
-                var tri = LFTri.ar(f);
-                var pul = Pulse.ar(f, 0.5);
-                var sin = SinOsc.ar(f);
-                SelectX.ar(s,[noise, saw_fm, tri, pul, sin]) 
+                var saw_fm = VarSaw.ar(f.clip(20, 20000) * (1 + (noise * (1-s).clip(0,1) * 0.5)), 0, 0);
+                var tri = LFTri.ar(f.clip(20, 20000));
+                var pul = Pulse.ar(f.clip(20, 20000), 0.5);
+                var sin = SinOsc.ar(f.clip(20, 20000));
+                SelectX.ar(s.clip(0,4),[noise, saw_fm, tri, pul, sin]) 
             };
             
             var mk_vactrol = { |g, t| 
-                // FIX: Proper envelope for 1-block triggers
-                var arp_env = Decay2.kr(t, 0.005, 0.2);
+                var arp_env = Decay2.kr(Trig.kr(t, 0.01), 0.005, 0.2); // FIX: Trig.kr
                 var combined = (g + arp_env).clip(0, 1);
                 LagUD.kr(combined, 0.01, 0.2) 
             };
 
-            var apply_dj_filter = { |in, tone, res, drive, type|
-                // FIX: Clip to 0.001 to prevent 0Hz NaN blowup
-                var ctrl_lp = (tone + 1).clip(0.001, 1); 
-                var ctrl_hp = tone.max(0.001);
-                var freq_lp = LinExp.kr(ctrl_lp, 0.001, 1, 20, 20000); 
-                var freq_hp = LinExp.kr(ctrl_hp, 0.001, 1, 20, 20000); 
-                var sig = (in * (1 + drive)).tanh; 
-                var svf_lp = RLPF.ar(sig, freq_lp, 1.0 - (res * 0.5));
-                var moog_lp = MoogFF.ar(sig, freq_lp, res * 3.5) * (1.0 + (res * 2.0));
-                var out_lp = SelectX.ar(Lag.kr(type, 0.1), [svf_lp, moog_lp]);
-                RHPF.ar(out_lp, freq_hp, 1.0 - (res * 0.5));
+            var apply_filter = { |in, cut, res, type, model|
+                var safe_cut = cut.clip(20, 15000); // FIX: Prevent Moog Blowup
+                var safe_res = res.clip(0, 0.95);
+                var svf_lp = RLPF.ar(in, safe_cut, 1.0 - (safe_res * 0.5));
+                var svf_hp = RHPF.ar(in, safe_cut, 1.0 - (safe_res * 0.5));
+                var moog_lp = MoogFF.ar(in, safe_cut, safe_res * 3.5) * (1.0 + (safe_res * 2.0));
+                
+                var lp_out = SelectX.ar(Lag.kr(model, 0.1), [svf_lp, moog_lp]);
+                SelectX.ar(Lag.kr(type, 0.1),[lp_out, svf_hp]);
             };
 
             var calc_mod = { |dest_name, arp_val|
@@ -105,10 +102,9 @@ Engine_Ltra : CroneEngine {
             s_freq3 = Lag.kr(freq3, lag); s_freq4 = Lag.kr(freq4, lag);
             s_vol1 = Lag.kr(vol1, lag);   s_vol2 = Lag.kr(vol2, lag);
             s_vol3 = Lag.kr(vol3, lag);   s_vol4 = Lag.kr(vol4, lag);
-            s_filt1 = Lag.kr(filt1_tone, lag); s_filt2 = Lag.kr(filt2_tone, lag);
+            s_filt1 = Lag.kr(filt1_cutoff, lag); s_filt2 = Lag.kr(filt2_cutoff, lag);
             s_dtime = Lag.kr(delay_time, 0.2); 
 
-            // FIX: Added t_reset to LFOs
             lfo1 = SelectX.kr(lfo1_shape * 3,[LFPulse.kr(lfo1_rate, 0, 0.5), LFSaw.kr(lfo1_rate, 0), LFTri.kr(lfo1_rate, 0), SinOsc.kr(lfo1_rate, 0)]) * lfo1_depth;
             lfo2 = SelectX.kr(lfo2_shape * 3,[LFPulse.kr(lfo2_rate, 0, 0.5), LFSaw.kr(lfo2_rate, 0), LFTri.kr(lfo2_rate, 0), SinOsc.kr(lfo2_rate, 0)]) * lfo2_depth;
             
@@ -117,7 +113,7 @@ Engine_Ltra : CroneEngine {
             chaos_sig = Slew.kr(rungler_val, chaos_slew * 10, chaos_slew * 10);
 
             env_int = LagUD.kr((gate1+gate2+gate3+gate4).clip(0,1), 0.01, 0.5);
-            env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); 
+            env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); // FIX: LeakDC
             outline_sig = Select.kr(outline_source,[env_int, env_ext]) * outline_gain;
 
             m_pitch1 = calc_mod_pitch.("pitch1", arp_cv1);
@@ -129,7 +125,11 @@ Engine_Ltra : CroneEngine {
             m_amp3 = calc_mod.("amp3", arp_cv3); m_amp4 = calc_mod.("amp4", arp_cv4);
             m_shape1 = calc_mod.("shape1", arp_cv1); m_shape2 = calc_mod.("shape2", arp_cv2);
             m_shape3 = calc_mod.("shape3", arp_cv3); m_shape4 = calc_mod.("shape4", arp_cv4);
-            m_filt1 = calc_mod.("filt1", arp_cv1); m_filt2 = calc_mod.("filt2", arp_cv1);
+            
+            // FIX: Filter modulation mapped to Cutoff (Exp)
+            m_filt1 = calc_mod.("filt1", arp_cv1) * 5000; 
+            m_filt2 = calc_mod.("filt2", arp_cv1) * 5000;
+            
             m_delay_t = calc_mod.("delay_t", arp_cv1); m_delay_f = calc_mod.("delay_f", arp_cv1);
 
             o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1)), (shape1 + (m_shape1*4)).clip(0,4)) * s_vol1 * mk_vactrol.(gate1, t_arp1);
@@ -137,12 +137,11 @@ Engine_Ltra : CroneEngine {
             o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3)), (shape3 + (m_shape3*4)).clip(0,4)) * s_vol3 * mk_vactrol.(gate3, t_arp3);
             o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4)), (shape4 + (m_shape4*4)).clip(0,4)) * s_vol4 * mk_vactrol.(gate4, t_arp4);
 
-            sig_mix = Pan2.ar(o1, pan1) + Pan2.ar(o2, pan2) + Pan2.ar(o3, pan3) + Pan2.ar(o4, pan4);
+            sig_mix = Pan2.ar(o1, pan1.clip(-1,1)) + Pan2.ar(o2, pan2.clip(-1,1)) + Pan2.ar(o3, pan3.clip(-1,1)) + Pan2.ar(o4, pan4.clip(-1,1));
 
-            sig_filt1 = apply_dj_filter.(sig_mix, (s_filt1 + m_filt1).clip(-1,1), filt1_res, filt1_drive, filt_type);
-            sig_filt2 = apply_dj_filter.(sig_filt1, (s_filt2 + m_filt2).clip(-1,1), filt2_res, filt2_drive, filt_type);
+            sig_filt1 = apply_filter.(sig_mix, s_filt1 + m_filt1, filt1_res, filt1_type, filt_model);
+            sig_filt2 = apply_filter.(sig_filt1, s_filt2 + m_filt2, filt2_res, filt2_type, filt_model);
             
-            // FIX: LeakDC before effects to prevent Greyhole/Delay blowup
             sig_pre = LeakDC.ar(sig_filt2); 
 
             hiss = PinkNoise.ar * system_dirt.pow(0.75) * 0.03;
@@ -161,8 +160,8 @@ Engine_Ltra : CroneEngine {
             local_fb = local_fb * (1.0 - (Decay.kr(Dust.kr(tape_erosion * 10), 0.1) * tape_erosion));
 
             delay_proc = [
-                DelayC.ar(delay_in[0] + (local_fb[0] * (delay_fb + m_delay_f).clip(0,1.1)), 2.5, (s_dtime + m_delay_t).clip(0, 2.5) + (LFNoise2.kr(0.5)*tape_wow) + (LFNoise1.kr(10)*tape_flutter)),
-                DelayC.ar(delay_in[1] + (local_fb[1] * (delay_fb + m_delay_f).clip(0,1.1)), 2.5, (s_dtime + m_delay_t).clip(0, 2.5) + (LFNoise2.kr(0.5)*tape_wow) + (LFNoise1.kr(10)*tape_flutter) + (delay_spread * 0.02))
+                DelayC.ar(delay_in[0] + (local_fb[0] * (delay_fb + m_delay_f).clip(0,1.1)), 2.5, (s_dtime + m_delay_t).clip(0.001, 2.5) + (LFNoise2.kr(0.5)*tape_wow) + (LFNoise1.kr(10)*tape_flutter)),
+                DelayC.ar(delay_in[1] + (local_fb[1] * (delay_fb + m_delay_f).clip(0,1.1)), 2.5, (s_dtime + m_delay_t).clip(0.001, 2.5) + (LFNoise2.kr(0.5)*tape_wow) + (LFNoise1.kr(10)*tape_flutter) + (delay_spread * 0.02))
             ];
             LocalOut.ar(delay_proc);
             
@@ -179,7 +178,8 @@ Engine_Ltra : CroneEngine {
             osc_trig = Impulse.kr(15);
             amp_l = Amplitude.kr(sig_post[0]);
             amp_r = Amplitude.kr(sig_post[1]);
-            SendReply.kr(osc_trig, '/ltra/visuals',[amp_l, amp_r, lfo1, lfo2, chaos_sig]);
+            // FIX: Added outline_sig to telemetry
+            SendReply.kr(osc_trig, '/ltra/visuals',[amp_l, amp_r, lfo1, lfo2, chaos_sig, outline_sig]);
 
         }).add;
 
