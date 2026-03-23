@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v1.5.8
--- FIX: New Grid Layout (Snapshots on Row 6, Menus on Row 7)
+-- lib/grid_pages.lua | v1.5.9
+-- FIX: Restored Row 6 Layout, Snapshots on Row 7
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -60,21 +60,19 @@ local function check_hold()
     end
     
     if held_x then
-        -- FIX: New Menu Layout
+        -- FIX: Restored Row 6 Layout
         if held_y == 6 then
             if held_x <= 4 then Globals.menu_mode = Consts.MENU.OSC; Globals.menu_target = held_x
+            elseif held_x >= 6 and held_x <= 8 then Globals.menu_mode = Consts.MENU.MOD; Globals.menu_target = held_x - 5
+            elseif held_x == 9 then Globals.menu_mode = Consts.MENU.OUTLINE
+            elseif held_x == 11 or held_x == 12 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = (held_x==11 and 1 or 2)
             elseif held_x == 13 then Globals.menu_mode = Consts.MENU.DELAY
             elseif held_x == 14 then Globals.menu_mode = Consts.MENU.REVERB
             elseif held_x == 16 then Globals.menu_mode = Consts.MENU.LOOPER 
             end
-        elseif held_y == 7 then
-            if held_x >= 1 and held_x <= 3 then Globals.menu_mode = Consts.MENU.MOD; Globals.menu_target = held_x
-            elseif held_x == 5 then Globals.menu_mode = Consts.MENU.OUTLINE
-            elseif held_x == 7 or held_x == 8 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = (held_x==7 and 1 or 2)
-            end
+            Globals.dirty = true
+            return
         end
-        Globals.dirty = true
-        return
     end
 
     if Globals.button_state[12] and Globals.button_state[12][8] then
@@ -111,12 +109,12 @@ local function check_hold()
 end
 
 local function draw_snapshots()
-    -- FIX: Snapshots on Row 6, Cols 6-11
+    -- FIX: Snapshots on Row 7, Cols 6-11
     for i=1, 6 do
         local x = i + 5
         local b = Consts.BRIGHT.BG_NAV 
         if Globals.snapshots[i] then b = Consts.BRIGHT.VAL_MED end 
-        led_safe(x, 6, b)
+        led_safe(x, 7, b)
     end
 end
 
@@ -127,26 +125,27 @@ function Pages.redraw()
     if Globals.page == 1 then
         Matrix.draw(HW, led_safe)
         
-        -- Row 6: OSC, Snaps, Delay, Reverb, Output
+        -- FIX: Restored Row 6 Layout
         for i=1, 4 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
-        draw_snapshots() 
+        
+        local mod1 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[1] or 0))
+        led_safe(6, 6, mod1)
+        local mod2 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[2] or 0))
+        led_safe(7, 6, mod2)
+        local mod3 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[3] or 0))
+        led_safe(8, 6, mod3)
+        
+        local outline_val = math.floor(util.linlin(0, 1, 2, 13, Globals.visuals.outline_val or 0))
+        led_safe(9, 6, outline_val)
+        
+        led_safe(11, 6, Consts.BRIGHT.BG_DASHBOARD)
+        led_safe(12, 6, Consts.BRIGHT.BG_DASHBOARD)
         led_safe(13, 6, Consts.BRIGHT.BG_DASHBOARD)
         led_safe(14, 6, Consts.BRIGHT.BG_DASHBOARD)
         led_safe(16, 6, Consts.BRIGHT.BG_DASHBOARD) 
         
-        -- Row 7: MOD1-3, Outline, Filter1-2
-        local mod1 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[1] or 0))
-        led_safe(1, 7, mod1)
-        local mod2 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[2] or 0))
-        led_safe(2, 7, mod2)
-        local mod3 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[3] or 0))
-        led_safe(3, 7, mod3)
-        
-        local outline_val = math.floor(util.linlin(0, 1, 2, 13, Globals.visuals.outline_val or 0))
-        led_safe(5, 7, outline_val)
-        
-        led_safe(7, 7, Consts.BRIGHT.BG_DASHBOARD)
-        led_safe(8, 7, Consts.BRIGHT.BG_DASHBOARD)
+        -- Row 7: Snapshots
+        draw_snapshots() 
     end
     
     if Globals.page == 2 then
@@ -268,8 +267,8 @@ function Pages.key(x, y, z)
                 end
             end
         end
-        -- FIX: Snapshots on Row 6, Cols 6-11
-        if y == 6 and x >= 6 and x <= 11 then
+        -- FIX: Snapshots on Row 7, Cols 6-11
+        if y == 7 and x >= 6 and x <= 11 then
             if z == 0 then
                 local snap_idx = x - 5
                 local press_time = Globals.grid_timers[x][y]
