@@ -1,5 +1,5 @@
--- lib/midi_16n.lua | v1.5.2
--- FIX: Filter Faders Exp Scaling
+-- lib/midi_16n.lua | v1.5.5
+-- FIX: Fader Controlspec Mapping (LFO, Chaos, Delay)
 
 local Midi16n = {}
 local Globals
@@ -19,6 +19,15 @@ local function trigger_popup(text, val_str)
         Globals.ui_popup.val = val_str
         Globals.ui_popup.deadline = util.time() + 2
         Globals.dirty = true
+    end
+end
+
+local function set_mapped(param_id, norm)
+    local p = params:lookup_param(param_id)
+    if p and p.controlspec then
+        params:set(param_id, p.controlspec:map(norm))
+    else
+        params:set(param_id, norm)
     end
 end
 
@@ -63,12 +72,13 @@ local function process_fader(id, val)
     elseif func == "amp4" then params:set("osc4_vol", norm)
     elseif func == "filt1" then params:set("filt1_cutoff", util.linexp(0, 1, 20, 18000, norm))
     elseif func == "filt2" then params:set("filt2_cutoff", util.linexp(0, 1, 20, 18000, norm))
-    elseif func == "chaos" then params:set("chaos_rate", norm)
-    elseif func == "lfo1" then params:set("lfo1_rate", norm)
-    elseif func == "lfo2" then params:set("lfo2_rate", norm)
-    elseif func == "delay_t" then params:set("delay_time", norm)
-    elseif func == "delay_fb" then params:set("delay_fb", norm)
-    elseif func == "delay_send" then params:set("delay_send", norm)
+    -- FIX: Proper Controlspec Mapping
+    elseif func == "chaos" then set_mapped("chaos_rate", norm)
+    elseif func == "lfo1" then set_mapped("lfo1_rate", norm)
+    elseif func == "lfo2" then set_mapped("lfo2_rate", norm)
+    elseif func == "delay_t" then set_mapped("delay_time", norm)
+    elseif func == "delay_fb" then set_mapped("delay_fb", norm)
+    elseif func == "delay_send" then set_mapped("delay_send", norm)
     end
 end
 
