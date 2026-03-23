@@ -1,7 +1,5 @@
--- lib/arp.lua | v1.5.12
--- FIX: Musical Arpeggiator (Cross-Voice, Octaves, Skips, Ratchets)
--- lib/arp.lua
--- FIX: Octaves only go UP, Skips and Ratchets maintained
+-- lib/arp.lua | v1.5.14
+-- FIX: Active Voices Logic (Only Held/Latched/Sustained)
 
 local Arp = {}
 local Globals
@@ -33,7 +31,13 @@ end
 function Arp.tick()
     local active_voices = {}
     for i=1, 4 do
-        if Globals.voices[i].arp_enabled then table.insert(active_voices, i) end
+        local is_active = false
+        if Globals.button_state[i] and Globals.button_state[i][8] then is_active = true end
+        if Globals.voices[i].latched or Globals.voices[i].sustained then is_active = true end
+        
+        if Globals.voices[i].arp_enabled and is_active then 
+            table.insert(active_voices, i) 
+        end
     end
     
     if #active_voices == 0 then return end
@@ -64,14 +68,13 @@ function Arp.tick()
     
     Bridge.set_param("arp_cv"..target_voice, norm_val)
     
-    -- FIX: Musical Chaos Logic (Octaves ONLY UP)
     local r = math.random()
     local oct_offset = 0
     local skip = false
     local ratchet = false
     
     if r < (chaos_prob * 0.4) then
-        oct_offset = math.random(1, oct_range) -- Only positive jumps
+        oct_offset = math.random(1, oct_range) 
     elseif r < (chaos_prob * 0.7) then
         skip = true
     elseif r < (chaos_prob * 1.0) then
@@ -96,7 +99,7 @@ function Arp.tick()
                 Bridge.set_gate(target_voice, 1)
             end
             clock.sleep(params:get("arp_gate_len") or 0.5)
-            if not Globals.voices[target_voice].latched then
+            if not Globals.voices[target_voice].latched and not Globals.voices[target_voice].sustained then
                 Bridge.set_gate(target_voice, 0)
             end
         end)
