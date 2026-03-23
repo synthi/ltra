@@ -1,5 +1,5 @@
--- lib/controls_key.lua | v1.5.7
--- FIX: MOD Sync Toggles, Delay/Reverb Pagination
+-- lib/controls_key.lua | v1.5.11
+-- FIX: Matrix K2 Quantize Toggle
 
 local Keys = {}
 local Globals
@@ -65,9 +65,19 @@ function Keys.event(n, z)
                 local src_idx = Consts.SOURCES[Globals.menu_target.src_name]
                 local dst_idx = Consts.DESTINATIONS[Globals.menu_target.dest_name]
                 if src_idx and dst_idx then
-                    local current = Globals.matrix[src_idx][dst_idx]
-                    local id = "mat_"..Globals.menu_target.src_name.."_"..Globals.menu_target.dest_name
-                    params:set(id, current * -1)
+                    if dst_idx <= 4 then
+                        -- FIX: K2 toggles Quantize
+                        local current_q = Globals.matrix_quant[src_idx][dst_idx]
+                        local new_q = 1 - current_q
+                        Globals.matrix_quant[src_idx][dst_idx] = new_q
+                        local idx = string.match(Globals.menu_target.dest_name, "(%d+)$") or ""
+                        Bridge.set_matrix_quant(Globals.menu_target.src_name:lower(), "pitch", idx, new_q)
+                    else
+                        -- FIX: K2 inverts non-pitch destinations
+                        local current = Globals.matrix[src_idx][dst_idx]
+                        local id = "mat_"..Globals.menu_target.src_name.."_"..Globals.menu_target.dest_name
+                        params:set(id, current * -1)
+                    end
                 end
             end
         end
