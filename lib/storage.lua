@@ -1,7 +1,5 @@
--- lib/storage.lua | v1.5.15
--- FIX: Softcut Audio Saving
 -- lib/storage.lua
--- FIX: Added 'sustained' state to volatile snapshot saving/loading
+-- FIX: Trigger Midi16n.sync_faders() after loading PSETs or Snapshots
 
 local Storage = {}
 local Globals
@@ -59,6 +57,11 @@ function Storage.load_sidecar(pset_number)
     
     Bridge.clear_delay()
     Bridge.sync_matrix()
+    
+    -- FIX: Sync physical faders to newly loaded PSET parameters
+    local Midi16n = require 'ltra/lib/midi_16n'
+    Midi16n.sync_faders()
+    
     Globals.dirty = true
 end
 
@@ -74,7 +77,7 @@ function Storage.save_snapshot(slot)
     
     snap.volatile.latch_mode = Globals.latch_mode
     snap.volatile.voices_latched = {}
-    snap.volatile.voices_sustained = {} -- FIX: Save sustained state
+    snap.volatile.voices_sustained = {} 
     for i=1, 4 do 
         snap.volatile.voices_latched[i] = Globals.voices[i].latched 
         snap.volatile.voices_sustained[i] = Globals.voices[i].sustained
@@ -96,14 +99,16 @@ function Storage.load_snapshot(slot)
         Globals.latch_mode = snap.volatile.latch_mode
         for i=1, 4 do 
             Globals.voices[i].latched = snap.volatile.voices_latched[i]
-            -- FIX: Load sustained state (with fallback for old snapshots)
             Globals.voices[i].sustained = snap.volatile.voices_sustained and snap.volatile.voices_sustained[i] or false
             
-            -- FIX: Trigger gate immediately if latched OR sustained
             local gate_val = (Globals.voices[i].latched or Globals.voices[i].sustained) and 1 or 0
             Bridge.set_gate(i, gate_val)
         end
     end
+    
+    -- FIX: Sync physical faders to newly loaded Snapshot parameters
+    local Midi16n = require 'ltra/lib/midi_16n'
+    Midi16n.sync_faders()
     
     print("LTRA: Snapshot "..slot.." loaded.")
 end
