@@ -1,5 +1,5 @@
--- lib/midi_16n.lua | v1.5.14
--- FIX: Fader Mappings (9-11 MODs, 12-13 Filters)
+-- lib/midi_16n.lua
+-- FIX: Added sync_faders() for mathematically exact Soft Takeover after PSET/Snapshot load
 
 local Midi16n = {}
 local Globals
@@ -8,8 +8,7 @@ local UI_Ref = nil
 
 local FADER_FUNC = {
     [1]="pitch1",[2]="pitch2", [3]="pitch3",[4]="pitch4",[5]="amp1",  [6]="amp2",   [7]="amp3",  [8]="amp4",
-    [9]="mod1",  [10]="mod2",  [11]="mod3", [12]="filt1",
-    [13]="filt2",[14]="tape_time",[15]="tape_fb",[16]="delay_send"
+    [9]="filt1", [10]="filt2", [11]="mod1", [12]="mod2", [13]="mod3", [14]="tape_time", [15]="tape_fb", [16]="delay_send"
 }
 
 local function trigger_popup(text, val_str)
@@ -143,6 +142,45 @@ end
 
 function Midi16n.stop()
     if Midi16n.clock_id then clock.cancel(Midi16n.clock_id) end
+end
+
+-- FIX: Mathematical Inverse Mapping to sync virtual faders with loaded parameters
+function Midi16n.sync_faders()
+    if not Globals then return end
+    for id=1, 16 do
+        Globals.fader_ghost[id] = true
+        local func = FADER_FUNC[id]
+        if func then
+            local norm = 0
+            if func:match("^pitch%d") then
+                norm = params:get("osc"..func:sub(-1).."_pitch")
+            elseif func:match("^amp%d") then
+                norm = params:get("osc"..func:sub(-1).."_vol")
+            elseif func:match("^filt%d") then
+                local val = params:get("filt"..func:sub(-1).."_cutoff")
+                norm = util.explin(20, 18000, 0, 1, val)
+            elseif func:match("^mod%d") then
+                local i = func:sub(-1)
+                if params:get("mod"..i.."_lfo_sync") == 1 then
+                    local div = params:get("mod"..i.."_lfo_div")
+                    norm = (div - 1) / 20
+                else
+                    local val = params:get("mod"..i.."_lfo_rate")
+                    norm = util.explin(0.01, 20, 0, 1, val)
+                end
+            elseif func == "tape_time" then
+                local val = params:get("tapecho_time")
+                norm = util.explin(0.01, 2.0, 0, 1, val)
+            elseif func == "tape_fb" then
+                local val = params:get("tapecho_feedback")
+                norm = util.linlin(0.0, 1.2, 0, 1, val)
+            elseif func == "delay_send" then
+                norm = params:get("delay_send")
+            end
+            Globals.fader_virtual[id] = util.clamp(norm, 0, 1)
+        end
+    end
+    Globals.dirty = true
 end
 
 return Midi16n
