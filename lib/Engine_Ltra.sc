@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.28
-// FIX: True Analog Topology (Saw -> Square -> Triangle -> Sine). Removed ALL RMS compensation.
+// lib/Engine_Ltra.sc | v2.0.0
+// FIX: MIDI Polyphonic Engine Math (Velocity Bipolar, Mod Wheel, Pitch Bend)
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -20,7 +20,14 @@ Engine_Ltra : CroneEngine {
                 gate1=0, gate2=0, gate3=0, gate4=0,
                 env_atk1=0.01, env_atk2=0.01, env_atk3=0.01, env_atk4=0.01,
                 env_rel1=0.2, env_rel2=0.2, env_rel3=0.2, env_rel4=0.2,
-                t_arp1=0, t_arp2=0, t_arp3=0, t_arp4=0,
+                
+                // FIX: MIDI Params
+                midi_note1=60, midi_note2=60, midi_note3=60, midi_note4=60,
+                midi_vel1=64, midi_vel2=64, midi_vel3=64, midi_vel4=64,
+                vel_amt1=0, vel_amt2=0, vel_amt3=0, vel_amt4=0,
+                mod_wheel=0, mod_amt1=0, mod_amt2=0, mod_amt3=0, mod_amt4=0,
+                pitch_bend=8192, bend_range=2,
+                
                 arp_cv1=0, arp_cv2=0, arp_cv3=0, arp_cv4=0,
                 
                 mod1_lfo_rate=0.5, mod1_lfo_shape=0, mod1_depth=1,
@@ -65,6 +72,13 @@ Engine_Ltra : CroneEngine {
             var vca1, vca2, vca3, vca4;
             var env1, env2, env3, env4;
             
+            // FIX: MIDI Math Vars
+            var bend_norm, bend_offset;
+            var midi_off1, midi_off2, midi_off3, midi_off4;
+            var vel_bip1, vel_bip2, vel_bip3, vel_bip4;
+            var mw_norm, shp_mod1, shp_mod2, shp_mod3, shp_mod4;
+            var final_shape1, final_shape2, final_shape3, final_shape4;
+            
             var tape_in, local_in, shared_wow, shared_flutter, shared_mod;
             var shared_dust_trig, shared_dropout_env, dt_mono, tape_del_mono;
             var sat_mono, ero_lpf_freq, ero_bass_cut, filt_mono, tone_filt_mono, final_mono;
@@ -94,50 +108,32 @@ Engine_Ltra : CroneEngine {
                 NamedControl.kr(\scale_map_10, 10), NamedControl.kr(\scale_map_11, 11)
             ];
 
-            // FIX: True Analog Topology (Saw -> Square -> Triangle -> Sine)
             var mk_osc = { |f, s| 
                 var shape_idx = s.clip(0, 6);
                 var safe_f = f.clip(20, 20000);
                 
-                // Stage 0: Pure Noise
                 var sig0 = PinkNoise.ar;
-                
-                // The Core (Band-Limited Saw)
                 var core_saw = SawDPW.ar(safe_f);
                 
-                // Stage 1: Blurred Saw (Phase Modulated via DelayC)
                 var pm_amt = SelectX.kr(shape_idx.clip(1, 2) - 1, [0.15, 0.0]);
                 var pm_mod = LPF.ar(PinkNoise.ar, 10000) * pm_amt * 0.015;
                 var sig1 = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
                 
-                // Stage 2: Pure Saw
                 var sig2 = core_saw;
                 
-                // Stage 5: Square / Rect (Derived from Saw via Two-Saw Subtraction)
+                var clean_saw = core_saw.clip(-0.95, 0.95) * 1.0526;
+                var sig3 = (clean_saw.abs * 2.0) - 1.0;
+                
+                var sig4 = (sig3 * (pi/2)).sin * 0.816;
+                
                 var sqr_raw = core_saw - DelayC.ar(core_saw, 0.1, 0.5 / safe_f);
-                var sig5 = LeakDC.ar(sqr_raw) * 0.5;
+                var sig5 = LeakDC.ar(sqr_raw) * 0.5 * 0.577;
                 
-                // Stage 3: Triangle (Derived from Square via Leaky Integration)
-                // Multiplier normalizes amplitude to exactly 1.0 regardless of frequency
-                var tri_raw = Integrator.ar(sig5, 0.999) * (4.0 * safe_f / SampleRate.ir);
-                var sig3 = LeakDC.ar(tri_raw);
-                
-                // Stage 4: Sine (Derived from Triangle via Trigonometric Shaper)
-                var sig4 = (sig3.clip(-1.0, 1.0) * (pi/2)).sin;
-                
-                // Stage 6: Pulse 98% (Derived from Saw via Two-Saw Subtraction)
                 var pulse_delay = (0.02 / safe_f).max(SampleDur.ir);
                 var pulse_raw = core_saw - DelayC.ar(core_saw, 0.1, pulse_delay);
-                var sig6 = LeakDC.ar(pulse_raw) * 0.5;
+                var sig6 = LeakDC.ar(pulse_raw) * 0.5 * 1.5;
                 
-                // Continuous Morphing (NO RMS COMPENSATION)
                 SelectX.ar(shape_idx,[sig0, sig1, sig2, sig3, sig4, sig5, sig6]);
-            };
-            
-            var mk_vactrol = { |g, t, atk, rel| 
-                var arp_env = Decay2.kr(Trig.kr(t, 0.01), 0.005, 0.2);
-                var combined = (g + arp_env).clip(0, 1);
-                LagUD.kr(combined, atk, rel) 
             };
 
             var calc_mod = { |dest_name, arp_val|
@@ -225,20 +221,45 @@ Engine_Ltra : CroneEngine {
             m_delay_t = calc_mod.("tapecho_time", arp_cv1) * 0.1; 
             m_delay_f = calc_mod.("tapecho_feedback", arp_cv1);
 
-            vca1 = (s_vol1.squared + m_amp1).clip(0, 1);
-            vca2 = (s_vol2.squared + m_amp2).clip(0, 1);
-            vca3 = (s_vol3.squared + m_amp3).clip(0, 1);
-            vca4 = (s_vol4.squared + m_amp4).clip(0, 1);
+            // FIX: MIDI Math (Pitch Bend, Velocity Bipolar, Mod Wheel)
+            bend_norm = (pitch_bend - 8192) / 8192.0;
+            bend_offset = bend_norm * bend_range / 12.0;
+            
+            midi_off1 = (midi_note1 - 60) / 12.0;
+            midi_off2 = (midi_note2 - 60) / 12.0;
+            midi_off3 = (midi_note3 - 60) / 12.0;
+            midi_off4 = (midi_note4 - 60) / 12.0;
+            
+            vel_bip1 = (midi_vel1 - 64) / 63.0;
+            vel_bip2 = (midi_vel2 - 64) / 63.0;
+            vel_bip3 = (midi_vel3 - 64) / 63.0;
+            vel_bip4 = (midi_vel4 - 64) / 63.0;
+            
+            mw_norm = mod_wheel / 127.0;
+            shp_mod1 = mw_norm * mod_amt1 * 6.0;
+            shp_mod2 = mw_norm * mod_amt2 * 6.0;
+            shp_mod3 = mw_norm * mod_amt3 * 6.0;
+            shp_mod4 = mw_norm * mod_amt4 * 6.0;
+
+            vca1 = (s_vol1.squared + m_amp1 + (vel_bip1 * vel_amt1 * s_vol1.squared)).clip(0, 1);
+            vca2 = (s_vol2.squared + m_amp2 + (vel_bip2 * vel_amt2 * s_vol2.squared)).clip(0, 1);
+            vca3 = (s_vol3.squared + m_amp3 + (vel_bip3 * vel_amt3 * s_vol3.squared)).clip(0, 1);
+            vca4 = (s_vol4.squared + m_amp4 + (vel_bip4 * vel_amt4 * s_vol4.squared)).clip(0, 1);
+            
+            final_shape1 = (shape1 + (m_shape1*6) + shp_mod1).clip(0, 6);
+            final_shape2 = (shape2 + (m_shape2*6) + shp_mod2).clip(0, 6);
+            final_shape3 = (shape3 + (m_shape3*6) + shp_mod3).clip(0, 6);
+            final_shape4 = (shape4 + (m_shape4*6) + shp_mod4).clip(0, 6);
 
             env1 = EnvGen.kr(Env.asr(env_atk1, 1.0, env_rel1), gate1);
             env2 = EnvGen.kr(Env.asr(env_atk2, 1.0, env_rel2), gate2);
             env3 = EnvGen.kr(Env.asr(env_atk3, 1.0, env_rel3), gate3);
             env4 = EnvGen.kr(Env.asr(env_atk4, 1.0, env_rel4), gate4);
 
-            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1)), (shape1 + (m_shape1*6)).clip(0,6)) * vca1 * env1;
-            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2)), (shape2 + (m_shape2*6)).clip(0,6)) * vca2 * env2;
-            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3)), (shape3 + (m_shape3*6)).clip(0,6)) * vca3 * env3;
-            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4)), (shape4 + (m_shape4*6)).clip(0,6)) * vca4 * env4;
+            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1 + bend_offset + midi_off1)), final_shape1) * vca1 * env1;
+            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2 + bend_offset + midi_off2)), final_shape2) * vca2 * env2;
+            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3 + bend_offset + midi_off3)), final_shape3) * vca3 * env3;
+            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4 + bend_offset + midi_off4)), final_shape4) * vca4 * env4;
 
             sig_mix = (Pan2.ar(o1, pan1.clip(-1,1)) + Pan2.ar(o2, pan2.clip(-1,1)) + Pan2.ar(o3, pan3.clip(-1,1)) + Pan2.ar(o4, pan4.clip(-1,1))) * 0.125;
 
