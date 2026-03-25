@@ -1,13 +1,19 @@
-// lib/Engine_Ltra.sc | v2.1.2
-// FIX: Array Topology to bypass 255 variable limit, MPE Clamping, Memory Corruption Eradicated
+// lib/Engine_Ltra.sc | v2.1.3
+// FIX: Phase Wave Elite Protocol - Vectorized Array Controls (Bypasses 255 Limit)
 
 Engine_Ltra : CroneEngine {
     var <synth;
     var <osc_bridge;
+    var <matrix_amts;
+    var <matrix_quants;
 
     *new { arg context, doneCallback; ^super.new(context, doneCallback); }
 
     alloc {
+        // State arrays for the Mod Matrix (5 sources x 16 destinations)
+        matrix_amts = Array.fill(5, { Array.fill(16, 0.0) });
+        matrix_quants = Array.fill(5, { Array.fill(16, 1.0) });
+
         SynthDef(\ltra_core, {
             var out = \out.kr(0);
             
@@ -72,7 +78,7 @@ Engine_Ltra : CroneEngine {
             var dust_dens = \dust_dens.kr(0);
             var clear_trig = \clear_trig.kr(0);
             
-            // Voice Arrays (Reduces variable count drastically)
+            // Voice Arrays
             var freqs =[ \freq1.kr(110), \freq2.kr(150), \freq3.kr(220), \freq4.kr(330) ];
             var shapes =[ \shape1.kr(2), \shape2.kr(2), \shape3.kr(2), \shape4.kr(2) ];
             var vols =[ \vol1.kr(0), \vol2.kr(0), \vol3.kr(0), \vol4.kr(0) ];
@@ -99,6 +105,19 @@ Engine_Ltra : CroneEngine {
             var press_shps =[ \press_shp1.kr(0), \press_shp2.kr(0), \press_shp3.kr(0), \press_shp4.kr(0) ];
             
             var arp_cvs =[ \arp_cv1.kr(0), \arp_cv2.kr(0), \arp_cv3.kr(0), \arp_cv4.kr(0) ];
+
+            // VECTORIZED MATRIX CONTROLS (10 Controls instead of 160)
+            var mod1_dest = \mod1_dest.kr(0!16);
+            var mod2_dest = \mod2_dest.kr(0!16);
+            var mod3_dest = \mod3_dest.kr(0!16);
+            var outline_dest = \outline_dest.kr(0!16);
+            var arp_dest = \arp_dest.kr(0!16);
+            
+            var mod1_quant = \mod1_quant.kr(1!16);
+            var mod2_quant = \mod2_quant.kr(1!16);
+            var mod3_quant = \mod3_quant.kr(1!16);
+            var outline_quant = \outline_quant.kr(1!16);
+            var arp_quant = \arp_quant.kr(1!16);
 
             // Internal Variables
             var mod1_lfo, mod1_chaos, mod1_sig;
@@ -170,31 +189,35 @@ Engine_Ltra : CroneEngine {
             env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); 
             outline_sig = Select.kr(outline_source,[env_int, env_ext]) * outline_gain;
 
-            calc_mod = { |dest_name, arp_val|
-                (mod1_sig * NamedControl.kr("mod_mod1_" ++ dest_name, 0)) +
-                (mod2_sig * NamedControl.kr("mod_mod2_" ++ dest_name, 0)) +
-                (mod3_sig * NamedControl.kr("mod_mod3_" ++ dest_name, 0)) +
-                (outline_sig * NamedControl.kr("mod_outline_" ++ dest_name, 0)) +
-                (arp_val * NamedControl.kr("mod_arp_" ++ dest_name, 0));
+            // Vectorized Mod Calculation
+            calc_mod = { |dest_idx, arp_val|
+                (mod1_sig * mod1_dest[dest_idx]) +
+                (mod2_sig * mod2_dest[dest_idx]) +
+                (mod3_sig * mod3_dest[dest_idx]) +
+                (outline_sig * outline_dest[dest_idx]) +
+                (arp_val * arp_dest[dest_idx]);
             };
             
-            calc_mod_pitch = { |dest_name, arp_val|
-                var raw_mod1 = mod1_sig * NamedControl.kr("mod_mod1_" ++ dest_name, 0) * 24.0;
-                var raw_mod2 = mod2_sig * NamedControl.kr("mod_mod2_" ++ dest_name, 0) * 24.0;
-                var raw_mod3 = mod3_sig * NamedControl.kr("mod_mod3_" ++ dest_name, 0) * 24.0;
-                var raw_outline = outline_sig * NamedControl.kr("mod_outline_" ++ dest_name, 0) * 24.0;
-                var raw_arp = arp_val * NamedControl.kr("mod_arp_" ++ dest_name, 0) * 24.0;
+            calc_mod_pitch = { |dest_idx, arp_val|
+                var raw_mod1 = mod1_sig * mod1_dest[dest_idx] * 24.0;
+                var raw_mod2 = mod2_sig * mod2_dest[dest_idx] * 24.0;
+                var raw_mod3 = mod3_sig * mod3_dest[dest_idx] * 24.0;
+                var raw_outline = outline_sig * outline_dest[dest_idx] * 24.0;
+                var raw_arp = arp_val * arp_dest[dest_idx] * 24.0;
+                
                 var quantize_fn = { |raw|
                     var rounded = raw.round;
                     var oct = (rounded / 12).floor;
                     var pc = rounded % 12;
                     (oct * 12) + Select.kr(pc, scale_map);
                 };
-                var q_mod1 = Select.kr(NamedControl.kr("quant_mod1_" ++ dest_name, 1),[raw_mod1, quantize_fn.(raw_mod1)]);
-                var q_mod2 = Select.kr(NamedControl.kr("quant_mod2_" ++ dest_name, 1),[raw_mod2, quantize_fn.(raw_mod2)]);
-                var q_mod3 = Select.kr(NamedControl.kr("quant_mod3_" ++ dest_name, 1),[raw_mod3, quantize_fn.(raw_mod3)]);
-                var q_outline = Select.kr(NamedControl.kr("quant_outline_" ++ dest_name, 1),[raw_outline, quantize_fn.(raw_outline)]);
-                var q_arp = Select.kr(NamedControl.kr("quant_arp_" ++ dest_name, 1),[raw_arp, quantize_fn.(raw_arp)]);
+                
+                var q_mod1 = Select.kr(mod1_quant[dest_idx],[raw_mod1, quantize_fn.(raw_mod1)]);
+                var q_mod2 = Select.kr(mod2_quant[dest_idx],[raw_mod2, quantize_fn.(raw_mod2)]);
+                var q_mod3 = Select.kr(mod3_quant[dest_idx],[raw_mod3, quantize_fn.(raw_mod3)]);
+                var q_outline = Select.kr(outline_quant[dest_idx],[raw_outline, quantize_fn.(raw_outline)]);
+                var q_arp = Select.kr(arp_quant[dest_idx],[raw_arp, quantize_fn.(raw_arp)]);
+                
                 (q_mod1 + q_mod2 + q_mod3 + q_outline + q_arp) / 12.0;
             };
 
@@ -202,16 +225,16 @@ Engine_Ltra : CroneEngine {
             bend_norm = (pitch_bend - 8192) / 8192.0;
             bend_offset = bend_norm * bend_range / 12.0;
 
-            // Voice Iteration (Solves the 255 variable limit)
+            // Voice Iteration
             voices_out = 4.collect { |i|
-                var idx_str = (i+1).asString;
                 var d_sig = (LFNoise2.kr(0.01 + (i*0.001)) * drifts[i] * (6/1200)) + (LFNoise2.kr(3.1 + (i*0.1)) * spreads[i] * (3/1200));
                 var s_freq = Lag.kr(freqs[i], glides[i]);
                 var s_vol = Lag.kr(vols[i], 0.05);
                 
-                var m_pitch = calc_mod_pitch.("pitch" ++ idx_str, arp_cvs[i]);
-                var m_amp = calc_mod.("amp" ++ idx_str, arp_cvs[i]);
-                var m_shape = calc_mod.("shape" ++ idx_str, arp_cvs[i]);
+                // Matrix Indices: PITCH=0..3, AMP=4..7, SHAPE=8..11
+                var m_pitch = calc_mod_pitch.(i, arp_cvs[i]);
+                var m_amp = calc_mod.(i + 4, arp_cvs[i]);
+                var m_shape = calc_mod.(i + 8, arp_cvs[i]);
                 
                 var mpe_bend_off = ((mpe_bends[i] - 8192) / 8192.0) * mpe_bend_range / 12.0;
                 var midi_off = (midi_notes[i] - 60) / 12.0;
@@ -233,8 +256,10 @@ Engine_Ltra : CroneEngine {
 
             s_filt1 = Lag.kr(filt1_cutoff, 0.05); 
             s_filt2 = Lag.kr(filt2_cutoff, 0.05);
-            m_filt1 = calc_mod.("filt1", arp_cvs[0]) * 5000; 
-            m_filt2 = calc_mod.("filt2", arp_cvs[0]) * 5000 + (mw_norm * mw_filt2 * 5000);
+            
+            // Matrix Indices: FILT1=12, FILT2=13
+            m_filt1 = calc_mod.(12, arp_cvs[0]) * 5000; 
+            m_filt2 = calc_mod.(13, arp_cvs[0]) * 5000 + (mw_norm * mw_filt2 * 5000);
 
             sig_filt1 = DFM1.ar(sig_mix, (s_filt1 + m_filt1).clip(20, 18000), filt1_res.clip(0, 1.2), 1.0 + (filt1_drive * 3), filt1_type, 0.0003);
             sig_filt2 = DFM1.ar(sig_filt1, (s_filt2 + m_filt2).clip(20, 18000), filt2_res.clip(0, 1.2), 1.0 + (filt2_drive * 3), filt2_type, 0.0003);
@@ -253,8 +278,9 @@ Engine_Ltra : CroneEngine {
             drive_kr = Lag.kr(tapecho_drive, 0.1);
             filter_kr = Lag.kr(tapecho_filter, 0.1); 
 
-            m_delay_t = calc_mod.("tapecho_time", arp_cvs[0]) * 0.1; 
-            m_delay_f = calc_mod.("tapecho_feedback", arp_cvs[0]) + (mw_norm * mw_delay_f);
+            // Matrix Indices: DELAY_T=14, DELAY_F=15
+            m_delay_t = calc_mod.(14, arp_cvs[0]) * 0.1; 
+            m_delay_f = calc_mod.(15, arp_cvs[0]) + (mw_norm * mw_delay_f);
 
             local_in = LocalIn.ar(1);
             local_in = local_in * (1.0 - Trig.kr(clear_trig, 0.05));
@@ -350,6 +376,25 @@ Engine_Ltra : CroneEngine {
         this.addCommand("set_engine_param", "sf", { arg msg; synth.set(msg[1].asSymbol, msg[2]); });
         this.addCommand("clear_delay", "", { synth.set(\clear_trig, 1); });
         this.addCommand("ping", "", { NetAddr("127.0.0.1", 10111).sendMsg("/ltra/ready"); });
+        
+        // VECTORIZED MATRIX COMMANDS (O(1) Routing)
+        this.addCommand("set_matrix", "iif", { arg msg;
+            var src = msg[1] - 1; // Lua is 1-indexed
+            var dest = msg[2] - 1;
+            var val = msg[3];
+            var src_names =[\mod1_dest, \mod2_dest, \mod3_dest, \outline_dest, \arp_dest];
+            matrix_amts[src][dest] = val;
+            synth.set(src_names[src], matrix_amts[src]);
+        });
+
+        this.addCommand("set_matrix_quant", "iif", { arg msg;
+            var src = msg[1] - 1;
+            var dest = msg[2] - 1;
+            var val = msg[3];
+            var quant_names =[\mod1_quant, \mod2_quant, \mod3_quant, \outline_quant, \arp_quant];
+            matrix_quants[src][dest] = val;
+            synth.set(quant_names[src], matrix_quants[src]);
+        });
         
         this.addCommand("query_config", "", { NetAddr("127.0.0.1", 10111).sendMsg("/ltra/config", 0); });
         NetAddr("127.0.0.1", 10111).sendMsg("/ltra/config", 0);
