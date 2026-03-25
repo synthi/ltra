@@ -1,5 +1,5 @@
--- lib/ui.lua | v2.0.0
--- FIX: ENV Menu Page 2 (MIDI Params), Looper Visuals (3 Loopers)
+-- lib/ui.lua | v2.1.0
+-- FIX: Ergonomic Reorder (E2-E3-E1), MPE Menus, Native VU
 
 local UI = {}
 local Globals
@@ -12,73 +12,84 @@ function UI.init(g_ref)
     Globals.mod_menu_page = Globals.mod_menu_page or 1
     Globals.delay_menu_page = Globals.delay_menu_page or 1
     Globals.reverb_menu_page = Globals.reverb_menu_page or 1
-    Globals.env_menu_page = Globals.env_menu_page or 1 -- FIX: ENV Pagination
+    Globals.env_menu_page = Globals.env_menu_page or 1 
+    Globals.midi_menu_page = Globals.midi_menu_page or 1
 end
 
 local function draw_menu()
     screen.level(15); screen.rect(0,0,128,64); screen.fill(); screen.level(0)
-    local t = Globals.menu_target
+    local targets = type(Globals.menu_target) == "table" and Globals.menu_target or {Globals.menu_target}
+    local t_str = table.concat(targets, ",")
+    local t = targets[1] -- For reading current values
     local mode = Globals.menu_mode
     
     if mode == Consts.MENU.OSC then
         if Globals.osc_menu_page == 1 then
-            screen.move(5,10); screen.text("OSC "..t.." EDIT (1/3)")
-            screen.move(5,25); screen.text("E1 Octave: "..string.format("%+d", params:get("osc"..t.."_octave")))
-            screen.move(5,35); screen.text("E2 Shape: "..string.format("%.2f", params:get("osc"..t.."_shape")))
-            screen.move(5,45); screen.text("E3 Tune: "..string.format("%.2f", params:get("osc"..t.."_tune")))
+            screen.move(5,10); screen.text("OSC "..t_str.." EDIT (1/3)")
+            screen.move(5,25); screen.text("E2 Octave: "..string.format("%+d", params:get("osc"..t.."_octave")))
+            screen.move(5,35); screen.text("E3 Shape: "..string.format("%.2f", params:get("osc"..t.."_shape")))
+            screen.move(5,45); screen.text("E1 Tune: "..string.format("%.2f", params:get("osc"..t.."_tune")))
         elseif Globals.osc_menu_page == 2 then
-            screen.move(5,10); screen.text("OSC "..t.." EDIT (2/3)")
-            screen.move(5,25); screen.text("E1 Drift: "..string.format("%.2f", params:get("osc"..t.."_drift")))
-            screen.move(5,35); screen.text("E2 Spread: "..string.format("%.2f", params:get("osc"..t.."_spread")))
-            screen.move(5,45); screen.text("E3 Vol: "..string.format("%.2f", params:get("osc"..t.."_vol")))
+            screen.move(5,10); screen.text("OSC "..t_str.." EDIT (2/3)")
+            screen.move(5,25); screen.text("E2 Drift: "..string.format("%.2f", params:get("osc"..t.."_drift")))
+            screen.move(5,35); screen.text("E3 Spread: "..string.format("%.2f", params:get("osc"..t.."_spread")))
+            screen.move(5,45); screen.text("E1 Vol: "..string.format("%.2f", params:get("osc"..t.."_vol")))
         else
-            screen.move(5,10); screen.text("OSC "..t.." EDIT (3/3)")
-            screen.move(5,25); screen.text("E1 Glide: "..string.format("%.3fs", params:get("osc"..t.."_glide")))
+            screen.move(5,10); screen.text("OSC "..t_str.." EDIT (3/3)")
+            screen.move(5,25); screen.text("E2 Glide: "..string.format("%.3fs", params:get("osc"..t.."_glide")))
         end
         local arp_state = params:get("osc"..t.."_arp") == 1 and "ON" or "OFF"
         screen.move(5,58); screen.text("K2: ARP["..arp_state.."]  K3: PAGE")
         
     elseif mode == Consts.MENU.ENV then
-        -- FIX: ENV Menu Pagination
-        if Globals.env_menu_page == 1 then
-            screen.move(5,10); screen.text("ENV "..t.." EDIT (1/2)")
-            screen.move(5,25); screen.text("E1 Pan: "..string.format("%.2f", params:get("osc"..t.."_pan")))
-            screen.move(5,35); screen.text("E2 Attack: "..string.format("%.3fs", params:get("env_atk"..t)))
-            screen.move(5,45); screen.text("E3 Release: "..string.format("%.3fs", params:get("env_rel"..t)))
+        screen.move(5,10); screen.text("ENV "..t_str.." EDIT")
+        screen.move(5,25); screen.text("E2 Pan: "..string.format("%.2f", params:get("osc"..t.."_pan")))
+        screen.move(5,35); screen.text("E3 Attack: "..string.format("%.3fs", params:get("env_atk"..t)))
+        screen.move(5,45); screen.text("E1 Release: "..string.format("%.3fs", params:get("env_rel"..t)))
+        
+    elseif mode == Consts.MENU.MIDI then
+        if Globals.midi_menu_page == 1 then
+            screen.move(5,10); screen.text("MIDI "..t_str.." (1/3)")
+            screen.move(5,25); screen.text("E2 Vel>Vol: "..string.format("%.0f%%", params:get("osc"..t.."_vel_vol") * 100))
+            screen.move(5,35); screen.text("E3 Vel>Atk: "..string.format("%+.0f%%", params:get("osc"..t.."_vel_atk") * 100))
+            screen.move(5,45); screen.text("E1 Vel>Shp: "..string.format("%+.0f%%", params:get("osc"..t.."_vel_shp") * 100))
+        elseif Globals.midi_menu_page == 2 then
+            screen.move(5,10); screen.text("MPE SLIDE "..t_str.." (2/3)")
+            screen.move(5,25); screen.text("E2 Sld>Vol: "..string.format("%+.0f%%", params:get("osc"..t.."_slide_vol") * 100))
+            screen.move(5,35); screen.text("E3 Sld>Shp: "..string.format("%+.0f%%", params:get("osc"..t.."_slide_shp") * 100))
+            screen.move(5,45); screen.text("E1 MW>Filt2: "..string.format("%+.0f%%", params:get("mw_filt2") * 100))
         else
-            screen.move(5,10); screen.text("ENV "..t.." MIDI (2/2)")
-            screen.move(5,25); screen.text("E1 Mod>Shape: "..string.format("%.0f%%", params:get("osc"..t.."_mod_shape") * 100))
-            screen.move(5,35); screen.text("E2 Vel>Vol: "..string.format("%.0f%%", params:get("osc"..t.."_vel_vol") * 100))
-            local ch = params:get("osc"..t.."_midi_ch")
-            local ch_str = (ch == 17) and "OMNI" or tostring(ch)
-            screen.move(5,45); screen.text("E3 MIDI Ch: "..ch_str)
+            screen.move(5,10); screen.text("MPE PRESS "..t_str.." (3/3)")
+            screen.move(5,25); screen.text("E2 Prs>Vol: "..string.format("%+.0f%%", params:get("osc"..t.."_press_vol") * 100))
+            screen.move(5,35); screen.text("E3 Prs>Shp: "..string.format("%+.0f%%", params:get("osc"..t.."_press_shp") * 100))
+            screen.move(5,45); screen.text("E1 MW>Echo: "..string.format("%+.0f%%", params:get("mw_delay_f") * 100))
         end
         local midi_state = params:get("osc"..t.."_midi_note") == 1 and "ON" or "OFF"
         screen.move(5,58); screen.text("K2: MIDI["..midi_state.."]  K3: PAGE")
         
     elseif mode == Consts.MENU.MOD then
         if Globals.mod_menu_page == 1 then
-            screen.move(5,10); screen.text("MOD "..t.." LFO (1/2)")
-            screen.move(5,25); screen.text("E1 Shape: "..string.format("%.2f", params:get("mod"..t.."_lfo_shape")))
+            screen.move(5,10); screen.text("MOD "..t_str.." LFO (1/2)")
+            screen.move(5,25); screen.text("E2 Shape: "..string.format("%.2f", params:get("mod"..t.."_lfo_shape")))
             if params:get("mod"..t.."_lfo_sync") == 1 then
                 local div = params:get("mod"..t.."_lfo_div")
-                screen.move(5,35); screen.text("E2 Div: "..Consts.SYNC_DIVS[div].name)
+                screen.move(5,35); screen.text("E3 Div: "..Consts.SYNC_DIVS[div].name)
             else
-                screen.move(5,35); screen.text("E2 Rate: "..string.format("%.2f Hz", params:get("mod"..t.."_lfo_rate")))
+                screen.move(5,35); screen.text("E3 Rate: "..string.format("%.2f Hz", params:get("mod"..t.."_lfo_rate")))
             end
-            screen.move(5,45); screen.text("E3 Depth: "..string.format("%.2f", params:get("mod"..t.."_depth")))
+            screen.move(5,45); screen.text("E1 Depth: "..string.format("%.2f", params:get("mod"..t.."_depth")))
             local sync_str = params:get("mod"..t.."_lfo_sync") == 1 and "ON" or "OFF"
             screen.move(5,58); screen.text("K2: SYNC["..sync_str.."]  K3: PAGE")
         else
-            screen.move(5,10); screen.text("MOD "..t.." CHAOS (2/2)")
-            screen.move(5,25); screen.text("E1 Mix: "..string.format("%.2f", params:get("mod"..t.."_mix")))
+            screen.move(5,10); screen.text("MOD "..t_str.." CHAOS (2/2)")
+            screen.move(5,25); screen.text("E2 Mix: "..string.format("%.2f", params:get("mod"..t.."_mix")))
             if params:get("mod"..t.."_chaos_sync") == 1 then
                 local div = params:get("mod"..t.."_chaos_div")
-                screen.move(5,35); screen.text("E2 Div: "..Consts.SYNC_DIVS[div].name)
+                screen.move(5,35); screen.text("E3 Div: "..Consts.SYNC_DIVS[div].name)
             else
-                screen.move(5,35); screen.text("E2 Rate: "..string.format("%.2f Hz", params:get("mod"..t.."_chaos_rate")))
+                screen.move(5,35); screen.text("E3 Rate: "..string.format("%.2f Hz", params:get("mod"..t.."_chaos_rate")))
             end
-            screen.move(5,45); screen.text("E3 Slew: "..string.format("%.2f", params:get("mod"..t.."_chaos_slew")))
+            screen.move(5,45); screen.text("E1 Slew: "..string.format("%.2f", params:get("mod"..t.."_chaos_slew")))
             local sync_str = params:get("mod"..t.."_chaos_sync") == 1 and "ON" or "OFF"
             screen.move(5,58); screen.text("K2: SYNC["..sync_str.."]  K3: PAGE")
         end
@@ -88,67 +99,67 @@ local function draw_menu()
             screen.move(5,10); screen.text("ARP SETTINGS (1/2)")
             local div_opts = {}
             for _, v in ipairs(Consts.SYNC_DIVS) do table.insert(div_opts, v.name) end
-            screen.move(5,25); screen.text("E1 Div: "..div_opts[params:get("arp_div")])
-            screen.move(5,35); screen.text("E2 Chaos: "..string.format("%.2f", params:get("arp_chaos")))
-            screen.move(5,45); screen.text("E3 Gate: "..string.format("%.2f", params:get("arp_gate_len")))
+            screen.move(5,25); screen.text("E2 Div: "..div_opts[params:get("arp_div")])
+            screen.move(5,35); screen.text("E3 Chaos: "..string.format("%.2f", params:get("arp_chaos")))
+            screen.move(5,45); screen.text("E1 Gate: "..string.format("%.2f", params:get("arp_gate_len")))
         else
             screen.move(5,10); screen.text("ARP SETTINGS (2/2)")
-            screen.move(5,25); screen.text("E1 Length: "..params:get("arp_length").." bits")
-            screen.move(5,35); screen.text("E2 Octaves: "..params:get("arp_octaves"))
+            screen.move(5,25); screen.text("E2 Length: "..params:get("arp_length").." bits")
+            screen.move(5,35); screen.text("E3 Octaves: "..params:get("arp_octaves"))
         end
         screen.move(5,58); screen.text("K3: PAGE")
         
     elseif mode == Consts.MENU.OUTLINE then
         screen.move(5,10); screen.text("OUTLINE FOLLOWER")
         local src = params:get("outline_src") == 1 and "INT GATE" or "EXT AUDIO"
-        screen.move(5,25); screen.text("E1 Source: "..src)
-        screen.move(5,35); screen.text("E2 Gain: "..string.format("%.1f", params:get("outline_gain")))
+        screen.move(5,25); screen.text("E2 Source: "..src)
+        screen.move(5,35); screen.text("E3 Gain: "..string.format("%.1f", params:get("outline_gain")))
         
     elseif mode == Consts.MENU.FILTER then
         local f_name = (t==1) and "VADIM" or "DFM1"
         screen.move(5,10); screen.text("FILTER "..t.." ("..f_name..")")
-        screen.move(5,25); screen.text("E1 Drive: "..string.format("%.2f", params:get("filt"..t.."_drive")))
-        screen.move(5,35); screen.text("E2 Cutoff: "..string.format("%.0f Hz", params:get("filt"..t.."_cutoff")))
-        screen.move(5,45); screen.text("E3 Res: "..string.format("%.2f", params:get("filt"..t.."_res")))
+        screen.move(5,25); screen.text("E2 Drive: "..string.format("%.2f", params:get("filt"..t.."_drive")))
+        screen.move(5,35); screen.text("E3 Cutoff: "..string.format("%.0f Hz", params:get("filt"..t.."_cutoff")))
+        screen.move(5,45); screen.text("E1 Res: "..string.format("%.2f", params:get("filt"..t.."_res")))
         local type_str = params:get("filt"..t.."_type") == 0 and "LP" or "HP"
         screen.move(5,58); screen.text("K2: TYPE["..type_str.."]")
 
     elseif mode == Consts.MENU.DELAY then
         if Globals.delay_menu_page == 1 then
             screen.move(5,10); screen.text("FX TAPE (1/2)")
-            screen.move(5,25); screen.text("E1 Send: "..string.format("%.2f", params:get("delay_send")))
-            screen.move(5,35); screen.text("E2 Time: "..string.format("%.2f s", params:get("tapecho_time")))
-            screen.move(5,45); screen.text("E3 Fdbk: "..string.format("%.2f", params:get("tapecho_feedback")))
+            screen.move(5,25); screen.text("E2 Send: "..string.format("%.2f", params:get("delay_send")))
+            screen.move(5,35); screen.text("E3 Time: "..string.format("%.2f s", params:get("tapecho_time")))
+            screen.move(5,45); screen.text("E1 Fdbk: "..string.format("%.2f", params:get("tapecho_feedback")))
         else
             screen.move(5,10); screen.text("FX TAPE (2/2)")
-            screen.move(5,25); screen.text("E1 Drive: "..string.format("%.2f", params:get("tapecho_drive")))
-            screen.move(5,35); screen.text("E2 Erosion: "..string.format("%.2f", params:get("tapecho_erosion")))
-            screen.move(5,45); screen.text("E3 Wow/Flut: "..string.format("%.2f", params:get("tapecho_wow_flutter")))
+            screen.move(5,25); screen.text("E2 Drive: "..string.format("%.2f", params:get("tapecho_drive")))
+            screen.move(5,35); screen.text("E3 Erosion: "..string.format("%.2f", params:get("tapecho_erosion")))
+            screen.move(5,45); screen.text("E1 Wow/Flut: "..string.format("%.2f", params:get("tapecho_wow_flutter")))
         end
         screen.move(5,58); screen.text("K3: PAGE")
         
     elseif mode == Consts.MENU.REVERB then
         if Globals.reverb_menu_page == 1 then
             screen.move(5,10); screen.text("FX BLOSSOM (1/3)")
-            screen.move(5,25); screen.text("E1 Mix: "..string.format("%.2f", params:get("reverb_mix")))
-            screen.move(5,35); screen.text("E2 Decay: "..string.format("%.1fs", params:get("blossomverb_decay")))
-            screen.move(5,45); screen.text("E3 Bloom: "..string.format("%.2f", params:get("blossomverb_bloom")))
+            screen.move(5,25); screen.text("E2 Mix: "..string.format("%.2f", params:get("reverb_mix")))
+            screen.move(5,35); screen.text("E3 Decay: "..string.format("%.1fs", params:get("blossomverb_decay")))
+            screen.move(5,45); screen.text("E1 Bloom: "..string.format("%.2f", params:get("blossomverb_bloom")))
         elseif Globals.reverb_menu_page == 2 then
             screen.move(5,10); screen.text("FX BLOSSOM (2/3)")
-            screen.move(5,25); screen.text("E1 Damp: "..string.format("%.0f Hz", params:get("blossomverb_damp")))
-            screen.move(5,35); screen.text("E2 Predelay: "..string.format("%.2fs", params:get("blossomverb_predelay")))
-            screen.move(5,45); screen.text("E3 Mod Rate: "..string.format("%.2f Hz", params:get("blossomverb_mod_rate")))
+            screen.move(5,25); screen.text("E2 Damp: "..string.format("%.0f Hz", params:get("blossomverb_damp")))
+            screen.move(5,35); screen.text("E3 Predelay: "..string.format("%.2fs", params:get("blossomverb_predelay")))
+            screen.move(5,45); screen.text("E1 Mod Rate: "..string.format("%.2f Hz", params:get("blossomverb_mod_rate")))
         else
             screen.move(5,10); screen.text("FX BLOSSOM (3/3)")
-            screen.move(5,25); screen.text("E1 Mod Depth: "..string.format("%.4f", params:get("blossomverb_mod_depth")))
+            screen.move(5,25); screen.text("E2 Mod Depth: "..string.format("%.4f", params:get("blossomverb_mod_depth")))
         end
         screen.move(5,58); screen.text("K3: PAGE")
         
     elseif mode == Consts.MENU.LOOPER then 
         screen.move(5,10); screen.text("OUTPUT & SYSTEM")
-        screen.move(5,25); screen.text("E1 Monitor: "..string.format("%.2f", params:get("monitor_vol")))
-        screen.move(5,35); screen.text("E2 Master: "..string.format("%.2f", params:get("master_vol")))
-        screen.move(5,45); screen.text("E3 Dirt: "..string.format("%.2f", params:get("system_dirt")))
+        screen.move(5,25); screen.text("E2 Monitor: "..string.format("%.2f", params:get("monitor_vol")))
+        screen.move(5,35); screen.text("E3 Master: "..string.format("%.2f", params:get("master_vol")))
+        screen.move(5,45); screen.text("E1 Dirt: "..string.format("%.2f", params:get("system_dirt")))
         
     elseif mode == Consts.MENU.MATRIX then
         screen.move(5,10); screen.text("MATRIX EDIT")
@@ -190,7 +201,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v2.0.0")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v2.1.0")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
