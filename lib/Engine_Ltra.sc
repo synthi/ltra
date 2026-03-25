@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.21
-// FIX: Topological Saw-Core (Phase Mod, Fold, Shaper, Tanh) + RMS Compensation
+// lib/Engine_Ltra.sc | v1.5.24
+// FIX: Restored Topological Saw-Core, Fixed Gibbs Sine Harmonics, Restored Square Pressure
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -80,7 +80,6 @@ Engine_Ltra : CroneEngine {
             var prime_ap_l = #[0.011270, 0.031729];
             var prime_ap_r = #[0.011604, 0.031895];
             
-            // Drift and Spread maintained
             var d_sig1 = (LFNoise2.kr(0.01) * drift1 * (6/1200)) + (LFNoise2.kr(3.1) * spread1 * (3/1200));
             var d_sig2 = (LFNoise2.kr(0.012) * drift2 * (6/1200)) + (LFNoise2.kr(3.4) * spread2 * (3/1200));
             var d_sig3 = (LFNoise2.kr(0.008) * drift3 * (6/1200)) + (LFNoise2.kr(2.9) * spread3 * (3/1200));
@@ -95,15 +94,16 @@ Engine_Ltra : CroneEngine {
                 NamedControl.kr(\scale_map_10, 10), NamedControl.kr(\scale_map_11, 11)
             ];
 
-            // FIX: Topological Saw-Core Implementation
+            // FIX: Restored Topological Saw-Core
             var mk_osc = { |f, s| 
                 var shape_idx = s.clip(0, 5);
-                var noise = LPF.ar(PinkNoise.ar, 10000);
+                var safe_f = f.clip(20, 20000);
+                var noise = PinkNoise.ar;
                 
-                // 1. Phase Mod (Noise -> Blurred -> Saw)
-                var pm_amt = SelectX.kr(shape_idx.clip(0, 2),[1.0, 0.15, 0.0]);
-                var pm_mod = noise * pm_amt * 0.015; 
-                var core_saw = DelayC.ar(SawDPW.ar(f.clip(20, 20000)), 0.04, 0.02 + pm_mod);
+                // 1. Phase Mod (Blurred -> Saw)
+                var pm_amt = SelectX.kr(shape_idx.clip(1, 2) - 1, [0.15, 0.0]);
+                var pm_mod = LPF.ar(noise, 10000) * pm_amt * 0.015;
+                var core_saw = DelayC.ar(SawDPW.ar(safe_f), 0.04, 0.02 + pm_mod);
                 
                 // 2. Fold (Saw -> Tri)
                 var fold_amt = (shape_idx - 2.0).clip(0, 1);
@@ -111,18 +111,18 @@ Engine_Ltra : CroneEngine {
                 
                 // 3. Shaper (Tri -> Sine)
                 var sine_amt = (shape_idx - 3.0).clip(0, 1);
-                var pure_sine = (stage_tri * (pi/2)).sin;
+                // FIX: .clip(-1.0, 1.0) prevents Gibbs phenomenon from folding the sine peak
+                var pure_sine = (stage_tri.clip(-1.0, 1.0) * (pi/2)).sin;
                 var stage_sine = XFade2.ar(stage_tri, pure_sine, sine_amt * 2 - 1);
                 
                 // 4. Overdrive (Sine -> Square)
                 var sqr_amt = (shape_idx - 4.0).clip(0, 1);
                 var drive = 1.0 + (sqr_amt * 50.0);
-                var stage_sqr = (stage_sine * drive).tanh / drive.tanh;
+                // FIX: Removed RMS compensation to restore Square wave pressure
+                var stage_sqr = (stage_sine * drive).tanh;
                 
-                // 5. RMS Comp (Constant Loudness)
-                var rms_comp = SelectX.kr(shape_idx,[1.0, 1.0, 1.0, 1.0, 0.816, 0.577]);
-                
-                stage_sqr * rms_comp;
+                // Crossfade pure noise at shape 0
+                SelectX.ar(shape_idx.clip(0, 1), [noise * 1.2, stage_sqr]);
             };
             
             var mk_vactrol = { |g, t, atk, rel| 
@@ -226,10 +226,10 @@ Engine_Ltra : CroneEngine {
             env3 = EnvGen.kr(Env.asr(env_atk3, 1.0, env_rel3), gate3);
             env4 = EnvGen.kr(Env.asr(env_atk4, 1.0, env_rel4), gate4);
 
-            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1)), (shape1 + (m_shape1*5)).clip(0,5)) * vca1 * env1;
-            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2)), (shape2 + (m_shape2*5)).clip(0,5)) * vca2 * env2;
-            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3)), (shape3 + (m_shape3*5)).clip(0,5)) * vca3 * env3;
-            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4)), (shape4 + (m_shape4*5)).clip(0,5)) * vca4 * env4;
+            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1)), (shape1 + (m_shape1*5)).clip(0,5)) * vca1 * mk_vactrol.(gate1, t_arp1, env_atk1, env_rel1);
+            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2)), (shape2 + (m_shape2*5)).clip(0,5)) * vca2 * mk_vactrol.(gate2, t_arp2, env_atk2, env_rel2);
+            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3)), (shape3 + (m_shape3*5)).clip(0,5)) * vca3 * mk_vactrol.(gate3, t_arp3, env_atk3, env_rel3);
+            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4)), (shape4 + (m_shape4*5)).clip(0,5)) * vca4 * mk_vactrol.(gate4, t_arp4, env_atk4, env_rel4);
 
             sig_mix = (Pan2.ar(o1, pan1.clip(-1,1)) + Pan2.ar(o2, pan2.clip(-1,1)) + Pan2.ar(o3, pan3.clip(-1,1)) + Pan2.ar(o4, pan4.clip(-1,1))) * 0.125;
 
