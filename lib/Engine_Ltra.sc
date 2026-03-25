@@ -1,5 +1,6 @@
-// lib/Engine_Ltra.sc | v2.0.0
+// lib/Engine_Ltra.sc | v2.0.2
 // FIX: MIDI Polyphonic Engine Math (Velocity Bipolar, Mod Wheel, Pitch Bend)
+// FIX: triangle wave derived fom rectangle wave
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -121,13 +122,17 @@ Engine_Ltra : CroneEngine {
                 
                 var sig2 = core_saw;
                 
-                var clean_saw = core_saw.clip(-0.95, 0.95) * 1.0526;
-                var sig3 = (clean_saw.abs * 2.0) - 1.0;
-                
-                var sig4 = (sig3 * (pi/2)).sin * 0.816;
-                
+                // Stage 5: Square / Rect (Derived from Saw via Two-Saw Subtraction)
                 var sqr_raw = core_saw - DelayC.ar(core_saw, 0.1, 0.5 / safe_f);
-                var sig5 = LeakDC.ar(sqr_raw) * 0.5 * 0.577;
+                var sig5 = LeakDC.ar(sqr_raw) * 0.5;
+                
+                // Stage 3: Triangle (Derived from Square via Leaky Integration)
+                // Multiplier normalizes amplitude to exactly 1.0 regardless of frequency
+                var tri_raw = Integrator.ar(sig5, 0.999) * (4.0 * safe_f / SampleRate.ir);
+                var sig3 = LeakDC.ar(tri_raw);
+                
+                // Stage 4: Sine (Derived from Triangle via Trigonometric Shaper)
+                var sig4 = (sig3.clip(-1.0, 1.0) * (pi/2)).sin;
                 
                 var pulse_delay = (0.02 / safe_f).max(SampleDur.ir);
                 var pulse_raw = core_saw - DelayC.ar(core_saw, 0.1, pulse_delay);
