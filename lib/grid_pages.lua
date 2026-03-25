@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v2.0.1
--- FIX: Dynamic MIDI Velocity Visual Feedback on ENV buttons
+-- lib/grid_pages.lua | v2.1.0
+-- FIX: Multi-Hold Array Logic, Row 5 MPE Menu, Active Snapshot Brightness
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -55,35 +55,47 @@ end
 local function check_hold()
     if Globals.page ~= 1 then return end
     
-    local held_x = nil
-    local held_y = nil
-    for y=6, 7 do
-        for x=1, 16 do
+    local held_targets = {}
+    local active_row = nil
+    
+    for y=5, 7 do
+        for x=1, 4 do
             if Globals.button_state[x] and Globals.button_state[x][y] then 
-                held_x = x; held_y = y; break 
+                table.insert(held_targets, x)
+                active_row = y
             end
         end
-        if held_x then break end
+        if #held_targets > 0 then break end
+    end
+    
+    if #held_targets > 0 then
+        if active_row == 5 then
+            Globals.menu_mode = Consts.MENU.MIDI; Globals.menu_target = held_targets
+        elseif active_row == 6 then
+            Globals.menu_mode = Consts.MENU.OSC; Globals.menu_target = held_targets
+        elseif active_row == 7 then
+            Globals.menu_mode = Consts.MENU.ENV; Globals.menu_target = held_targets
+        end
+        Globals.dirty = true
+        return
+    end
+    
+    -- Check single holds for other menus
+    local held_x = nil
+    for x=6, 16 do
+        if Globals.button_state[x] and Globals.button_state[x][6] then held_x = x; break end
     end
     
     if held_x then
-        if held_y == 6 then
-            if held_x <= 4 then Globals.menu_mode = Consts.MENU.OSC; Globals.menu_target = held_x
-            elseif held_x >= 6 and held_x <= 8 then Globals.menu_mode = Consts.MENU.MOD; Globals.menu_target = held_x - 5
-            elseif held_x == 9 then Globals.menu_mode = Consts.MENU.OUTLINE
-            elseif held_x == 11 or held_x == 12 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = (held_x==11 and 1 or 2)
-            elseif held_x == 13 then Globals.menu_mode = Consts.MENU.DELAY
-            elseif held_x == 14 then Globals.menu_mode = Consts.MENU.REVERB
-            elseif held_x == 16 then Globals.menu_mode = Consts.MENU.LOOPER 
-            end
-            Globals.dirty = true
-            return
-        elseif held_y == 7 then
-            if held_x >= 1 and held_x <= 4 then Globals.menu_mode = Consts.MENU.ENV; Globals.menu_target = held_x
-            end
-            Globals.dirty = true
-            return
+        if held_x >= 6 and held_x <= 8 then Globals.menu_mode = Consts.MENU.MOD; Globals.menu_target = {held_x - 5}
+        elseif held_x == 9 then Globals.menu_mode = Consts.MENU.OUTLINE
+        elseif held_x == 11 or held_x == 12 then Globals.menu_mode = Consts.MENU.FILTER; Globals.menu_target = {held_x==11 and 1 or 2}
+        elseif held_x == 13 then Globals.menu_mode = Consts.MENU.DELAY
+        elseif held_x == 14 then Globals.menu_mode = Consts.MENU.REVERB
+        elseif held_x == 16 then Globals.menu_mode = Consts.MENU.LOOPER 
         end
+        Globals.dirty = true
+        return
     end
 
     if Globals.button_state[12] and Globals.button_state[12][8] then
@@ -123,7 +135,10 @@ local function draw_snapshots()
     for i=1, 6 do
         local x = i + 5
         local b = Consts.BRIGHT.BG_NAV 
-        if Globals.snapshots[i] then b = Consts.BRIGHT.VAL_MED end 
+        if Globals.snapshots[i] then 
+            b = Consts.BRIGHT.VAL_MED 
+            if Globals.active_snapshot == i then b = b + 4 end -- FIX: Active Snapshot Brightness
+        end 
         led_safe(x, 7, b)
     end
 end
@@ -155,7 +170,8 @@ function Pages.redraw()
     if Globals.page == 1 then
         Matrix.draw(HW, led_safe)
         
-        for i=1, 4 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end
+        for i=1, 4 do led_safe(i, 5, Consts.BRIGHT.BG_DASHBOARD) end -- Row 5 MIDI
+        for i=1, 4 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end -- Row 6 OSC
         
         local mod1 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[1] or 0))
         led_safe(6, 6, mod1)
@@ -173,7 +189,6 @@ function Pages.redraw()
         led_safe(14, 6, Consts.BRIGHT.BG_DASHBOARD)
         led_safe(16, 6, Consts.BRIGHT.BG_DASHBOARD) 
         
-        -- FIX: Dynamic MIDI Velocity Visual Feedback on ENV buttons
         for i=1, 4 do 
             local b = Consts.BRIGHT.BG_DASHBOARD
             if params:get("osc"..i.."_midi_note") == 1 then
