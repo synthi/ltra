@@ -1,5 +1,6 @@
--- lib/controls_key.lua | v1.5.11
--- FIX: Matrix K2 Quantize Toggle
+-- lib/controls_key.lua | v1.5.17
+-- lib/controls_key.lua
+-- FIX: OSC Menu Pagination to 3 pages
 
 local Keys = {}
 local Globals
@@ -22,7 +23,9 @@ function Keys.event(n, z)
                 local curr = params:get("osc"..t.."_arp")
                 params:set("osc"..t.."_arp", 1-curr)
             elseif n==3 then
-                Globals.osc_menu_page = (Globals.osc_menu_page == 1) and 2 or 1
+                -- FIX: 3 Pages for OSC Menu
+                Globals.osc_menu_page = Globals.osc_menu_page + 1
+                if Globals.osc_menu_page > 3 then Globals.osc_menu_page = 1 end
             end
             
         elseif Globals.menu_mode == Consts.MENU.MOD then
@@ -66,14 +69,12 @@ function Keys.event(n, z)
                 local dst_idx = Consts.DESTINATIONS[Globals.menu_target.dest_name]
                 if src_idx and dst_idx then
                     if dst_idx <= 4 then
-                        -- FIX: K2 toggles Quantize
                         local current_q = Globals.matrix_quant[src_idx][dst_idx]
                         local new_q = 1 - current_q
                         Globals.matrix_quant[src_idx][dst_idx] = new_q
                         local idx = string.match(Globals.menu_target.dest_name, "(%d+)$") or ""
                         Bridge.set_matrix_quant(Globals.menu_target.src_name:lower(), "pitch", idx, new_q)
                     else
-                        -- FIX: K2 inverts non-pitch destinations
                         local current = Globals.matrix[src_idx][dst_idx]
                         local id = "mat_"..Globals.menu_target.src_name.."_"..Globals.menu_target.dest_name
                         params:set(id, current * -1)
