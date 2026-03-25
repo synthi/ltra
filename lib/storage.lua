@@ -1,5 +1,5 @@
--- lib/storage.lua | v2.0.0
--- FIX: Stereo Looper Saving (L/R files)
+-- lib/storage.lua | v2.1.0
+-- FIX: Track Active Snapshot
 
 local Storage = {}
 local Globals
@@ -36,7 +36,6 @@ function Storage.save_sidecar(pset_number)
         local audio_path_R = _path.audio .. "ltra/snapshots/pset_" .. pset_number .. "_trk_" .. i .. "_R_" .. timestamp .. ".wav"
         local start_pos = (i-1) * 115
         
-        -- Save Buffer 1 (L) and Buffer 2 (R)
         softcut.buffer_write_mono(audio_path_L, start_pos, 110, 1)
         softcut.buffer_write_mono(audio_path_R, start_pos, 110, 2)
     end
@@ -87,6 +86,7 @@ function Storage.save_snapshot(slot)
     end
     
     Globals.snapshots[slot] = snap
+    Globals.active_snapshot = slot
     print("LTRA: Snapshot "..slot.." saved to RAM.")
 end
 
@@ -112,11 +112,13 @@ function Storage.load_snapshot(slot)
     local Midi16n = require 'ltra/lib/midi_16n'
     Midi16n.sync_faders()
     
+    Globals.active_snapshot = slot
     print("LTRA: Snapshot "..slot.." loaded.")
 end
 
 function Storage.delete_snapshot(slot)
     Globals.snapshots[slot] = nil
+    if Globals.active_snapshot == slot then Globals.active_snapshot = nil end
     print("LTRA: Snapshot "..slot.." deleted.")
 end
 
