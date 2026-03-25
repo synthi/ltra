@@ -1,5 +1,5 @@
--- lib/engine_bridge.lua | v1.5.11
--- FIX: Matrix translation to isolated namespace (tapecho_*)
+-- lib/engine_bridge.lua | v2.0.0
+-- FIX: Added MIDI Setters
 
 local Bridge = {}
 local Globals
@@ -39,7 +39,6 @@ function Bridge.sync_matrix()
                 local dest = d_name:lower():gsub("%d", "")
                 if dest == "filt" then dest = "filt" end 
                 if dest == "morph" then dest = "shape" end 
-                -- FIX: Translate matrix visual names to isolated namespace
                 if dest == "delay_t" then dest = "tapecho_time" end
                 if dest == "delay_f" then dest = "tapecho_feedback" end
                 
@@ -60,6 +59,12 @@ function Bridge.set_param(name, value) engine.set_engine_param(name, value) end
 function Bridge.set_freq(idx, hz) engine.set_engine_param("freq"..idx, hz) end
 function Bridge.set_gate(idx, val) engine.set_engine_param("gate"..idx, val) end
 function Bridge.reset_lfo() engine.set_engine_param("t_reset", 1) end
+
+-- FIX: MIDI Setters
+function Bridge.set_midi_note(idx, note) engine.set_engine_param("midi_note"..idx, note) end
+function Bridge.set_midi_vel(idx, vel) engine.set_engine_param("midi_vel"..idx, vel) end
+function Bridge.set_mod_wheel(val) engine.set_engine_param("mod_wheel", val) end
+function Bridge.set_pitch_bend(val) engine.set_engine_param("pitch_bend", val) end
 
 function Bridge.set_matrix(src, dest, idx, val)
     engine.set_engine_param("mod_"..src.."_"..dest..idx, val)
