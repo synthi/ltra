@@ -1,5 +1,5 @@
--- lib/parameters.lua | v2.0.0
--- FIX: MIDI Params, 3 Stereo Loopers
+-- lib/parameters.lua | v2.0.1
+-- FIX: Reset MIDI Note offset when toggled OFF
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -36,14 +36,13 @@ function Params.init(g_ref)
     params:add_control("monitor_vol", "Monitor In", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("monitor_vol", function(x) audio.level_adc(x) end)
     
-    -- FIX: Global MIDI Params
     params:add_number("midi_device", "MIDI Device", 1, 4, 1)
     params:add_option("midi_poly_mode", "Poly Mode", Consts.POLY_MODES, 1)
     params:add_number("midi_bend_range", "Bend Range", 1, 12, 2)
     params:set_action("midi_bend_range", function(x) Bridge.set_param("bend_range", x) end)
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 16) -- FIX: Increased for MIDI params
+        params:add_group("VOICE "..i, 16) 
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -100,9 +99,13 @@ function Params.init(g_ref)
         params:add_control("env_rel"..i, "Release", controlspec.new(0.001, 11.0, "exp", 0.01, 0.2))
         params:set_action("env_rel"..i, function(x) Bridge.set_param("env_rel"..i, x) end)
         
-        -- FIX: Voice MIDI Params
+        -- FIX: Reset MIDI Note offset when toggled OFF
         params:add_binary("osc"..i.."_midi_note", "MIDI Note", "toggle", 0)
-        params:add_number("osc"..i.."_midi_ch", "MIDI Channel", 1, 17, 17) -- 17 = Omni
+        params:set_action("osc"..i.."_midi_note", function(x)
+            if x == 0 then Bridge.set_midi_note(i, 60) end
+        end)
+        
+        params:add_number("osc"..i.."_midi_ch", "MIDI Channel", 1, 17, 17) 
         params:add_control("osc"..i.."_vel_vol", "Vel to Vol", controlspec.new(0,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_vel_vol", function(x) Bridge.set_param("vel_amt"..i, x) end)
         params:add_control("osc"..i.."_mod_shape", "Mod to Shape", controlspec.new(0,1,"lin",0.01,0.0))
@@ -209,7 +212,6 @@ function Params.init(g_ref)
     params:add_control("blossomverb_mod_depth", "Rev Mod Depth", controlspec.new(0.0,0.002,"lin",0.0001,0.002))
     params:set_action("blossomverb_mod_depth", function(x) Bridge.set_param("blossomverb_mod_depth", x) end)
 
-    -- FIX: 3 Stereo Loopers
     params:add_group("LOOPERS", 15)
     for i=1, 3 do
         params:add_control("looper"..i.."_vol", "L"..i.." Vol", controlspec.new(0,1,"lin",0.01,1.0))
