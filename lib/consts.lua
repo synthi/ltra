@@ -1,5 +1,5 @@
--- lib/consts.lua | v2.0.0
--- FIX: Added POLY_MODES
+-- lib/consts.lua | v2.1.0
+-- FIX: Added MENU.MIDI
 
 local Consts = {}
 
@@ -22,14 +22,13 @@ Consts.DESTINATIONS = {
 
 Consts.COL_TO_DEST_NAMES = {
     [1]="PITCH1", [2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
-    [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",
-    [9]="MORPH1",[10]="MORPH2",[11]="MORPH3",[12]="MORPH4",
+    [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",[9]="MORPH1",[10]="MORPH2",[11]="MORPH3",[12]="MORPH4",
     [13]="FILT1", [14]="FILT2",[15]="DELAY_T",[16]="DELAY_F"
 }
 
 Consts.MENU = {
     NONE=0, OSC=1, MOD=2, OUTLINE=4, 
-    FILTER=5, DELAY=6, REVERB=7, LOOPER=8, MATRIX=9, ARP=10, ENV=11
+    FILTER=5, DELAY=6, REVERB=7, LOOPER=8, MATRIX=9, ARP=10, ENV=11, MIDI=12
 }
 
 Consts.SYNC_DIVS = {
