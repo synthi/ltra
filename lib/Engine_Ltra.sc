@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v2.1.1
-// FIX: Strict Variable Declaration Order, Extreme Clamping, Unipolar MW
+// lib/Engine_Ltra.sc | v2.1.2
+// FIX: Restored Lexical Closure Topology, MPE Clamping, Frame Error Eradicated
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -63,7 +63,44 @@ Engine_Ltra : CroneEngine {
                 clear_trig=0, t_reset=0;
 
             // ==========================================
-            // STRICT VARIABLE DECLARATION BLOCK (TOP)
+            // PHASE 1: LITERALS & FUNCTIONS (IMMEDIATE INIT)
+            // ==========================================
+            var prime_combs_l = #[0.031229, 0.037270, 0.043979, 0.050354, 0.057270, 0.064770];
+            var prime_combs_r = #[0.031479, 0.037729, 0.044354, 0.050479, 0.057354, 0.064979];
+            var prime_ap_l = #[0.011270, 0.031729];
+            var prime_ap_r = #[0.011604, 0.031895];
+            
+            var scale_map =[
+                NamedControl.kr(\scale_map_0, 0), NamedControl.kr(\scale_map_1, 1),
+                NamedControl.kr(\scale_map_2, 2), NamedControl.kr(\scale_map_3, 3),
+                NamedControl.kr(\scale_map_4, 4), NamedControl.kr(\scale_map_5, 5),
+                NamedControl.kr(\scale_map_6, 6), NamedControl.kr(\scale_map_7, 7),
+                NamedControl.kr(\scale_map_8, 8), NamedControl.kr(\scale_map_9, 9),
+                NamedControl.kr(\scale_map_10, 10), NamedControl.kr(\scale_map_11, 11)
+            ];
+
+            var mk_osc = { |f, s| 
+                var shape_idx = s.clip(0, 6);
+                var safe_f = f.clip(20, 20000);
+                var sig0 = PinkNoise.ar;
+                var core_saw = SawDPW.ar(safe_f);
+                var pm_amt = SelectX.kr(shape_idx.clip(1, 2) - 1, [0.15, 0.0]);
+                var pm_mod = LPF.ar(PinkNoise.ar, 10000) * pm_amt * 0.015;
+                var sig1 = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
+                var sig2 = core_saw;
+                var sqr_raw = core_saw - DelayC.ar(core_saw, 0.1, 0.5 / safe_f);
+                var sig5 = LeakDC.ar(sqr_raw) * 0.5;
+                var tri_raw = Integrator.ar(sig5, 0.999) * (4.0 * safe_f / SampleRate.ir);
+                var sig3 = LeakDC.ar(tri_raw);
+                var sig4 = (sig3.clip(-1.0, 1.0) * (pi/2)).sin;
+                var pulse_delay = (0.02 / safe_f).max(SampleDur.ir);
+                var pulse_raw = core_saw - DelayC.ar(core_saw, 0.1, pulse_delay);
+                var sig6 = LeakDC.ar(pulse_raw) * 0.5 * 1.5;
+                SelectX.ar(shape_idx,[sig0, sig1, sig2, sig3, sig4, sig5, sig6]);
+            };
+
+            // ==========================================
+            // PHASE 2: AUDIO & CONTROL VARIABLES
             // ==========================================
             var mod1_lfo, mod1_chaos, mod1_sig;
             var mod2_lfo, mod2_chaos, mod2_sig;
@@ -77,7 +114,7 @@ Engine_Ltra : CroneEngine {
             var sig_filt1, sig_filt2, sig_pre;
             var dirt_sig, hiss, hum, dust_sig;
             var effects_out, sig_post;
-            var osc_trig, amp_l, amp_r;
+            var osc_trig;
             var s_freq1, s_freq2, s_freq3, s_freq4;
             var s_vol1, s_vol2, s_vol3, s_vol4;
             var s_filt1, s_filt2;
@@ -101,53 +138,10 @@ Engine_Ltra : CroneEngine {
             var rev_in, lfo_l, lfo_r, combs_l, combs_r, cross_l_rev, cross_r_rev;
             var ap_l, ap_r, rev_filt_l, rev_filt_r, rev_out_l, rev_out_r;
             var decay_kr, bloom_kr, damp_kr, predelay_kr, mod_rate_kr, mod_depth_kr;
-            var prime_combs_l, prime_combs_r, prime_ap_l, prime_ap_r;
             var d_sig1, d_sig2, d_sig3, d_sig4;
-            var scale_map, mk_osc, calc_mod, calc_mod_pitch;
-
-            // ==========================================
-            // SIGNAL FLOW & ASSIGNMENTS
-            // ==========================================
-            prime_combs_l = #[0.031229, 0.037270, 0.043979, 0.050354, 0.057270, 0.064770];
-            prime_combs_r = #[0.031479, 0.037729, 0.044354, 0.050479, 0.057354, 0.064979];
-            prime_ap_l = #[0.011270, 0.031729];
-            prime_ap_r = #[0.011604, 0.031895];
-
-            d_sig1 = (LFNoise2.kr(0.01) * drift1 * (6/1200)) + (LFNoise2.kr(3.1) * spread1 * (3/1200));
-            d_sig2 = (LFNoise2.kr(0.012) * drift2 * (6/1200)) + (LFNoise2.kr(3.4) * spread2 * (3/1200));
-            d_sig3 = (LFNoise2.kr(0.008) * drift3 * (6/1200)) + (LFNoise2.kr(2.9) * spread3 * (3/1200));
-            d_sig4 = (LFNoise2.kr(0.011) * drift4 * (6/1200)) + (LFNoise2.kr(3.2) * spread4 * (3/1200));
             
-            scale_map =[
-                NamedControl.kr(\scale_map_0, 0), NamedControl.kr(\scale_map_1, 1),
-                NamedControl.kr(\scale_map_2, 2), NamedControl.kr(\scale_map_3, 3),
-                NamedControl.kr(\scale_map_4, 4), NamedControl.kr(\scale_map_5, 5),
-                NamedControl.kr(\scale_map_6, 6), NamedControl.kr(\scale_map_7, 7),
-                NamedControl.kr(\scale_map_8, 8), NamedControl.kr(\scale_map_9, 9),
-                NamedControl.kr(\scale_map_10, 10), NamedControl.kr(\scale_map_11, 11)
-            ];
-
-            mk_osc = { |f, s| 
-                var shape_idx = s.clip(0, 6);
-                var safe_f = f.clip(20, 20000); // Extreme Pitch Clamping
-                var sig0 = PinkNoise.ar;
-                var core_saw = SawDPW.ar(safe_f);
-                var pm_amt = SelectX.kr(shape_idx.clip(1, 2) - 1, [0.15, 0.0]);
-                var pm_mod = LPF.ar(PinkNoise.ar, 10000) * pm_amt * 0.015;
-                var sig1 = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
-                var sig2 = core_saw;
-                var sqr_raw = core_saw - DelayC.ar(core_saw, 0.1, 0.5 / safe_f);
-                var sig5 = LeakDC.ar(sqr_raw) * 0.5;
-                var tri_raw = Integrator.ar(sig5, 0.999) * (4.0 * safe_f / SampleRate.ir);
-                var sig3 = LeakDC.ar(tri_raw);
-                var sig4 = (sig3.clip(-1.0, 1.0) * (pi/2)).sin;
-                var pulse_delay = (0.02 / safe_f).max(SampleDur.ir);
-                var pulse_raw = core_saw - DelayC.ar(core_saw, 0.1, pulse_delay);
-                var sig6 = LeakDC.ar(pulse_raw) * 0.5 * 1.5;
-                SelectX.ar(shape_idx,[sig0, sig1, sig2, sig3, sig4, sig5, sig6]);
-            };
-
-            calc_mod = { |dest_name, arp_val|
+            // Functions that capture variables by reference
+            var calc_mod = { |dest_name, arp_val|
                 (mod1_sig * NamedControl.kr(("mod_mod1_" ++ dest_name).asSymbol, 0)) +
                 (mod2_sig * NamedControl.kr(("mod_mod2_" ++ dest_name).asSymbol, 0)) +
                 (mod3_sig * NamedControl.kr(("mod_mod3_" ++ dest_name).asSymbol, 0)) +
@@ -155,7 +149,7 @@ Engine_Ltra : CroneEngine {
                 (arp_val * NamedControl.kr(("mod_arp_" ++ dest_name).asSymbol, 0));
             };
             
-            calc_mod_pitch = { |dest_name, arp_val|
+            var calc_mod_pitch = { |dest_name, arp_val|
                 var raw_mod1 = mod1_sig * NamedControl.kr(("mod_mod1_" ++ dest_name).asSymbol, 0) * 24.0;
                 var raw_mod2 = mod2_sig * NamedControl.kr(("mod_mod2_" ++ dest_name).asSymbol, 0) * 24.0;
                 var raw_mod3 = mod3_sig * NamedControl.kr(("mod_mod3_" ++ dest_name).asSymbol, 0) * 24.0;
@@ -174,6 +168,14 @@ Engine_Ltra : CroneEngine {
                 var q_arp = Select.kr(NamedControl.kr(("quant_arp_" ++ dest_name).asSymbol, 1),[raw_arp, quantize_fn.(raw_arp)]);
                 (q_mod1 + q_mod2 + q_mod3 + q_outline + q_arp) / 12.0;
             };
+
+            // ==========================================
+            // PHASE 3: SIGNAL FLOW
+            // ==========================================
+            d_sig1 = (LFNoise2.kr(0.01) * drift1 * (6/1200)) + (LFNoise2.kr(3.1) * spread1 * (3/1200));
+            d_sig2 = (LFNoise2.kr(0.012) * drift2 * (6/1200)) + (LFNoise2.kr(3.4) * spread2 * (3/1200));
+            d_sig3 = (LFNoise2.kr(0.008) * drift3 * (6/1200)) + (LFNoise2.kr(2.9) * spread3 * (3/1200));
+            d_sig4 = (LFNoise2.kr(0.011) * drift4 * (6/1200)) + (LFNoise2.kr(3.2) * spread4 * (3/1200));
 
             s_freq1 = Lag.kr(freq1, glide1); s_freq2 = Lag.kr(freq2, glide2);
             s_freq3 = Lag.kr(freq3, glide3); s_freq4 = Lag.kr(freq4, glide4);
@@ -206,7 +208,7 @@ Engine_Ltra : CroneEngine {
             m_shape1 = calc_mod.("shape1", arp_cv1); m_shape2 = calc_mod.("shape2", arp_cv2);
             m_shape3 = calc_mod.("shape3", arp_cv3); m_shape4 = calc_mod.("shape4", arp_cv4);
             
-            mw_norm = mod_wheel / 127.0; // Unipolar 0 to 1
+            mw_norm = mod_wheel / 127.0; 
             m_filt1 = calc_mod.("filt1", arp_cv1) * 5000; 
             m_filt2 = calc_mod.("filt2", arp_cv1) * 5000 + (mw_norm * mw_filt2 * 5000);
             
