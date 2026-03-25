@@ -1,5 +1,5 @@
--- lib/parameters.lua | v1.5.22
--- FIX: Shape parameter expanded to 0-5 for new Saw-Core
+-- lib/parameters.lua | v1.5.26
+-- FIX: Expanded Shape parameter to 0-6
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,7 +9,7 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.5.22")
+    params:add_separator("LTRA v1.5.26")
     
     params:add_group("GLOBAL", 4)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
@@ -61,8 +61,8 @@ function Params.init(g_ref)
         params:add_control("osc"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_pan", function(x) Bridge.set_param("pan"..i, x) end)
         
-        -- FIX: Shape expanded to 0-5
-        params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,5,"lin",0.01,2))
+        -- FIX: Shape expanded to 0-6
+        params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,6,"lin",0.01,2))
         params:set_action("osc"..i.."_shape", function(x) if Globals then Globals.voices[i].shape=x end; Bridge.set_param("shape"..i, x) end)
         
         params:add_control("osc"..i.."_tune", "Fine Tune", controlspec.new(-1,1,"lin",0.01,0))
