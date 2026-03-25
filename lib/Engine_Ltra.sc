@@ -1,6 +1,5 @@
-// lib/Engine_Ltra.sc | v2.0.2
-// FIX: MIDI Polyphonic Engine Math (Velocity Bipolar, Mod Wheel, Pitch Bend)
-// FIX: triangle wave derived fom rectangle wave
+// lib/Engine_Ltra.sc | v2.1.0
+// FIX: MPE Architecture, Handshake Ping, Mod Wheel Routing
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -22,12 +21,23 @@ Engine_Ltra : CroneEngine {
                 env_atk1=0.01, env_atk2=0.01, env_atk3=0.01, env_atk4=0.01,
                 env_rel1=0.2, env_rel2=0.2, env_rel3=0.2, env_rel4=0.2,
                 
-                // FIX: MIDI Params
                 midi_note1=60, midi_note2=60, midi_note3=60, midi_note4=60,
                 midi_vel1=64, midi_vel2=64, midi_vel3=64, midi_vel4=64,
                 vel_amt1=0, vel_amt2=0, vel_amt3=0, vel_amt4=0,
-                mod_wheel=0, mod_amt1=0, mod_amt2=0, mod_amt3=0, mod_amt4=0,
+                vel_atk1=0, vel_atk2=0, vel_atk3=0, vel_atk4=0,
+                vel_shp1=0, vel_shp2=0, vel_shp3=0, vel_shp4=0,
+                
+                mod_wheel=0, mw_filt2=0, mw_delay_f=0,
                 pitch_bend=8192, bend_range=2,
+                
+                // MPE Params
+                mpe_bend1=8192, mpe_bend2=8192, mpe_bend3=8192, mpe_bend4=8192, mpe_bend_range=48,
+                slide1=0, slide2=0, slide3=0, slide4=0,
+                slide_vol1=0, slide_vol2=0, slide_vol3=0, slide_vol4=0,
+                slide_shp1=0, slide_shp2=0, slide_shp3=0, slide_shp4=0,
+                press1=0, press2=0, press3=0, press4=0,
+                press_vol1=0, press_vol2=0, press_vol3=0, press_vol4=0,
+                press_shp1=0, press_shp2=0, press_shp3=0, press_shp4=0,
                 
                 arp_cv1=0, arp_cv2=0, arp_cv3=0, arp_cv4=0,
                 
@@ -73,12 +83,15 @@ Engine_Ltra : CroneEngine {
             var vca1, vca2, vca3, vca4;
             var env1, env2, env3, env4;
             
-            // FIX: MIDI Math Vars
             var bend_norm, bend_offset;
+            var mpe_bend_off1, mpe_bend_off2, mpe_bend_off3, mpe_bend_off4;
             var midi_off1, midi_off2, midi_off3, midi_off4;
             var vel_bip1, vel_bip2, vel_bip3, vel_bip4;
-            var mw_norm, shp_mod1, shp_mod2, shp_mod3, shp_mod4;
+            var mw_norm;
+            var slide_n1, slide_n2, slide_n3, slide_n4;
+            var press_n1, press_n2, press_n3, press_n4;
             var final_shape1, final_shape2, final_shape3, final_shape4;
+            var final_atk1, final_atk2, final_atk3, final_atk4;
             
             var tape_in, local_in, shared_wow, shared_flutter, shared_mod;
             var shared_dust_trig, shared_dropout_env, dt_mono, tape_del_mono;
@@ -112,32 +125,20 @@ Engine_Ltra : CroneEngine {
             var mk_osc = { |f, s| 
                 var shape_idx = s.clip(0, 6);
                 var safe_f = f.clip(20, 20000);
-                
                 var sig0 = PinkNoise.ar;
                 var core_saw = SawDPW.ar(safe_f);
-                
                 var pm_amt = SelectX.kr(shape_idx.clip(1, 2) - 1, [0.15, 0.0]);
                 var pm_mod = LPF.ar(PinkNoise.ar, 10000) * pm_amt * 0.015;
                 var sig1 = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
-                
                 var sig2 = core_saw;
-                
-                // Stage 5: Square / Rect (Derived from Saw via Two-Saw Subtraction)
                 var sqr_raw = core_saw - DelayC.ar(core_saw, 0.1, 0.5 / safe_f);
                 var sig5 = LeakDC.ar(sqr_raw) * 0.5;
-                
-                // Stage 3: Triangle (Derived from Square via Leaky Integration)
-                // Multiplier normalizes amplitude to exactly 1.0 regardless of frequency
                 var tri_raw = Integrator.ar(sig5, 0.999) * (4.0 * safe_f / SampleRate.ir);
                 var sig3 = LeakDC.ar(tri_raw);
-                
-                // Stage 4: Sine (Derived from Triangle via Trigonometric Shaper)
                 var sig4 = (sig3.clip(-1.0, 1.0) * (pi/2)).sin;
-                
                 var pulse_delay = (0.02 / safe_f).max(SampleDur.ir);
                 var pulse_raw = core_saw - DelayC.ar(core_saw, 0.1, pulse_delay);
                 var sig6 = LeakDC.ar(pulse_raw) * 0.5 * 1.5;
-                
                 SelectX.ar(shape_idx,[sig0, sig1, sig2, sig3, sig4, sig5, sig6]);
             };
 
@@ -155,20 +156,17 @@ Engine_Ltra : CroneEngine {
                 var raw_mod3 = mod3_sig * NamedControl.kr(("mod_mod3_" ++ dest_name).asSymbol, 0) * 24.0;
                 var raw_outline = outline_sig * NamedControl.kr(("mod_outline_" ++ dest_name).asSymbol, 0) * 24.0;
                 var raw_arp = arp_val * NamedControl.kr(("mod_arp_" ++ dest_name).asSymbol, 0) * 24.0;
-                
                 var quantize_fn = { |raw|
                     var rounded = raw.round;
                     var oct = (rounded / 12).floor;
                     var pc = rounded % 12;
                     (oct * 12) + Select.kr(pc, scale_map);
                 };
-                
                 var q_mod1 = Select.kr(NamedControl.kr(("quant_mod1_" ++ dest_name).asSymbol, 1),[raw_mod1, quantize_fn.(raw_mod1)]);
                 var q_mod2 = Select.kr(NamedControl.kr(("quant_mod2_" ++ dest_name).asSymbol, 1),[raw_mod2, quantize_fn.(raw_mod2)]);
                 var q_mod3 = Select.kr(NamedControl.kr(("quant_mod3_" ++ dest_name).asSymbol, 1),[raw_mod3, quantize_fn.(raw_mod3)]);
                 var q_outline = Select.kr(NamedControl.kr(("quant_outline_" ++ dest_name).asSymbol, 1),[raw_outline, quantize_fn.(raw_outline)]);
                 var q_arp = Select.kr(NamedControl.kr(("quant_arp_" ++ dest_name).asSymbol, 1),[raw_arp, quantize_fn.(raw_arp)]);
-                
                 (q_mod1 + q_mod2 + q_mod3 + q_outline + q_arp) / 12.0;
             };
 
@@ -179,30 +177,15 @@ Engine_Ltra : CroneEngine {
             s_vol3 = Lag.kr(vol3, 0.05);   s_vol4 = Lag.kr(vol4, 0.05);
             s_filt1 = Lag.kr(filt1_cutoff, 0.05); s_filt2 = Lag.kr(filt2_cutoff, 0.05);
 
-            mod1_lfo = SelectX.kr(mod1_lfo_shape * 3,[
-                LFPulse.kr(mod1_lfo_rate, 0, 0.5), 
-                (LFSaw.kr(mod1_lfo_rate, 0) + 1) * 0.5, 
-                (LFTri.kr(mod1_lfo_rate, 0) + 1) * 0.5, 
-                (SinOsc.kr(mod1_lfo_rate, 0) + 1) * 0.5
-            ]);
+            mod1_lfo = SelectX.kr(mod1_lfo_shape * 3,[ LFPulse.kr(mod1_lfo_rate, 0, 0.5), (LFSaw.kr(mod1_lfo_rate, 0) + 1) * 0.5, (LFTri.kr(mod1_lfo_rate, 0) + 1) * 0.5, (SinOsc.kr(mod1_lfo_rate, 0) + 1) * 0.5 ]);
             mod1_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod1_chaos_rate * 4)), mod1_chaos_slew * 10, mod1_chaos_slew * 10);
             mod1_sig = SelectX.kr(mod1_mix,[mod1_lfo, mod1_chaos]) * mod1_depth;
 
-            mod2_lfo = SelectX.kr(mod2_lfo_shape * 3,[
-                LFPulse.kr(mod2_lfo_rate, 0, 0.5), 
-                (LFSaw.kr(mod2_lfo_rate, 0) + 1) * 0.5, 
-                (LFTri.kr(mod2_lfo_rate, 0) + 1) * 0.5, 
-                (SinOsc.kr(mod2_lfo_rate, 0) + 1) * 0.5
-            ]);
+            mod2_lfo = SelectX.kr(mod2_lfo_shape * 3,[ LFPulse.kr(mod2_lfo_rate, 0, 0.5), (LFSaw.kr(mod2_lfo_rate, 0) + 1) * 0.5, (LFTri.kr(mod2_lfo_rate, 0) + 1) * 0.5, (SinOsc.kr(mod2_lfo_rate, 0) + 1) * 0.5 ]);
             mod2_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod2_chaos_rate * 4)), mod2_chaos_slew * 10, mod2_chaos_slew * 10);
             mod2_sig = SelectX.kr(mod2_mix,[mod2_lfo, mod2_chaos]) * mod2_depth;
 
-            mod3_lfo = SelectX.kr(mod3_lfo_shape * 3,[
-                LFPulse.kr(mod3_lfo_rate, 0, 0.5), 
-                (LFSaw.kr(mod3_lfo_rate, 0) + 1) * 0.5, 
-                (LFTri.kr(mod3_lfo_rate, 0) + 1) * 0.5, 
-                (SinOsc.kr(mod3_lfo_rate, 0) + 1) * 0.5
-            ]);
+            mod3_lfo = SelectX.kr(mod3_lfo_shape * 3,[ LFPulse.kr(mod3_lfo_rate, 0, 0.5), (LFSaw.kr(mod3_lfo_rate, 0) + 1) * 0.5, (LFTri.kr(mod3_lfo_rate, 0) + 1) * 0.5, (SinOsc.kr(mod3_lfo_rate, 0) + 1) * 0.5 ]);
             mod3_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod3_chaos_rate * 4)), mod3_chaos_slew * 10, mod3_chaos_slew * 10);
             mod3_sig = SelectX.kr(mod3_mix,[mod3_lfo, mod3_chaos]) * mod3_depth;
 
@@ -210,61 +193,65 @@ Engine_Ltra : CroneEngine {
             env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); 
             outline_sig = Select.kr(outline_source,[env_int, env_ext]) * outline_gain;
 
-            m_pitch1 = calc_mod_pitch.("pitch1", arp_cv1);
-            m_pitch2 = calc_mod_pitch.("pitch2", arp_cv2);
-            m_pitch3 = calc_mod_pitch.("pitch3", arp_cv3);
-            m_pitch4 = calc_mod_pitch.("pitch4", arp_cv4);
+            m_pitch1 = calc_mod_pitch.("pitch1", arp_cv1); m_pitch2 = calc_mod_pitch.("pitch2", arp_cv2);
+            m_pitch3 = calc_mod_pitch.("pitch3", arp_cv3); m_pitch4 = calc_mod_pitch.("pitch4", arp_cv4);
 
             m_amp1 = calc_mod.("amp1", arp_cv1); m_amp2 = calc_mod.("amp2", arp_cv2);
             m_amp3 = calc_mod.("amp3", arp_cv3); m_amp4 = calc_mod.("amp4", arp_cv4);
             m_shape1 = calc_mod.("shape1", arp_cv1); m_shape2 = calc_mod.("shape2", arp_cv2);
             m_shape3 = calc_mod.("shape3", arp_cv3); m_shape4 = calc_mod.("shape4", arp_cv4);
             
+            mw_norm = (mod_wheel / 127.0) * 2.0 - 1.0; // Bipolar MW
             m_filt1 = calc_mod.("filt1", arp_cv1) * 5000; 
-            m_filt2 = calc_mod.("filt2", arp_cv1) * 5000;
+            m_filt2 = calc_mod.("filt2", arp_cv1) * 5000 + (mw_norm * mw_filt2 * 5000);
             
             m_delay_t = calc_mod.("tapecho_time", arp_cv1) * 0.1; 
-            m_delay_f = calc_mod.("tapecho_feedback", arp_cv1);
+            m_delay_f = calc_mod.("tapecho_feedback", arp_cv1) + (mw_norm * mw_delay_f);
 
-            // FIX: MIDI Math (Pitch Bend, Velocity Bipolar, Mod Wheel)
             bend_norm = (pitch_bend - 8192) / 8192.0;
             bend_offset = bend_norm * bend_range / 12.0;
             
-            midi_off1 = (midi_note1 - 60) / 12.0;
-            midi_off2 = (midi_note2 - 60) / 12.0;
-            midi_off3 = (midi_note3 - 60) / 12.0;
-            midi_off4 = (midi_note4 - 60) / 12.0;
+            mpe_bend_off1 = ((mpe_bend1 - 8192) / 8192.0) * mpe_bend_range / 12.0;
+            mpe_bend_off2 = ((mpe_bend2 - 8192) / 8192.0) * mpe_bend_range / 12.0;
+            mpe_bend_off3 = ((mpe_bend3 - 8192) / 8192.0) * mpe_bend_range / 12.0;
+            mpe_bend_off4 = ((mpe_bend4 - 8192) / 8192.0) * mpe_bend_range / 12.0;
             
-            vel_bip1 = (midi_vel1 - 64) / 63.0;
-            vel_bip2 = (midi_vel2 - 64) / 63.0;
-            vel_bip3 = (midi_vel3 - 64) / 63.0;
-            vel_bip4 = (midi_vel4 - 64) / 63.0;
+            midi_off1 = (midi_note1 - 60) / 12.0; midi_off2 = (midi_note2 - 60) / 12.0;
+            midi_off3 = (midi_note3 - 60) / 12.0; midi_off4 = (midi_note4 - 60) / 12.0;
             
-            mw_norm = mod_wheel / 127.0;
-            shp_mod1 = mw_norm * mod_amt1 * 6.0;
-            shp_mod2 = mw_norm * mod_amt2 * 6.0;
-            shp_mod3 = mw_norm * mod_amt3 * 6.0;
-            shp_mod4 = mw_norm * mod_amt4 * 6.0;
-
-            vca1 = (s_vol1.squared + m_amp1 + (vel_bip1 * vel_amt1 * s_vol1.squared)).clip(0, 1);
-            vca2 = (s_vol2.squared + m_amp2 + (vel_bip2 * vel_amt2 * s_vol2.squared)).clip(0, 1);
-            vca3 = (s_vol3.squared + m_amp3 + (vel_bip3 * vel_amt3 * s_vol3.squared)).clip(0, 1);
-            vca4 = (s_vol4.squared + m_amp4 + (vel_bip4 * vel_amt4 * s_vol4.squared)).clip(0, 1);
+            vel_bip1 = (midi_vel1 - 64) / 63.0; vel_bip2 = (midi_vel2 - 64) / 63.0;
+            vel_bip3 = (midi_vel3 - 64) / 63.0; vel_bip4 = (midi_vel4 - 64) / 63.0;
             
-            final_shape1 = (shape1 + (m_shape1*6) + shp_mod1).clip(0, 6);
-            final_shape2 = (shape2 + (m_shape2*6) + shp_mod2).clip(0, 6);
-            final_shape3 = (shape3 + (m_shape3*6) + shp_mod3).clip(0, 6);
-            final_shape4 = (shape4 + (m_shape4*6) + shp_mod4).clip(0, 6);
+            slide_n1 = slide1 / 127.0; slide_n2 = slide2 / 127.0;
+            slide_n3 = slide3 / 127.0; slide_n4 = slide4 / 127.0;
+            
+            press_n1 = press1 / 127.0; press_n2 = press2 / 127.0;
+            press_n3 = press3 / 127.0; press_n4 = press4 / 127.0;
 
-            env1 = EnvGen.kr(Env.asr(env_atk1, 1.0, env_rel1), gate1);
-            env2 = EnvGen.kr(Env.asr(env_atk2, 1.0, env_rel2), gate2);
-            env3 = EnvGen.kr(Env.asr(env_atk3, 1.0, env_rel3), gate3);
-            env4 = EnvGen.kr(Env.asr(env_atk4, 1.0, env_rel4), gate4);
+            vca1 = (s_vol1.squared + m_amp1 + (vel_bip1 * vel_amt1 * s_vol1.squared) + (slide_n1 * slide_vol1) + (press_n1 * press_vol1)).clip(0, 1);
+            vca2 = (s_vol2.squared + m_amp2 + (vel_bip2 * vel_amt2 * s_vol2.squared) + (slide_n2 * slide_vol2) + (press_n2 * press_vol2)).clip(0, 1);
+            vca3 = (s_vol3.squared + m_amp3 + (vel_bip3 * vel_amt3 * s_vol3.squared) + (slide_n3 * slide_vol3) + (press_n3 * press_vol3)).clip(0, 1);
+            vca4 = (s_vol4.squared + m_amp4 + (vel_bip4 * vel_amt4 * s_vol4.squared) + (slide_n4 * slide_vol4) + (press_n4 * press_vol4)).clip(0, 1);
+            
+            final_shape1 = (shape1 + (m_shape1*6) + (vel_bip1 * vel_shp1 * 6) + (slide_n1 * slide_shp1 * 6) + (press_n1 * press_shp1 * 6)).clip(0, 6);
+            final_shape2 = (shape2 + (m_shape2*6) + (vel_bip2 * vel_shp2 * 6) + (slide_n2 * slide_shp2 * 6) + (press_n2 * press_shp2 * 6)).clip(0, 6);
+            final_shape3 = (shape3 + (m_shape3*6) + (vel_bip3 * vel_shp3 * 6) + (slide_n3 * slide_shp3 * 6) + (press_n3 * press_shp3 * 6)).clip(0, 6);
+            final_shape4 = (shape4 + (m_shape4*6) + (vel_bip4 * vel_shp4 * 6) + (slide_n4 * slide_shp4 * 6) + (press_n4 * press_shp4 * 6)).clip(0, 6);
 
-            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1 + bend_offset + midi_off1)), final_shape1) * vca1 * env1;
-            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2 + bend_offset + midi_off2)), final_shape2) * vca2 * env2;
-            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3 + bend_offset + midi_off3)), final_shape3) * vca3 * env3;
-            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4 + bend_offset + midi_off4)), final_shape4) * vca4 * env4;
+            final_atk1 = (env_atk1 + (vel_bip1 * vel_atk1 * 5.0)).clip(0.001, 10.0);
+            final_atk2 = (env_atk2 + (vel_bip2 * vel_atk2 * 5.0)).clip(0.001, 10.0);
+            final_atk3 = (env_atk3 + (vel_bip3 * vel_atk3 * 5.0)).clip(0.001, 10.0);
+            final_atk4 = (env_atk4 + (vel_bip4 * vel_atk4 * 5.0)).clip(0.001, 10.0);
+
+            env1 = EnvGen.kr(Env.asr(final_atk1, 1.0, env_rel1), gate1);
+            env2 = EnvGen.kr(Env.asr(final_atk2, 1.0, env_rel2), gate2);
+            env3 = EnvGen.kr(Env.asr(final_atk3, 1.0, env_rel3), gate3);
+            env4 = EnvGen.kr(Env.asr(final_atk4, 1.0, env_rel4), gate4);
+
+            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1 + bend_offset + mpe_bend_off1 + midi_off1)), final_shape1) * vca1 * env1;
+            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2 + bend_offset + mpe_bend_off2 + midi_off2)), final_shape2) * vca2 * env2;
+            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3 + bend_offset + mpe_bend_off3 + midi_off3)), final_shape3) * vca3 * env3;
+            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4 + bend_offset + mpe_bend_off4 + midi_off4)), final_shape4) * vca4 * env4;
 
             sig_mix = (Pan2.ar(o1, pan1.clip(-1,1)) + Pan2.ar(o2, pan2.clip(-1,1)) + Pan2.ar(o3, pan3.clip(-1,1)) + Pan2.ar(o4, pan4.clip(-1,1))) * 0.125;
 
@@ -367,9 +354,8 @@ Engine_Ltra : CroneEngine {
             Out.ar(out, sig_post);
 
             osc_trig = Impulse.kr(15);
-            amp_l = Amplitude.kr(sig_post[0]);
-            amp_r = Amplitude.kr(sig_post[1]);
-            SendReply.kr(osc_trig, '/ltra/visuals',[amp_l, amp_r, mod1_sig, mod2_sig, mod3_sig, outline_sig]);
+            // Removed amp_l/amp_r from OSC to use native Norns polling
+            SendReply.kr(osc_trig, '/ltra/visuals',[mod1_sig, mod2_sig, mod3_sig, outline_sig]);
 
         }).add;
 
@@ -380,6 +366,7 @@ Engine_Ltra : CroneEngine {
         
         this.addCommand("set_engine_param", "sf", { arg msg; synth.set(msg[1].asSymbol, msg[2]); });
         this.addCommand("clear_delay", "", { synth.set(\clear_trig, 1); });
+        this.addCommand("ping", "", { NetAddr("127.0.0.1", 10111).sendMsg("/ltra/ready"); });
         
         this.addCommand("query_config", "", { NetAddr("127.0.0.1", 10111).sendMsg("/ltra/config", 0); });
         NetAddr("127.0.0.1", 10111).sendMsg("/ltra/config", 0);
