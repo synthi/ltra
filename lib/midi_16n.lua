@@ -1,5 +1,5 @@
--- lib/midi_16n.lua
--- FIX: Added sync_faders() for mathematically exact Soft Takeover after PSET/Snapshot load
+-- lib/midi_16n.lua | v2.0.0
+-- FIX: Fader Mappings (9-11 MODs, 12-13 Filters)
 
 local Midi16n = {}
 local Globals
@@ -7,8 +7,10 @@ local Consts = require 'ltra/lib/consts'
 local UI_Ref = nil
 
 local FADER_FUNC = {
-    [1]="pitch1",[2]="pitch2", [3]="pitch3",[4]="pitch4",[5]="amp1",  [6]="amp2",   [7]="amp3",  [8]="amp4",
-    [9]="filt1", [10]="filt2", [11]="mod1", [12]="mod2", [13]="mod3", [14]="tape_time", [15]="tape_fb", [16]="delay_send"
+    [1]="pitch1",[2]="pitch2", [3]="pitch3",[4]="pitch4",
+    [5]="amp1",  [6]="amp2",   [7]="amp3",  [8]="amp4",
+    [9]="mod1",  [10]="mod2",  [11]="mod3",[12]="filt1",
+    [13]="filt2",[14]="tape_time",[15]="tape_fb",[16]="delay_send"
 }
 
 local function trigger_popup(text, val_str)
@@ -144,7 +146,6 @@ function Midi16n.stop()
     if Midi16n.clock_id then clock.cancel(Midi16n.clock_id) end
 end
 
--- FIX: Mathematical Inverse Mapping to sync virtual faders with loaded parameters
 function Midi16n.sync_faders()
     if not Globals then return end
     for id=1, 16 do
