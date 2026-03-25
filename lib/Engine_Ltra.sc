@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.26
-// FIX: Removed 0.577 attenuation, Analog Comparator Topology for Square/Pulse, Shape 0-6
+// lib/Engine_Ltra.sc | v1.5.27
+// FIX: True Band-Limited Topological Saw-Core (Two-Saw Subtraction, Gibbs Suppression)
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -94,41 +94,47 @@ Engine_Ltra : CroneEngine {
                 NamedControl.kr(\scale_map_10, 10), NamedControl.kr(\scale_map_11, 11)
             ];
 
-            // FIX: Analog Comparator Topology for Square and Pulse
+            // FIX: True Band-Limited Topological Saw-Core
             var mk_osc = { |f, s| 
-                var shape_idx = s.clip(0, 6); // Expanded to 6
+                var shape_idx = s.clip(0, 6);
                 var safe_f = f.clip(20, 20000);
-                var noise = PinkNoise.ar;
                 
-                // The Core
+                // The Core (Band-Limited Saw)
                 var core_saw = SawDPW.ar(safe_f);
                 
                 // Stage 0: Pure Noise
-                var sig0 = noise * 1.2;
+                var sig0 = PinkNoise.ar;
                 
                 // Stage 1: Blurred Saw (Phase Modulated via DelayC)
-                var pm_amt = SelectX.kr(shape_idx.clip(1, 2) - 1,[0.15, 0.0]);
-                var pm_mod = LPF.ar(noise, 10000) * pm_amt * 0.015;
+                var pm_amt = SelectX.kr(shape_idx.clip(1, 2) - 1, [0.15, 0.0]);
+                var pm_mod = LPF.ar(PinkNoise.ar, 10000) * pm_amt * 0.015;
                 var sig1 = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
                 
                 // Stage 2: Pure Saw
                 var sig2 = core_saw;
                 
-                // Stage 3: Triangle (Full-Wave Rectification)
-                var sig3 = (core_saw.clip(-1.0, 1.0).abs * 2.0) - 1.0;
+                // Stage 3: Triangle (Full-Wave Rectification with Gibbs suppression)
+                // Clipping at 0.95 and boosting by 1.0526 flattens the Gibbs ringing
+                // before the absolute value, eliminating the "vibrato" artifact.
+                var clean_saw = core_saw.clip(-0.95, 0.95) * 1.0526;
+                var sig3 = (clean_saw.abs * 2.0) - 1.0;
                 
-                // Stage 4: Sine (Trigonometric Shaper)
-                var sig4 = (sig3.clip(-1.0, 1.0) * (pi/2)).sin;
+                // Stage 4: Sine (Trigonometric Shaper + RMS Comp)
+                var sig4 = (sig3 * (pi/2)).sin * 0.816;
                 
-                // Stage 5: Square (Analog Comparator on Saw)
-                // Removed 0.577 attenuation. Full pressure.
-                var sig5 = (core_saw * 50.0).tanh;
+                // Stage 5: Square 50% (Two-Saw Subtraction + RMS Comp)
+                // Subtracting a half-period delayed saw creates a perfect band-limited square.
+                var sqr_raw = core_saw - DelayC.ar(core_saw, 0.1, 0.5 / safe_f);
+                var sig5 = LeakDC.ar(sqr_raw) * 0.5 * 0.577;
                 
-                // Stage 6: Pulse 98% (Analog Comparator with DC Offset)
-                var sig6 = ((core_saw - 0.96) * 50.0).tanh;
+                // Stage 6: Pulse 98% (Two-Saw Subtraction + Boost)
+                // Subtracting a 2% delayed saw creates a perfect band-limited pulse.
+                var pulse_delay = (0.02 / safe_f).max(SampleDur.ir);
+                var pulse_raw = core_saw - DelayC.ar(core_saw, 0.1, pulse_delay);
+                var sig6 = LeakDC.ar(pulse_raw) * 0.5 * 1.5;
                 
-                // Continuous Morphing + AC Coupling to protect speakers from Pulse DC
-                LeakDC.ar(SelectX.ar(shape_idx,[sig0, sig1, sig2, sig3, sig4, sig5, sig6]));
+                // Continuous Morphing
+                SelectX.ar(shape_idx,[sig0, sig1, sig2, sig3, sig4, sig5, sig6]);
             };
             
             var mk_vactrol = { |g, t, atk, rel| 
