@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc
-// FIX: Exposed Glide parameter to replace hardcoded 50ms lag
+// lib/Engine_Ltra.sc | v1.5.21
+// FIX: Topological Saw-Core (Phase Mod, Fold, Shaper, Tanh) + RMS Compensation
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -16,23 +16,17 @@ Engine_Ltra : CroneEngine {
                 pan1=0, pan2=0, pan3=0, pan4=0,
                 drift1=0, drift2=0, drift3=0, drift4=0, 
                 spread1=0, spread2=0, spread3=0, spread4=0, 
-                
-                // FIX: Added Glide parameters
                 glide1=0.001, glide2=0.001, glide3=0.001, glide4=0.001,
-                
                 gate1=0, gate2=0, gate3=0, gate4=0,
                 env_atk1=0.01, env_atk2=0.01, env_atk3=0.01, env_atk4=0.01,
                 env_rel1=0.2, env_rel2=0.2, env_rel3=0.2, env_rel4=0.2,
-                
                 t_arp1=0, t_arp2=0, t_arp3=0, t_arp4=0,
                 arp_cv1=0, arp_cv2=0, arp_cv3=0, arp_cv4=0,
                 
                 mod1_lfo_rate=0.5, mod1_lfo_shape=0, mod1_depth=1,
                 mod1_chaos_rate=0.5, mod1_chaos_slew=0.1, mod1_mix=0.0,
-                
                 mod2_lfo_rate=0.5, mod2_lfo_shape=0, mod2_depth=1,
                 mod2_chaos_rate=0.5, mod2_chaos_slew=0.1, mod2_mix=0.0,
-                
                 mod3_lfo_rate=0.5, mod3_lfo_shape=0, mod3_depth=1,
                 mod3_chaos_rate=0.5, mod3_chaos_slew=0.1, mod3_mix=0.0,
                 
@@ -65,7 +59,6 @@ Engine_Ltra : CroneEngine {
             var dirt_sig, hiss, hum, dust_sig;
             var effects_out, sig_post;
             var osc_trig, amp_l, amp_r;
-            var lag = 0.05;
             var s_freq1, s_freq2, s_freq3, s_freq4;
             var s_vol1, s_vol2, s_vol3, s_vol4;
             var s_filt1, s_filt2;
@@ -87,6 +80,7 @@ Engine_Ltra : CroneEngine {
             var prime_ap_l = #[0.011270, 0.031729];
             var prime_ap_r = #[0.011604, 0.031895];
             
+            // Drift and Spread maintained
             var d_sig1 = (LFNoise2.kr(0.01) * drift1 * (6/1200)) + (LFNoise2.kr(3.1) * spread1 * (3/1200));
             var d_sig2 = (LFNoise2.kr(0.012) * drift2 * (6/1200)) + (LFNoise2.kr(3.4) * spread2 * (3/1200));
             var d_sig3 = (LFNoise2.kr(0.008) * drift3 * (6/1200)) + (LFNoise2.kr(2.9) * spread3 * (3/1200));
@@ -101,14 +95,34 @@ Engine_Ltra : CroneEngine {
                 NamedControl.kr(\scale_map_10, 10), NamedControl.kr(\scale_map_11, 11)
             ];
 
+            // FIX: Topological Saw-Core Implementation
             var mk_osc = { |f, s| 
-                var noise = PinkNoise.ar;
-                var phase = Phasor.ar(0, f.clip(20, 20000) * SampleDur.ir, 0, 1) + (noise * 0.15);
-                var blurred_saw = (phase.wrap(0, 1) * 2) - 1;
-                var tri = LFTri.ar(f.clip(20, 20000));
-                var pul = Pulse.ar(f.clip(20, 20000), 0.5);
-                var sin = SinOsc.ar(f.clip(20, 20000));
-                SelectX.ar(s.clip(0,4),[noise, blurred_saw, tri, pul, sin]) 
+                var shape_idx = s.clip(0, 5);
+                var noise = LPF.ar(PinkNoise.ar, 10000);
+                
+                // 1. Phase Mod (Noise -> Blurred -> Saw)
+                var pm_amt = SelectX.kr(shape_idx.clip(0, 2),[1.0, 0.15, 0.0]);
+                var pm_mod = noise * pm_amt * 0.015; 
+                var core_saw = DelayC.ar(SawDPW.ar(f.clip(20, 20000)), 0.04, 0.02 + pm_mod);
+                
+                // 2. Fold (Saw -> Tri)
+                var fold_amt = (shape_idx - 2.0).clip(0, 1);
+                var stage_tri = Fold.ar(core_saw * (1.0 + fold_amt), -1.0, 1.0);
+                
+                // 3. Shaper (Tri -> Sine)
+                var sine_amt = (shape_idx - 3.0).clip(0, 1);
+                var pure_sine = (stage_tri * (pi/2)).sin;
+                var stage_sine = XFade2.ar(stage_tri, pure_sine, sine_amt * 2 - 1);
+                
+                // 4. Overdrive (Sine -> Square)
+                var sqr_amt = (shape_idx - 4.0).clip(0, 1);
+                var drive = 1.0 + (sqr_amt * 50.0);
+                var stage_sqr = (stage_sine * drive).tanh / drive.tanh;
+                
+                // 5. RMS Comp (Constant Loudness)
+                var rms_comp = SelectX.kr(shape_idx,[1.0, 1.0, 1.0, 1.0, 0.816, 0.577]);
+                
+                stage_sqr * rms_comp;
             };
             
             var mk_vactrol = { |g, t, atk, rel| 
@@ -148,13 +162,12 @@ Engine_Ltra : CroneEngine {
                 (q_mod1 + q_mod2 + q_mod3 + q_outline + q_arp) / 12.0;
             };
 
-            // FIX: Replaced hardcoded 0.05 lag with variable glide parameters
             s_freq1 = Lag.kr(freq1, glide1); s_freq2 = Lag.kr(freq2, glide2);
             s_freq3 = Lag.kr(freq3, glide3); s_freq4 = Lag.kr(freq4, glide4);
             
-            s_vol1 = Lag.kr(vol1, lag);   s_vol2 = Lag.kr(vol2, lag);
-            s_vol3 = Lag.kr(vol3, lag);   s_vol4 = Lag.kr(vol4, lag);
-            s_filt1 = Lag.kr(filt1_cutoff, lag); s_filt2 = Lag.kr(filt2_cutoff, lag);
+            s_vol1 = Lag.kr(vol1, 0.05);   s_vol2 = Lag.kr(vol2, 0.05);
+            s_vol3 = Lag.kr(vol3, 0.05);   s_vol4 = Lag.kr(vol4, 0.05);
+            s_filt1 = Lag.kr(filt1_cutoff, 0.05); s_filt2 = Lag.kr(filt2_cutoff, 0.05);
 
             mod1_lfo = SelectX.kr(mod1_lfo_shape * 3,[
                 LFPulse.kr(mod1_lfo_rate, 0, 0.5), 
@@ -208,10 +221,15 @@ Engine_Ltra : CroneEngine {
             vca3 = (s_vol3.squared + m_amp3).clip(0, 1);
             vca4 = (s_vol4.squared + m_amp4).clip(0, 1);
 
-            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1)), (shape1 + (m_shape1*4)).clip(0,4)) * vca1 * mk_vactrol.(gate1, t_arp1, env_atk1, env_rel1);
-            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2)), (shape2 + (m_shape2*4)).clip(0,4)) * vca2 * mk_vactrol.(gate2, t_arp2, env_atk2, env_rel2);
-            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3)), (shape3 + (m_shape3*4)).clip(0,4)) * vca3 * mk_vactrol.(gate3, t_arp3, env_atk3, env_rel3);
-            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4)), (shape4 + (m_shape4*4)).clip(0,4)) * vca4 * mk_vactrol.(gate4, t_arp4, env_atk4, env_rel4);
+            env1 = EnvGen.kr(Env.asr(env_atk1, 1.0, env_rel1), gate1);
+            env2 = EnvGen.kr(Env.asr(env_atk2, 1.0, env_rel2), gate2);
+            env3 = EnvGen.kr(Env.asr(env_atk3, 1.0, env_rel3), gate3);
+            env4 = EnvGen.kr(Env.asr(env_atk4, 1.0, env_rel4), gate4);
+
+            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1)), (shape1 + (m_shape1*5)).clip(0,5)) * vca1 * env1;
+            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2)), (shape2 + (m_shape2*5)).clip(0,5)) * vca2 * env2;
+            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3)), (shape3 + (m_shape3*5)).clip(0,5)) * vca3 * env3;
+            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4)), (shape4 + (m_shape4*5)).clip(0,5)) * vca4 * env4;
 
             sig_mix = (Pan2.ar(o1, pan1.clip(-1,1)) + Pan2.ar(o2, pan2.clip(-1,1)) + Pan2.ar(o3, pan3.clip(-1,1)) + Pan2.ar(o4, pan4.clip(-1,1))) * 0.125;
 
