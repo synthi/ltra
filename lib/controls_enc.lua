@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v2.1.0
--- FIX: Multi-Target Iteration, Ergonomic Reorder (E2-E3-E1), MPE Params
+-- lib/controls_enc.lua | v2.1.1
+-- FIX: Orthogonal Target Resolution (Array vs Dictionary)
 
 local Enc = {}
 local Globals
@@ -11,7 +11,16 @@ function Enc.delta(n, d)
     Globals.dirty = true
     
     if Globals.menu_mode ~= Consts.MENU.NONE then
-        local targets = type(Globals.menu_target) == "table" and Globals.menu_target or {Globals.menu_target}
+        -- FIX: Safe resolution of targets to prevent dictionary iteration crash
+        local targets = {Globals.menu_target}
+        if type(Globals.menu_target) == "table" then
+            if Globals.menu_target.src_name then
+                targets = {Globals.menu_target} -- It's a Matrix Dictionary
+            else
+                targets = Globals.menu_target -- It's an Array of Voices
+            end
+        end
+        
         local m = Globals.menu_mode
         
         for _, t in ipairs(targets) do
