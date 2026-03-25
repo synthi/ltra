@@ -1,5 +1,5 @@
--- lib/midi_in.lua | v2.1.0
--- FIX: MPE Channel Tracking, Thread Leak Fix
+-- lib/midi_in.lua | v2.1.4
+-- FIX: MPE Channel Isolation (Option 18)
 
 local MidiIn = {}
 local Globals
@@ -49,7 +49,8 @@ function MidiIn.handle_event(data)
             Bridge.set_pitch_bend(msg.val)
         else
             for i=1, 4 do
-                if Globals.voices[i].mpe_channel == msg.ch then
+                -- FIX: Only process MPE bend if voice is explicitly set to MPE (18)
+                if Globals.voices[i].mpe_channel == msg.ch and params:get("osc"..i.."_midi_ch") == 18 then
                     Bridge.set_mpe_bend(i, msg.val)
                 end
             end
@@ -59,14 +60,16 @@ function MidiIn.handle_event(data)
             Bridge.set_mod_wheel(msg.val)
         elseif msg.cc == 74 then
             for i=1, 4 do
-                if Globals.voices[i].mpe_channel == msg.ch then
+                -- FIX: Only process MPE slide if voice is explicitly set to MPE (18)
+                if Globals.voices[i].mpe_channel == msg.ch and params:get("osc"..i.."_midi_ch") == 18 then
                     Bridge.set_mpe_slide(i, msg.val)
                 end
             end
         end
     elseif msg.type == "channel_pressure" then
         for i=1, 4 do
-            if Globals.voices[i].mpe_channel == msg.ch then
+            -- FIX: Only process MPE pressure if voice is explicitly set to MPE (18)
+            if Globals.voices[i].mpe_channel == msg.ch and params:get("osc"..i.."_midi_ch") == 18 then
                 Bridge.set_mpe_press(i, msg.val)
             end
         end
@@ -78,8 +81,12 @@ function MidiIn.note_on(note, vel, ch)
     local target_voices = {}
     
     for i=1, 4 do
+        local v_ch = params:get("osc"..i.."_midi_ch")
         local v_on = params:get("osc"..i.."_midi_note")
-        if v_on == 1 then table.insert(target_voices, i) end
+        -- 17 = OMNI, 18 = MPE (Accepts notes from any channel, but locks for expression)
+        if v_on == 1 and (v_ch == 17 or v_ch == 18 or v_ch == ch) then
+            table.insert(target_voices, i)
+        end
     end
     
     if #target_voices == 0 then return end
