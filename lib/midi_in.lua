@@ -1,5 +1,5 @@
--- lib/midi_in.lua | v2.0.0
--- NEW: Polyphonic MIDI Engine (Round Robin, Reset, Unison)
+-- lib/midi_in.lua | v2.0.1
+-- FIX: Voice Stealing Purge, Velocity Tracking for Grid Visuals
 
 local MidiIn = {}
 local Globals
@@ -9,11 +9,11 @@ function MidiIn.init(g_ref)
     Globals = g_ref
     Globals.midi_active_notes = {}
     Globals.midi_rr_index = 1
+    Globals.midi_voice_vel = {0, 0, 0, 0} -- FIX: Track velocity per voice for UI
     
     MidiIn.device = midi.connect(1)
     MidiIn.device.event = MidiIn.handle_event
     
-    -- Watcher for device changes
     clock.run(function()
         while true do
             clock.sleep(1)
@@ -60,8 +60,21 @@ function MidiIn.note_on(note, vel, ch)
     
     Globals.midi_active_notes[note] = Globals.midi_active_notes[note] or {}
     
+    -- FIX: Purge stolen voices from old notes to prevent ghost Note OFFs
+    local function steal_voice(v)
+        for n, voices in pairs(Globals.midi_active_notes) do
+            for i, active_v in ipairs(voices) do
+                if active_v == v then
+                    table.remove(voices, i)
+                    break
+                end
+            end
+        end
+    end
+
     if poly_mode == 3 then -- Unison
         for _, v in ipairs(target_voices) do
+            steal_voice(v)
             MidiIn.trigger_voice(v, note, vel)
             table.insert(Globals.midi_active_notes[note], v)
         end
@@ -75,8 +88,9 @@ function MidiIn.note_on(note, vel, ch)
                 break
             end
         end
-        if not allocated then -- Steal oldest (lowest index for simplicity)
+        if not allocated then 
             local v = target_voices[1]
+            steal_voice(v)
             MidiIn.trigger_voice(v, note, vel)
             table.insert(Globals.midi_active_notes[note], v)
         end
@@ -93,8 +107,9 @@ function MidiIn.note_on(note, vel, ch)
                 break
             end
         end
-        if not allocated then -- Steal
+        if not allocated then 
             local v = target_voices[Globals.midi_rr_index]
+            steal_voice(v)
             MidiIn.trigger_voice(v, note, vel)
             table.insert(Globals.midi_active_notes[note], v)
             Globals.midi_rr_index = (Globals.midi_rr_index % #target_voices) + 1
@@ -108,6 +123,8 @@ function MidiIn.note_off(note, ch)
             if not Globals.voices[v].latched and not Globals.voices[v].sustained then
                 Bridge.set_gate(v, 0)
             end
+            Globals.midi_voice_vel[v] = 0 -- FIX: Clear velocity for UI
+            Globals.dirty = true
         end
         Globals.midi_active_notes[note] = nil
     end
@@ -116,6 +133,8 @@ end
 function MidiIn.trigger_voice(v, note, vel)
     Bridge.set_midi_note(v, note)
     Bridge.set_midi_vel(v, vel)
+    Globals.midi_voice_vel[v] = vel -- FIX: Store velocity for UI
+    Globals.dirty = true
     if not Globals.voices[v].latched and not Globals.voices[v].sustained then
         Bridge.set_gate(v, 1)
     end
