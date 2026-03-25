@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v2.0.0
--- FIX: 3 Loopers on Cols 8,9,10
+-- lib/grid_pages.lua | v2.0.1
+-- FIX: Dynamic MIDI Velocity Visual Feedback on ENV buttons
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -130,7 +130,6 @@ end
 
 local function draw_loopers()
     local now = util.time()
-    -- FIX: 3 Loopers on Cols 8, 9, 10
     for i=1, 3 do
         local x = i + 7
         local state = Globals.loopers[i].state
@@ -174,9 +173,24 @@ function Pages.redraw()
         led_safe(14, 6, Consts.BRIGHT.BG_DASHBOARD)
         led_safe(16, 6, Consts.BRIGHT.BG_DASHBOARD) 
         
-        for i=1, 4 do led_safe(i, 7, Consts.BRIGHT.BG_DASHBOARD) end
-        draw_snapshots() 
+        -- FIX: Dynamic MIDI Velocity Visual Feedback on ENV buttons
+        for i=1, 4 do 
+            local b = Consts.BRIGHT.BG_DASHBOARD
+            if params:get("osc"..i.."_midi_note") == 1 then
+                local vel = Globals.midi_voice_vel and Globals.midi_voice_vel[i] or 0
+                if vel > 0 then
+                    local vel_vol = params:get("osc"..i.."_vel_vol") or 0
+                    local added_b = 5
+                    if vel_vol > 0 then
+                        added_b = math.floor(util.linlin(1, 127, 2, 9, vel))
+                    end
+                    b = util.clamp(b + added_b, 0, 15)
+                end
+            end
+            led_safe(i, 7, b) 
+        end
         
+        draw_snapshots() 
         draw_loopers()
     end
     
@@ -289,7 +303,6 @@ function Pages.key(x, y, z)
             return
         end
         
-        -- FIX: 3 Loopers on Cols 8, 9, 10
         if x >= 8 and x <= 10 then
             local idx = x - 7
             if z == 1 then
