@@ -1,6 +1,5 @@
--- code/ltra/lib/globals.lua | v1.4.7
--- LTRA: Global State
--- FIX: Added matrix_quant table for Q/F selection
+-- lib/globals.lua | v2.1.0
+-- FIX: Added active_snapshot, midi_watch_thread, mpe_channels
 
 local Globals = {}
 local Consts = require 'ltra/lib/consts'
@@ -11,6 +10,8 @@ function Globals.new()
         engine_bus_id = nil,
         page = 1,
         loading_pset = false,
+        active_snapshot = nil,
+        midi_watch_thread = nil,
         
         menu_mode = Consts.MENU.NONE,
         menu_target = nil, 
@@ -24,7 +25,7 @@ function Globals.new()
         visuals = { amp_l=0, amp_r=0, lfo_vals={0,0}, chaos_val=0, tape_heads={0,0,0} },
 
         matrix = {},
-        matrix_quant = {}, -- FIX: Tabla de estado Q/F (1=Q, 0=F)
+        matrix_quant = {}, 
         voices = {}, 
         tracks = {}, 
         snapshots = {}, 
@@ -51,17 +52,16 @@ function Globals.new()
         state.fader_values[x]=0; state.fader_virtual[x]=0
     end
 
-    -- Init Matrix & Quantization
     for s=1, 5 do 
         state.matrix[s] = {}
         state.matrix_quant[s] = {} 
         for d=1, 16 do 
             state.matrix[s][d] = 0.0 
-            state.matrix_quant[s][d] = 1 -- Default: Quantized (1)
+            state.matrix_quant[s][d] = 1 
         end 
     end
     
-    for i=1, 4 do state.voices[i] = {shape=0, pan=0, tune=0, arp_enabled=false, to_looper=true, latched=false} end
+    for i=1, 4 do state.voices[i] = {shape=0, pan=0, tune=0, arp_enabled=false, to_looper=true, latched=false, mpe_channel=nil} end
 
     for i=1, 3 do
         state.tracks[i] = {
