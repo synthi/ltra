@@ -1,5 +1,5 @@
--- lib/parameters.lua | v2.0.1
--- FIX: Reset MIDI Note offset when toggled OFF
+-- lib/parameters.lua | v2.1.0
+-- FIX: MPE Bipolar Params, Mod Wheel Routing
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,9 +9,9 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v2.0.0")
+    params:add_separator("LTRA v2.1.0")
     
-    params:add_group("GLOBAL", 7)
+    params:add_group("GLOBAL", 9)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("master_vol", function(x) audio.level_dac(x) end)
     
@@ -40,9 +40,15 @@ function Params.init(g_ref)
     params:add_option("midi_poly_mode", "Poly Mode", Consts.POLY_MODES, 1)
     params:add_number("midi_bend_range", "Bend Range", 1, 12, 2)
     params:set_action("midi_bend_range", function(x) Bridge.set_param("bend_range", x) end)
+    
+    params:add_option("mpe_bend_range", "MPE Bend Range", {"12", "24", "48", "96"}, 3)
+    params:set_action("mpe_bend_range", function(x) 
+        local vals = {12, 24, 48, 96}
+        Bridge.set_param("mpe_bend_range", vals[x]) 
+    end)
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 16) 
+        params:add_group("VOICE "..i, 19) 
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -99,17 +105,28 @@ function Params.init(g_ref)
         params:add_control("env_rel"..i, "Release", controlspec.new(0.001, 11.0, "exp", 0.01, 0.2))
         params:set_action("env_rel"..i, function(x) Bridge.set_param("env_rel"..i, x) end)
         
-        -- FIX: Reset MIDI Note offset when toggled OFF
         params:add_binary("osc"..i.."_midi_note", "MIDI Note", "toggle", 0)
         params:set_action("osc"..i.."_midi_note", function(x)
             if x == 0 then Bridge.set_midi_note(i, 60) end
         end)
         
-        params:add_number("osc"..i.."_midi_ch", "MIDI Channel", 1, 17, 17) 
+        -- MPE / MIDI Modulations
         params:add_control("osc"..i.."_vel_vol", "Vel to Vol", controlspec.new(0,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_vel_vol", function(x) Bridge.set_param("vel_amt"..i, x) end)
-        params:add_control("osc"..i.."_mod_shape", "Mod to Shape", controlspec.new(0,1,"lin",0.01,0.0))
-        params:set_action("osc"..i.."_mod_shape", function(x) Bridge.set_param("mod_amt"..i, x) end)
+        params:add_control("osc"..i.."_vel_atk", "Vel to Attack", controlspec.new(-1,1,"lin",0.01,0.0))
+        params:set_action("osc"..i.."_vel_atk", function(x) Bridge.set_param("vel_atk"..i, x) end)
+        params:add_control("osc"..i.."_vel_shp", "Vel to Shape", controlspec.new(-1,1,"lin",0.01,0.0))
+        params:set_action("osc"..i.."_vel_shp", function(x) Bridge.set_param("vel_shp"..i, x) end)
+        
+        params:add_control("osc"..i.."_slide_vol", "Slide to Vol", controlspec.new(-1,1,"lin",0.01,0.0))
+        params:set_action("osc"..i.."_slide_vol", function(x) Bridge.set_param("slide_vol"..i, x) end)
+        params:add_control("osc"..i.."_slide_shp", "Slide to Shape", controlspec.new(-1,1,"lin",0.01,0.0))
+        params:set_action("osc"..i.."_slide_shp", function(x) Bridge.set_param("slide_shp"..i, x) end)
+        
+        params:add_control("osc"..i.."_press_vol", "Press to Vol", controlspec.new(-1,1,"lin",0.01,0.0))
+        params:set_action("osc"..i.."_press_vol", function(x) Bridge.set_param("press_vol"..i, x) end)
+        params:add_control("osc"..i.."_press_shp", "Press to Shape", controlspec.new(-1,1,"lin",0.01,0.0))
+        params:set_action("osc"..i.."_press_shp", function(x) Bridge.set_param("press_shp"..i, x) end)
     end
     
     local sync_opts = {}
@@ -129,7 +146,7 @@ function Params.init(g_ref)
         params:set_action("arp_cv"..i, function(x) Bridge.set_param("arp_cv"..i, x) end)
     end
 
-    params:add_group("FILTERS", 8)
+    params:add_group("FILTERS", 9)
     params:add_control("filt1_cutoff", "Filt 1 Cutoff", controlspec.new(20,18000,"exp",1,32))
     params:set_action("filt1_cutoff", function(x) Bridge.set_param("filt1_cutoff", x) end)
     params:add_control("filt2_cutoff", "Filt 2 Cutoff", controlspec.new(20,18000,"exp",1,14200))
@@ -146,6 +163,8 @@ function Params.init(g_ref)
     params:set_action("filt1_drive", function(x) Bridge.set_param("filt1_drive", x) end)
     params:add_control("filt2_drive", "Filt 2 Drive", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("filt2_drive", function(x) Bridge.set_param("filt2_drive", x) end)
+    params:add_control("mw_filt2", "MW to Filt2", controlspec.new(-1,1,"lin",0.01,0))
+    params:set_action("mw_filt2", function(x) Bridge.set_param("mw_filt2", x) end)
 
     params:add_group("MODULATION", 32) 
     for i=1, 3 do
@@ -174,7 +193,7 @@ function Params.init(g_ref)
     params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0.1, 1))
     params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
 
-    params:add_group("SPACE", 16) 
+    params:add_group("SPACE", 17) 
     params:add_control("system_dirt", "Dirt", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("system_dirt", function(x) Bridge.set_param("system_dirt", x) end)
     params:add_control("dust_dens", "Dust", controlspec.new(0,50,"lin",0.1,0))
@@ -195,6 +214,8 @@ function Params.init(g_ref)
     params:set_action("tapecho_drive", function(x) Bridge.set_param("tapecho_drive", x) end)
     params:add_control("tapecho_filter", "Tape Filter", controlspec.new(20,18000,"exp",1,8000))
     params:set_action("tapecho_filter", function(x) Bridge.set_param("tapecho_filter", x) end)
+    params:add_control("mw_delay_f", "MW to Echo FB", controlspec.new(-1,1,"lin",0.01,0))
+    params:set_action("mw_delay_f", function(x) Bridge.set_param("mw_delay_f", x) end)
     
     params:add_control("reverb_mix", "Reverb Mix", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("reverb_mix", function(x) Bridge.set_param("reverb_mix", x) end)
