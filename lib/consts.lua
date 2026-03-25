@@ -1,5 +1,5 @@
--- lib/consts.lua | v1.5.11
--- FIX: Added ENV menu, Updated Grid Layout
+-- lib/consts.lua | v2.0.0
+-- FIX: Added POLY_MODES
 
 local Consts = {}
 
@@ -23,13 +23,13 @@ Consts.DESTINATIONS = {
 Consts.COL_TO_DEST_NAMES = {
     [1]="PITCH1", [2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
     [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",
-    [9]="MORPH1", [10]="MORPH2",[11]="MORPH3",[12]="MORPH4",
+    [9]="MORPH1",[10]="MORPH2",[11]="MORPH3",[12]="MORPH4",
     [13]="FILT1", [14]="FILT2",[15]="DELAY_T",[16]="DELAY_F"
 }
 
 Consts.MENU = {
     NONE=0, OSC=1, MOD=2, OUTLINE=4, 
-    FILTER=5, DELAY=6, REVERB=7, LOOPER=8, MATRIX=9, ARP=10, ENV=11 -- FIX: Added ENV
+    FILTER=5, DELAY=6, REVERB=7, LOOPER=8, MATRIX=9, ARP=10, ENV=11
 }
 
 Consts.SYNC_DIVS = {
@@ -40,6 +40,8 @@ Consts.SYNC_DIVS = {
     {name="1/16 D", v=0.375}, {name="1/16", v=0.25}, {name="1/16 T", v=0.1667},
     {name="1/32", v=0.125}, {name="1/64", v=0.0625}
 }
+
+Consts.POLY_MODES = {"Round Robin", "Reset", "Unison"}
 
 Consts.NOTE_NAMES = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
 
