@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.24
-// FIX: Restored Topological Saw-Core, Fixed Gibbs Sine Harmonics, Restored Square Pressure
+// lib/Engine_Ltra.sc | v1.5.25
+// FIX: True Analog Topological Saw-Core (Full-Wave Rectification) + RMS Compensation
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -94,35 +94,36 @@ Engine_Ltra : CroneEngine {
                 NamedControl.kr(\scale_map_10, 10), NamedControl.kr(\scale_map_11, 11)
             ];
 
-            // FIX: Restored Topological Saw-Core
+            // FIX: True Analog Topological Saw-Core
             var mk_osc = { |f, s| 
                 var shape_idx = s.clip(0, 5);
                 var safe_f = f.clip(20, 20000);
-                var noise = PinkNoise.ar;
                 
-                // 1. Phase Mod (Blurred -> Saw)
-                var pm_amt = SelectX.kr(shape_idx.clip(1, 2) - 1, [0.15, 0.0]);
-                var pm_mod = LPF.ar(noise, 10000) * pm_amt * 0.015;
-                var core_saw = DelayC.ar(SawDPW.ar(safe_f), 0.04, 0.02 + pm_mod);
+                // The Core
+                var core_saw = SawDPW.ar(safe_f);
                 
-                // 2. Fold (Saw -> Tri)
-                var fold_amt = (shape_idx - 2.0).clip(0, 1);
-                var stage_tri = Fold.ar(core_saw * (1.0 + fold_amt), -1.0, 1.0);
+                // Stage 0: Pure Noise (RMS Compensated)
+                var sig0 = PinkNoise.ar * 1.2;
                 
-                // 3. Shaper (Tri -> Sine)
-                var sine_amt = (shape_idx - 3.0).clip(0, 1);
-                // FIX: .clip(-1.0, 1.0) prevents Gibbs phenomenon from folding the sine peak
-                var pure_sine = (stage_tri.clip(-1.0, 1.0) * (pi/2)).sin;
-                var stage_sine = XFade2.ar(stage_tri, pure_sine, sine_amt * 2 - 1);
+                // Stage 1: Blurred Saw (Phase Modulated via DelayC)
+                var pm_mod = LPF.ar(PinkNoise.ar, 10000) * 0.015;
+                var sig1 = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
                 
-                // 4. Overdrive (Sine -> Square)
-                var sqr_amt = (shape_idx - 4.0).clip(0, 1);
-                var drive = 1.0 + (sqr_amt * 50.0);
-                // FIX: Removed RMS compensation to restore Square wave pressure
-                var stage_sqr = (stage_sine * drive).tanh;
+                // Stage 2: Pure Saw
+                var sig2 = core_saw;
                 
-                // Crossfade pure noise at shape 0
-                SelectX.ar(shape_idx.clip(0, 1), [noise * 1.2, stage_sqr]);
+                // Stage 3: Triangle (Full-Wave Rectification)
+                var sig3 = (core_saw.clip(-1.0, 1.0).abs * 2.0) - 1.0;
+                
+                // Stage 4: Sine (Trigonometric Shaper + RMS Comp)
+                var pure_sine = (sig3 * (pi/2)).sin;
+                var sig4 = pure_sine * 0.816;
+                
+                // Stage 5: Square (Soft-Clipper + RMS Comp)
+                var sig5 = (pure_sine * 50.0).tanh * 0.577;
+                
+                // Continuous Morphing
+                SelectX.ar(shape_idx, [sig0, sig1, sig2, sig3, sig4, sig5]);
             };
             
             var mk_vactrol = { |g, t, atk, rel| 
