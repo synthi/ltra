@@ -1,5 +1,6 @@
--- lib/ui.lua | v1.5.14
--- FIX: ARP Menu Page 2, ENV Menu Pan
+-- lib/ui.lua | v1.5.17
+-- lib/ui.lua
+-- FIX: Added Glide to OSC Menu Page 3
 
 local UI = {}
 local Globals
@@ -21,15 +22,19 @@ local function draw_menu()
     
     if mode == Consts.MENU.OSC then
         if Globals.osc_menu_page == 1 then
-            screen.move(5,10); screen.text("OSC "..t.." EDIT (1/2)")
+            screen.move(5,10); screen.text("OSC "..t.." EDIT (1/3)")
             screen.move(5,25); screen.text("E1 Octave: "..string.format("%+d", params:get("osc"..t.."_octave")))
             screen.move(5,35); screen.text("E2 Shape: "..string.format("%.2f", params:get("osc"..t.."_shape")))
             screen.move(5,45); screen.text("E3 Tune: "..string.format("%.2f", params:get("osc"..t.."_tune")))
-        else
-            screen.move(5,10); screen.text("OSC "..t.." EDIT (2/2)")
+        elseif Globals.osc_menu_page == 2 then
+            screen.move(5,10); screen.text("OSC "..t.." EDIT (2/3)")
             screen.move(5,25); screen.text("E1 Drift: "..string.format("%.2f", params:get("osc"..t.."_drift")))
             screen.move(5,35); screen.text("E2 Spread: "..string.format("%.2f", params:get("osc"..t.."_spread")))
             screen.move(5,45); screen.text("E3 Vol: "..string.format("%.2f", params:get("osc"..t.."_vol")))
+        else
+            -- FIX: Added Glide to Page 3
+            screen.move(5,10); screen.text("OSC "..t.." EDIT (3/3)")
+            screen.move(5,25); screen.text("E1 Glide: "..string.format("%.3fs", params:get("osc"..t.."_glide")))
         end
         local arp_state = params:get("osc"..t.."_arp") == 1 and "ON" or "OFF"
         screen.move(5,58); screen.text("K2: ARP["..arp_state.."]  K3: PAGE")
@@ -77,8 +82,8 @@ local function draw_menu()
             screen.move(5,45); screen.text("E3 Gate: "..string.format("%.2f", params:get("arp_gate_len")))
         else
             screen.move(5,10); screen.text("ARP SETTINGS (2/2)")
-            screen.move(5,35); screen.text("E2 Length: "..params:get("arp_length").." bits")
-            screen.move(5,45); screen.text("E3 Octaves: "..params:get("arp_octaves"))
+            screen.move(5,25); screen.text("E1 Length: "..params:get("arp_length").." bits")
+            screen.move(5,35); screen.text("E2 Octaves: "..params:get("arp_octaves"))
         end
         screen.move(5,58); screen.text("K3: PAGE")
         
