@@ -1,5 +1,5 @@
--- lib/controls_key.lua | v2.1.1
--- FIX: Orthogonal Target Resolution (Array vs Dictionary)
+-- lib/controls_key.lua | v2.1.3
+-- FIX: Vectorized Matrix Routing
 
 local Keys = {}
 local Globals
@@ -15,7 +15,6 @@ function Keys.event(n, z)
     Globals.dirty = true
     
     if Globals.menu_mode ~= Consts.MENU.NONE then
-        -- FIX: Safe resolution of targets
         local targets = {Globals.menu_target}
         if type(Globals.menu_target) == "table" then
             if Globals.menu_target.src_name then
@@ -96,8 +95,7 @@ function Keys.event(n, z)
                             local current_q = Globals.matrix_quant[src_idx][dst_idx]
                             local new_q = 1 - current_q
                             Globals.matrix_quant[src_idx][dst_idx] = new_q
-                            local idx = string.match(t.dest_name, "(%d+)$") or ""
-                            Bridge.set_matrix_quant(t.src_name:lower(), "pitch", idx, new_q)
+                            Bridge.set_matrix_quant(src_idx, dst_idx, new_q)
                         else
                             local current = Globals.matrix[src_idx][dst_idx]
                             local id = "mat_"..t.src_name.."_"..t.dest_name
