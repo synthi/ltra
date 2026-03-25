@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.12
-// FIX: Restored Vactrol Topology (LagUD) with Variable Attack/Release
+// lib/Engine_Ltra.sc
+// FIX: Exposed Glide parameter to replace hardcoded 50ms lag
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -16,9 +16,11 @@ Engine_Ltra : CroneEngine {
                 pan1=0, pan2=0, pan3=0, pan4=0,
                 drift1=0, drift2=0, drift3=0, drift4=0, 
                 spread1=0, spread2=0, spread3=0, spread4=0, 
-                gate1=0, gate2=0, gate3=0, gate4=0,
                 
-                // FIX: Variable Envelopes for Vactrol
+                // FIX: Added Glide parameters
+                glide1=0.001, glide2=0.001, glide3=0.001, glide4=0.001,
+                
+                gate1=0, gate2=0, gate3=0, gate4=0,
                 env_atk1=0.01, env_atk2=0.01, env_atk3=0.01, env_atk4=0.01,
                 env_rel1=0.2, env_rel2=0.2, env_rel3=0.2, env_rel4=0.2,
                 
@@ -68,6 +70,7 @@ Engine_Ltra : CroneEngine {
             var s_vol1, s_vol2, s_vol3, s_vol4;
             var s_filt1, s_filt2;
             var vca1, vca2, vca3, vca4;
+            var env1, env2, env3, env4;
             
             var tape_in, local_in, shared_wow, shared_flutter, shared_mod;
             var shared_dust_trig, shared_dropout_env, dt_mono, tape_del_mono;
@@ -108,7 +111,6 @@ Engine_Ltra : CroneEngine {
                 SelectX.ar(s.clip(0,4),[noise, blurred_saw, tri, pul, sin]) 
             };
             
-            // FIX: Restored Vactrol Topology with Variable Attack/Release
             var mk_vactrol = { |g, t, atk, rel| 
                 var arp_env = Decay2.kr(Trig.kr(t, 0.01), 0.005, 0.2);
                 var combined = (g + arp_env).clip(0, 1);
@@ -146,8 +148,10 @@ Engine_Ltra : CroneEngine {
                 (q_mod1 + q_mod2 + q_mod3 + q_outline + q_arp) / 12.0;
             };
 
-            s_freq1 = Lag.kr(freq1, lag); s_freq2 = Lag.kr(freq2, lag);
-            s_freq3 = Lag.kr(freq3, lag); s_freq4 = Lag.kr(freq4, lag);
+            // FIX: Replaced hardcoded 0.05 lag with variable glide parameters
+            s_freq1 = Lag.kr(freq1, glide1); s_freq2 = Lag.kr(freq2, glide2);
+            s_freq3 = Lag.kr(freq3, glide3); s_freq4 = Lag.kr(freq4, glide4);
+            
             s_vol1 = Lag.kr(vol1, lag);   s_vol2 = Lag.kr(vol2, lag);
             s_vol3 = Lag.kr(vol3, lag);   s_vol4 = Lag.kr(vol4, lag);
             s_filt1 = Lag.kr(filt1_cutoff, lag); s_filt2 = Lag.kr(filt2_cutoff, lag);
@@ -204,7 +208,6 @@ Engine_Ltra : CroneEngine {
             vca3 = (s_vol3.squared + m_amp3).clip(0, 1);
             vca4 = (s_vol4.squared + m_amp4).clip(0, 1);
 
-            // FIX: Apply Variable Vactrol
             o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1)), (shape1 + (m_shape1*4)).clip(0,4)) * vca1 * mk_vactrol.(gate1, t_arp1, env_atk1, env_rel1);
             o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2)), (shape2 + (m_shape2*4)).clip(0,4)) * vca2 * mk_vactrol.(gate2, t_arp2, env_atk2, env_rel2);
             o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3)), (shape3 + (m_shape3*4)).clip(0,4)) * vca3 * mk_vactrol.(gate3, t_arp3, env_atk3, env_rel3);
