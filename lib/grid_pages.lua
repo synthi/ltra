@@ -1,7 +1,6 @@
 -- lib/grid_pages.lua | v1.5.15
--- FIX: Triggers, Sustain, Loopers, Snapshots, Shift Logic
 -- lib/grid_pages.lua
--- FIX: Initialized 'press_time' table to prevent nil index crash on Loopers
+-- FIX: Shift + Hold logic for Sustain
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -17,7 +16,6 @@ function Pages.init(g_ref, hw_ref)
     HW = hw_ref 
     Matrix.init(g_ref)
     Globals.snap_state = { last_click_time = {}, defer_id = {} }
-    -- FIX: Added press_time = {} to prevent crash
     Globals.looper_state = { last_click_time = {}, defer_id = {}, press_time = {} }
 end
 
@@ -217,6 +215,20 @@ function Pages.key(x, y, z)
     local shift = Globals.button_state[16] and Globals.button_state[16][8]
     
     if y == 8 then
+        -- FIX: Shift + Hold logic for Sustain
+        if x == 16 and z == 1 then
+            local Bridge = require 'ltra/lib/engine_bridge'
+            for i=1, 4 do
+                if Globals.button_state[i] and Globals.button_state[i][8] then
+                    Globals.voices[i].sustained = not Globals.voices[i].sustained
+                    if not Globals.voices[i].arp_enabled then
+                        Bridge.set_gate(i, Globals.voices[i].sustained and 1 or 0)
+                    end
+                end
+            end
+            Globals.dirty = true
+        end
+
         if x == 5 and z == 1 then
             Globals.latch_mode = not Globals.latch_mode
             if not Globals.latch_mode then
