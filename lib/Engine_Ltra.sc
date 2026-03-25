@@ -1,5 +1,5 @@
 // lib/Engine_Ltra.sc | v2.1.2
-// FIX: Restored Lexical Closure Topology, MPE Clamping, Frame Error Eradicated
+// FIX: Array Topology to bypass 255 variable limit, MPE Clamping, Memory Corruption Eradicated
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -9,82 +9,137 @@ Engine_Ltra : CroneEngine {
 
     alloc {
         SynthDef(\ltra_core, {
-            arg out,
-                freq1=110, freq2=150, freq3=220, freq4=330,
-                shape1=2, shape2=2, shape3=2, shape4=2,
-                vol1=0.0, vol2=0.0, vol3=0.0, vol4=0.0,
-                pan1=0, pan2=0, pan3=0, pan4=0,
-                drift1=0, drift2=0, drift3=0, drift4=0, 
-                spread1=0, spread2=0, spread3=0, spread4=0, 
-                glide1=0.001, glide2=0.001, glide3=0.001, glide4=0.001,
-                gate1=0, gate2=0, gate3=0, gate4=0,
-                env_atk1=0.01, env_atk2=0.01, env_atk3=0.01, env_atk4=0.01,
-                env_rel1=0.2, env_rel2=0.2, env_rel3=0.2, env_rel4=0.2,
-                
-                midi_note1=60, midi_note2=60, midi_note3=60, midi_note4=60,
-                midi_vel1=64, midi_vel2=64, midi_vel3=64, midi_vel4=64,
-                vel_amt1=0, vel_amt2=0, vel_amt3=0, vel_amt4=0,
-                vel_atk1=0, vel_atk2=0, vel_atk3=0, vel_atk4=0,
-                vel_shp1=0, vel_shp2=0, vel_shp3=0, vel_shp4=0,
-                
-                mod_wheel=0, mw_filt2=0, mw_delay_f=0,
-                pitch_bend=8192, bend_range=2,
-                
-                mpe_bend1=8192, mpe_bend2=8192, mpe_bend3=8192, mpe_bend4=8192, mpe_bend_range=48,
-                slide1=0, slide2=0, slide3=0, slide4=0,
-                slide_vol1=0, slide_vol2=0, slide_vol3=0, slide_vol4=0,
-                slide_shp1=0, slide_shp2=0, slide_shp3=0, slide_shp4=0,
-                press1=0, press2=0, press3=0, press4=0,
-                press_vol1=0, press_vol2=0, press_vol3=0, press_vol4=0,
-                press_shp1=0, press_shp2=0, press_shp3=0, press_shp4=0,
-                
-                arp_cv1=0, arp_cv2=0, arp_cv3=0, arp_cv4=0,
-                
-                mod1_lfo_rate=0.5, mod1_lfo_shape=0, mod1_depth=1,
-                mod1_chaos_rate=0.5, mod1_chaos_slew=0.1, mod1_mix=0.0,
-                mod2_lfo_rate=0.5, mod2_lfo_shape=0, mod2_depth=1,
-                mod2_chaos_rate=0.5, mod2_chaos_slew=0.1, mod2_mix=0.0,
-                mod3_lfo_rate=0.5, mod3_lfo_shape=0, mod3_depth=1,
-                mod3_chaos_rate=0.5, mod3_chaos_slew=0.1, mod3_mix=0.0,
-                
-                outline_source=0, outline_gain=1.0,
-                filt1_cutoff=32, filt2_cutoff=14200, 
-                filt1_res=0, filt2_res=0,
-                filt1_type=1, filt2_type=0, 
-                filt1_drive=0, filt2_drive=0, 
-                
-                tapecho_time=0.3, tapecho_feedback=0.4, tapecho_wow_flutter=0.1,
-                tapecho_erosion=0.0, tapecho_drive=1.0, tapecho_filter=8000, delay_send=0.5,
-                
-                blossomverb_decay=4.75, blossomverb_bloom=1.80, blossomverb_damp=3500,
-                blossomverb_predelay=0.110, blossomverb_mod_rate=0.300, blossomverb_mod_depth=0.002, reverb_mix=0.0,
-                
-                system_dirt=0, dust_dens=0, 
-                clear_trig=0, t_reset=0;
+            var out = \out.kr(0);
+            
+            // Global Controls
+            var mod_wheel = \mod_wheel.kr(0);
+            var mw_filt2 = \mw_filt2.kr(0);
+            var mw_delay_f = \mw_delay_f.kr(0);
+            var pitch_bend = \pitch_bend.kr(8192);
+            var bend_range = \bend_range.kr(2);
+            var mpe_bend_range = \mpe_bend_range.kr(48);
+            
+            var mod1_lfo_rate = \mod1_lfo_rate.kr(0.5);
+            var mod1_lfo_shape = \mod1_lfo_shape.kr(0);
+            var mod1_depth = \mod1_depth.kr(1);
+            var mod1_chaos_rate = \mod1_chaos_rate.kr(0.5);
+            var mod1_chaos_slew = \mod1_chaos_slew.kr(0.1);
+            var mod1_mix = \mod1_mix.kr(0);
+            
+            var mod2_lfo_rate = \mod2_lfo_rate.kr(0.5);
+            var mod2_lfo_shape = \mod2_lfo_shape.kr(0);
+            var mod2_depth = \mod2_depth.kr(1);
+            var mod2_chaos_rate = \mod2_chaos_rate.kr(0.5);
+            var mod2_chaos_slew = \mod2_chaos_slew.kr(0.1);
+            var mod2_mix = \mod2_mix.kr(0);
+            
+            var mod3_lfo_rate = \mod3_lfo_rate.kr(0.5);
+            var mod3_lfo_shape = \mod3_lfo_shape.kr(0);
+            var mod3_depth = \mod3_depth.kr(1);
+            var mod3_chaos_rate = \mod3_chaos_rate.kr(0.5);
+            var mod3_chaos_slew = \mod3_chaos_slew.kr(0.1);
+            var mod3_mix = \mod3_mix.kr(0);
+            
+            var outline_source = \outline_source.kr(0);
+            var outline_gain = \outline_gain.kr(1.0);
+            
+            var filt1_cutoff = \filt1_cutoff.kr(32);
+            var filt2_cutoff = \filt2_cutoff.kr(14200);
+            var filt1_res = \filt1_res.kr(0);
+            var filt2_res = \filt2_res.kr(0);
+            var filt1_type = \filt1_type.kr(1);
+            var filt2_type = \filt2_type.kr(0);
+            var filt1_drive = \filt1_drive.kr(0);
+            var filt2_drive = \filt2_drive.kr(0);
+            
+            var tapecho_time = \tapecho_time.kr(0.3);
+            var tapecho_feedback = \tapecho_feedback.kr(0.4);
+            var tapecho_wow_flutter = \tapecho_wow_flutter.kr(0.1);
+            var tapecho_erosion = \tapecho_erosion.kr(0.0);
+            var tapecho_drive = \tapecho_drive.kr(1.0);
+            var tapecho_filter = \tapecho_filter.kr(8000);
+            var delay_send = \delay_send.kr(0.5);
+            
+            var blossomverb_decay = \blossomverb_decay.kr(4.75);
+            var blossomverb_bloom = \blossomverb_bloom.kr(1.80);
+            var blossomverb_damp = \blossomverb_damp.kr(3500);
+            var blossomverb_predelay = \blossomverb_predelay.kr(0.110);
+            var blossomverb_mod_rate = \blossomverb_mod_rate.kr(0.300);
+            var blossomverb_mod_depth = \blossomverb_mod_depth.kr(0.002);
+            var reverb_mix = \reverb_mix.kr(0.0);
+            
+            var system_dirt = \system_dirt.kr(0);
+            var dust_dens = \dust_dens.kr(0);
+            var clear_trig = \clear_trig.kr(0);
+            
+            // Voice Arrays (Reduces variable count drastically)
+            var freqs =[ \freq1.kr(110), \freq2.kr(150), \freq3.kr(220), \freq4.kr(330) ];
+            var shapes =[ \shape1.kr(2), \shape2.kr(2), \shape3.kr(2), \shape4.kr(2) ];
+            var vols =[ \vol1.kr(0), \vol2.kr(0), \vol3.kr(0), \vol4.kr(0) ];
+            var pans =[ \pan1.kr(0), \pan2.kr(0), \pan3.kr(0), \pan4.kr(0) ];
+            var drifts =[ \drift1.kr(0), \drift2.kr(0), \drift3.kr(0), \drift4.kr(0) ];
+            var spreads =[ \spread1.kr(0), \spread2.kr(0), \spread3.kr(0), \spread4.kr(0) ];
+            var glides =[ \glide1.kr(0.001), \glide2.kr(0.001), \glide3.kr(0.001), \glide4.kr(0.001) ];
+            var gates =[ \gate1.kr(0), \gate2.kr(0), \gate3.kr(0), \gate4.kr(0) ];
+            var env_atks =[ \env_atk1.kr(0.01), \env_atk2.kr(0.01), \env_atk3.kr(0.01), \env_atk4.kr(0.01) ];
+            var env_rels =[ \env_rel1.kr(0.2), \env_rel2.kr(0.2), \env_rel3.kr(0.2), \env_rel4.kr(0.2) ];
+            
+            var midi_notes =[ \midi_note1.kr(60), \midi_note2.kr(60), \midi_note3.kr(60), \midi_note4.kr(60) ];
+            var midi_vels =[ \midi_vel1.kr(64), \midi_vel2.kr(64), \midi_vel3.kr(64), \midi_vel4.kr(64) ];
+            var vel_amts =[ \vel_amt1.kr(0), \vel_amt2.kr(0), \vel_amt3.kr(0), \vel_amt4.kr(0) ];
+            var vel_atks =[ \vel_atk1.kr(0), \vel_atk2.kr(0), \vel_atk3.kr(0), \vel_atk4.kr(0) ];
+            var vel_shps =[ \vel_shp1.kr(0), \vel_shp2.kr(0), \vel_shp3.kr(0), \vel_shp4.kr(0) ];
+            
+            var mpe_bends =[ \mpe_bend1.kr(8192), \mpe_bend2.kr(8192), \mpe_bend3.kr(8192), \mpe_bend4.kr(8192) ];
+            var slides =[ \slide1.kr(0), \slide2.kr(0), \slide3.kr(0), \slide4.kr(0) ];
+            var slide_vols =[ \slide_vol1.kr(0), \slide_vol2.kr(0), \slide_vol3.kr(0), \slide_vol4.kr(0) ];
+            var slide_shps =[ \slide_shp1.kr(0), \slide_shp2.kr(0), \slide_shp3.kr(0), \slide_shp4.kr(0) ];
+            var presses =[ \press1.kr(0), \press2.kr(0), \press3.kr(0), \press4.kr(0) ];
+            var press_vols =[ \press_vol1.kr(0), \press_vol2.kr(0), \press_vol3.kr(0), \press_vol4.kr(0) ];
+            var press_shps =[ \press_shp1.kr(0), \press_shp2.kr(0), \press_shp3.kr(0), \press_shp4.kr(0) ];
+            
+            var arp_cvs =[ \arp_cv1.kr(0), \arp_cv2.kr(0), \arp_cv3.kr(0), \arp_cv4.kr(0) ];
 
-            // ==========================================
-            // PHASE 1: LITERALS & FUNCTIONS (IMMEDIATE INIT)
-            // ==========================================
+            // Internal Variables
+            var mod1_lfo, mod1_chaos, mod1_sig;
+            var mod2_lfo, mod2_chaos, mod2_sig;
+            var mod3_lfo, mod3_chaos, mod3_sig;
+            var env_int, env_ext, outline_sig;
+            var mw_norm, bend_norm, bend_offset;
+            var m_filt1, m_filt2, m_delay_t, m_delay_f;
+            var s_filt1, s_filt2;
+            var sig_mix, sig_filt1, sig_filt2, sig_pre;
+            var dirt_sig, hiss, hum, dust_sig;
+            var tape_in, local_in, shared_wow, shared_flutter, shared_mod;
+            var shared_dust_trig, shared_dropout_env, dt_mono, tape_del_mono;
+            var sat_mono, ero_lpf_freq, ero_bass_cut, filt_mono, tone_filt_mono, final_mono;
+            var skew_lfo, skew_l, skew_r, cross_l, cross_r, eq_var_l, eq_var_r;
+            var tape_sig_l, tape_sig_r;
+            var time_kr, fb_kr, wf_kr, ero_kr, drive_kr, filter_kr;
+            var rev_in, lfo_l, lfo_r, combs_l, combs_r, cross_l_rev, cross_r_rev;
+            var ap_l, ap_r, rev_filt_l, rev_filt_r, rev_out_l, rev_out_r;
+            var decay_kr, bloom_kr, damp_kr, predelay_kr, mod_rate_kr, mod_depth_kr;
+            var effects_out, sig_post, osc_trig;
+            var scale_map, mk_osc, calc_mod, calc_mod_pitch;
+            var voices_out;
+            
             var prime_combs_l = #[0.031229, 0.037270, 0.043979, 0.050354, 0.057270, 0.064770];
             var prime_combs_r = #[0.031479, 0.037729, 0.044354, 0.050479, 0.057354, 0.064979];
             var prime_ap_l = #[0.011270, 0.031729];
             var prime_ap_r = #[0.011604, 0.031895];
-            
-            var scale_map =[
-                NamedControl.kr(\scale_map_0, 0), NamedControl.kr(\scale_map_1, 1),
-                NamedControl.kr(\scale_map_2, 2), NamedControl.kr(\scale_map_3, 3),
-                NamedControl.kr(\scale_map_4, 4), NamedControl.kr(\scale_map_5, 5),
-                NamedControl.kr(\scale_map_6, 6), NamedControl.kr(\scale_map_7, 7),
-                NamedControl.kr(\scale_map_8, 8), NamedControl.kr(\scale_map_9, 9),
-                NamedControl.kr(\scale_map_10, 10), NamedControl.kr(\scale_map_11, 11)
-            ];
 
-            var mk_osc = { |f, s| 
+            // ==========================================
+            // SIGNAL FLOW
+            // ==========================================
+            
+            scale_map = 12.collect { |i| NamedControl.kr("scale_map_" ++ i, i) };
+
+            mk_osc = { |f, s| 
                 var shape_idx = s.clip(0, 6);
                 var safe_f = f.clip(20, 20000);
                 var sig0 = PinkNoise.ar;
                 var core_saw = SawDPW.ar(safe_f);
-                var pm_amt = SelectX.kr(shape_idx.clip(1, 2) - 1, [0.15, 0.0]);
+                var pm_amt = SelectX.kr(shape_idx.clip(1, 2) - 1,[0.15, 0.0]);
                 var pm_mod = LPF.ar(PinkNoise.ar, 10000) * pm_amt * 0.015;
                 var sig1 = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
                 var sig2 = core_saw;
@@ -99,91 +154,6 @@ Engine_Ltra : CroneEngine {
                 SelectX.ar(shape_idx,[sig0, sig1, sig2, sig3, sig4, sig5, sig6]);
             };
 
-            // ==========================================
-            // PHASE 2: AUDIO & CONTROL VARIABLES
-            // ==========================================
-            var mod1_lfo, mod1_chaos, mod1_sig;
-            var mod2_lfo, mod2_chaos, mod2_sig;
-            var mod3_lfo, mod3_chaos, mod3_sig;
-            var outline_sig, env_int, env_ext;
-            var m_pitch1, m_pitch2, m_pitch3, m_pitch4;
-            var m_amp1, m_amp2, m_amp3, m_amp4;
-            var m_shape1, m_shape2, m_shape3, m_shape4;
-            var m_filt1, m_filt2, m_delay_t, m_delay_f;
-            var o1, o2, o3, o4, sig_mix;
-            var sig_filt1, sig_filt2, sig_pre;
-            var dirt_sig, hiss, hum, dust_sig;
-            var effects_out, sig_post;
-            var osc_trig;
-            var s_freq1, s_freq2, s_freq3, s_freq4;
-            var s_vol1, s_vol2, s_vol3, s_vol4;
-            var s_filt1, s_filt2;
-            var vca1, vca2, vca3, vca4;
-            var env1, env2, env3, env4;
-            var bend_norm, bend_offset;
-            var mpe_bend_off1, mpe_bend_off2, mpe_bend_off3, mpe_bend_off4;
-            var midi_off1, midi_off2, midi_off3, midi_off4;
-            var vel_bip1, vel_bip2, vel_bip3, vel_bip4;
-            var mw_norm;
-            var slide_n1, slide_n2, slide_n3, slide_n4;
-            var press_n1, press_n2, press_n3, press_n4;
-            var final_shape1, final_shape2, final_shape3, final_shape4;
-            var final_atk1, final_atk2, final_atk3, final_atk4;
-            var tape_in, local_in, shared_wow, shared_flutter, shared_mod;
-            var shared_dust_trig, shared_dropout_env, dt_mono, tape_del_mono;
-            var sat_mono, ero_lpf_freq, ero_bass_cut, filt_mono, tone_filt_mono, final_mono;
-            var skew_lfo, skew_l, skew_r, cross_l, cross_r, eq_var_l, eq_var_r;
-            var tape_sig_l, tape_sig_r;
-            var time_kr, fb_kr, wf_kr, ero_kr, drive_kr, filter_kr;
-            var rev_in, lfo_l, lfo_r, combs_l, combs_r, cross_l_rev, cross_r_rev;
-            var ap_l, ap_r, rev_filt_l, rev_filt_r, rev_out_l, rev_out_r;
-            var decay_kr, bloom_kr, damp_kr, predelay_kr, mod_rate_kr, mod_depth_kr;
-            var d_sig1, d_sig2, d_sig3, d_sig4;
-            
-            // Functions that capture variables by reference
-            var calc_mod = { |dest_name, arp_val|
-                (mod1_sig * NamedControl.kr(("mod_mod1_" ++ dest_name).asSymbol, 0)) +
-                (mod2_sig * NamedControl.kr(("mod_mod2_" ++ dest_name).asSymbol, 0)) +
-                (mod3_sig * NamedControl.kr(("mod_mod3_" ++ dest_name).asSymbol, 0)) +
-                (outline_sig * NamedControl.kr(("mod_outline_" ++ dest_name).asSymbol, 0)) +
-                (arp_val * NamedControl.kr(("mod_arp_" ++ dest_name).asSymbol, 0));
-            };
-            
-            var calc_mod_pitch = { |dest_name, arp_val|
-                var raw_mod1 = mod1_sig * NamedControl.kr(("mod_mod1_" ++ dest_name).asSymbol, 0) * 24.0;
-                var raw_mod2 = mod2_sig * NamedControl.kr(("mod_mod2_" ++ dest_name).asSymbol, 0) * 24.0;
-                var raw_mod3 = mod3_sig * NamedControl.kr(("mod_mod3_" ++ dest_name).asSymbol, 0) * 24.0;
-                var raw_outline = outline_sig * NamedControl.kr(("mod_outline_" ++ dest_name).asSymbol, 0) * 24.0;
-                var raw_arp = arp_val * NamedControl.kr(("mod_arp_" ++ dest_name).asSymbol, 0) * 24.0;
-                var quantize_fn = { |raw|
-                    var rounded = raw.round;
-                    var oct = (rounded / 12).floor;
-                    var pc = rounded % 12;
-                    (oct * 12) + Select.kr(pc, scale_map);
-                };
-                var q_mod1 = Select.kr(NamedControl.kr(("quant_mod1_" ++ dest_name).asSymbol, 1),[raw_mod1, quantize_fn.(raw_mod1)]);
-                var q_mod2 = Select.kr(NamedControl.kr(("quant_mod2_" ++ dest_name).asSymbol, 1),[raw_mod2, quantize_fn.(raw_mod2)]);
-                var q_mod3 = Select.kr(NamedControl.kr(("quant_mod3_" ++ dest_name).asSymbol, 1),[raw_mod3, quantize_fn.(raw_mod3)]);
-                var q_outline = Select.kr(NamedControl.kr(("quant_outline_" ++ dest_name).asSymbol, 1),[raw_outline, quantize_fn.(raw_outline)]);
-                var q_arp = Select.kr(NamedControl.kr(("quant_arp_" ++ dest_name).asSymbol, 1),[raw_arp, quantize_fn.(raw_arp)]);
-                (q_mod1 + q_mod2 + q_mod3 + q_outline + q_arp) / 12.0;
-            };
-
-            // ==========================================
-            // PHASE 3: SIGNAL FLOW
-            // ==========================================
-            d_sig1 = (LFNoise2.kr(0.01) * drift1 * (6/1200)) + (LFNoise2.kr(3.1) * spread1 * (3/1200));
-            d_sig2 = (LFNoise2.kr(0.012) * drift2 * (6/1200)) + (LFNoise2.kr(3.4) * spread2 * (3/1200));
-            d_sig3 = (LFNoise2.kr(0.008) * drift3 * (6/1200)) + (LFNoise2.kr(2.9) * spread3 * (3/1200));
-            d_sig4 = (LFNoise2.kr(0.011) * drift4 * (6/1200)) + (LFNoise2.kr(3.2) * spread4 * (3/1200));
-
-            s_freq1 = Lag.kr(freq1, glide1); s_freq2 = Lag.kr(freq2, glide2);
-            s_freq3 = Lag.kr(freq3, glide3); s_freq4 = Lag.kr(freq4, glide4);
-            
-            s_vol1 = Lag.kr(vol1, 0.05);   s_vol2 = Lag.kr(vol2, 0.05);
-            s_vol3 = Lag.kr(vol3, 0.05);   s_vol4 = Lag.kr(vol4, 0.05);
-            s_filt1 = Lag.kr(filt1_cutoff, 0.05); s_filt2 = Lag.kr(filt2_cutoff, 0.05);
-
             mod1_lfo = SelectX.kr(mod1_lfo_shape * 3,[ LFPulse.kr(mod1_lfo_rate, 0, 0.5), (LFSaw.kr(mod1_lfo_rate, 0) + 1) * 0.5, (LFTri.kr(mod1_lfo_rate, 0) + 1) * 0.5, (SinOsc.kr(mod1_lfo_rate, 0) + 1) * 0.5 ]);
             mod1_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod1_chaos_rate * 4)), mod1_chaos_slew * 10, mod1_chaos_slew * 10);
             mod1_sig = SelectX.kr(mod1_mix,[mod1_lfo, mod1_chaos]) * mod1_depth;
@@ -196,71 +166,75 @@ Engine_Ltra : CroneEngine {
             mod3_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod3_chaos_rate * 4)), mod3_chaos_slew * 10, mod3_chaos_slew * 10);
             mod3_sig = SelectX.kr(mod3_mix,[mod3_lfo, mod3_chaos]) * mod3_depth;
 
-            env_int = LagUD.kr((gate1+gate2+gate3+gate4).clip(0,1), 0.01, 0.5);
+            env_int = LagUD.kr((gates[0]+gates[1]+gates[2]+gates[3]).clip(0,1), 0.01, 0.5);
             env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); 
             outline_sig = Select.kr(outline_source,[env_int, env_ext]) * outline_gain;
 
-            m_pitch1 = calc_mod_pitch.("pitch1", arp_cv1); m_pitch2 = calc_mod_pitch.("pitch2", arp_cv2);
-            m_pitch3 = calc_mod_pitch.("pitch3", arp_cv3); m_pitch4 = calc_mod_pitch.("pitch4", arp_cv4);
-
-            m_amp1 = calc_mod.("amp1", arp_cv1); m_amp2 = calc_mod.("amp2", arp_cv2);
-            m_amp3 = calc_mod.("amp3", arp_cv3); m_amp4 = calc_mod.("amp4", arp_cv4);
-            m_shape1 = calc_mod.("shape1", arp_cv1); m_shape2 = calc_mod.("shape2", arp_cv2);
-            m_shape3 = calc_mod.("shape3", arp_cv3); m_shape4 = calc_mod.("shape4", arp_cv4);
+            calc_mod = { |dest_name, arp_val|
+                (mod1_sig * NamedControl.kr("mod_mod1_" ++ dest_name, 0)) +
+                (mod2_sig * NamedControl.kr("mod_mod2_" ++ dest_name, 0)) +
+                (mod3_sig * NamedControl.kr("mod_mod3_" ++ dest_name, 0)) +
+                (outline_sig * NamedControl.kr("mod_outline_" ++ dest_name, 0)) +
+                (arp_val * NamedControl.kr("mod_arp_" ++ dest_name, 0));
+            };
             
+            calc_mod_pitch = { |dest_name, arp_val|
+                var raw_mod1 = mod1_sig * NamedControl.kr("mod_mod1_" ++ dest_name, 0) * 24.0;
+                var raw_mod2 = mod2_sig * NamedControl.kr("mod_mod2_" ++ dest_name, 0) * 24.0;
+                var raw_mod3 = mod3_sig * NamedControl.kr("mod_mod3_" ++ dest_name, 0) * 24.0;
+                var raw_outline = outline_sig * NamedControl.kr("mod_outline_" ++ dest_name, 0) * 24.0;
+                var raw_arp = arp_val * NamedControl.kr("mod_arp_" ++ dest_name, 0) * 24.0;
+                var quantize_fn = { |raw|
+                    var rounded = raw.round;
+                    var oct = (rounded / 12).floor;
+                    var pc = rounded % 12;
+                    (oct * 12) + Select.kr(pc, scale_map);
+                };
+                var q_mod1 = Select.kr(NamedControl.kr("quant_mod1_" ++ dest_name, 1),[raw_mod1, quantize_fn.(raw_mod1)]);
+                var q_mod2 = Select.kr(NamedControl.kr("quant_mod2_" ++ dest_name, 1),[raw_mod2, quantize_fn.(raw_mod2)]);
+                var q_mod3 = Select.kr(NamedControl.kr("quant_mod3_" ++ dest_name, 1),[raw_mod3, quantize_fn.(raw_mod3)]);
+                var q_outline = Select.kr(NamedControl.kr("quant_outline_" ++ dest_name, 1),[raw_outline, quantize_fn.(raw_outline)]);
+                var q_arp = Select.kr(NamedControl.kr("quant_arp_" ++ dest_name, 1),[raw_arp, quantize_fn.(raw_arp)]);
+                (q_mod1 + q_mod2 + q_mod3 + q_outline + q_arp) / 12.0;
+            };
+
             mw_norm = mod_wheel / 127.0; 
-            m_filt1 = calc_mod.("filt1", arp_cv1) * 5000; 
-            m_filt2 = calc_mod.("filt2", arp_cv1) * 5000 + (mw_norm * mw_filt2 * 5000);
-            
-            m_delay_t = calc_mod.("tapecho_time", arp_cv1) * 0.1; 
-            m_delay_f = calc_mod.("tapecho_feedback", arp_cv1) + (mw_norm * mw_delay_f);
-
             bend_norm = (pitch_bend - 8192) / 8192.0;
             bend_offset = bend_norm * bend_range / 12.0;
-            
-            mpe_bend_off1 = ((mpe_bend1 - 8192) / 8192.0) * mpe_bend_range / 12.0;
-            mpe_bend_off2 = ((mpe_bend2 - 8192) / 8192.0) * mpe_bend_range / 12.0;
-            mpe_bend_off3 = ((mpe_bend3 - 8192) / 8192.0) * mpe_bend_range / 12.0;
-            mpe_bend_off4 = ((mpe_bend4 - 8192) / 8192.0) * mpe_bend_range / 12.0;
-            
-            midi_off1 = (midi_note1 - 60) / 12.0; midi_off2 = (midi_note2 - 60) / 12.0;
-            midi_off3 = (midi_note3 - 60) / 12.0; midi_off4 = (midi_note4 - 60) / 12.0;
-            
-            vel_bip1 = (midi_vel1 - 64) / 63.0; vel_bip2 = (midi_vel2 - 64) / 63.0;
-            vel_bip3 = (midi_vel3 - 64) / 63.0; vel_bip4 = (midi_vel4 - 64) / 63.0;
-            
-            slide_n1 = slide1 / 127.0; slide_n2 = slide2 / 127.0;
-            slide_n3 = slide3 / 127.0; slide_n4 = slide4 / 127.0;
-            
-            press_n1 = press1 / 127.0; press_n2 = press2 / 127.0;
-            press_n3 = press3 / 127.0; press_n4 = press4 / 127.0;
 
-            vca1 = (s_vol1.squared + m_amp1 + (vel_bip1 * vel_amt1 * s_vol1.squared) + (slide_n1 * slide_vol1) + (press_n1 * press_vol1)).clip(0, 1);
-            vca2 = (s_vol2.squared + m_amp2 + (vel_bip2 * vel_amt2 * s_vol2.squared) + (slide_n2 * slide_vol2) + (press_n2 * press_vol2)).clip(0, 1);
-            vca3 = (s_vol3.squared + m_amp3 + (vel_bip3 * vel_amt3 * s_vol3.squared) + (slide_n3 * slide_vol3) + (press_n3 * press_vol3)).clip(0, 1);
-            vca4 = (s_vol4.squared + m_amp4 + (vel_bip4 * vel_amt4 * s_vol4.squared) + (slide_n4 * slide_vol4) + (press_n4 * press_vol4)).clip(0, 1);
-            
-            final_shape1 = (shape1 + (m_shape1*6) + (vel_bip1 * vel_shp1 * 6) + (slide_n1 * slide_shp1 * 6) + (press_n1 * press_shp1 * 6)).clip(0, 6);
-            final_shape2 = (shape2 + (m_shape2*6) + (vel_bip2 * vel_shp2 * 6) + (slide_n2 * slide_shp2 * 6) + (press_n2 * press_shp2 * 6)).clip(0, 6);
-            final_shape3 = (shape3 + (m_shape3*6) + (vel_bip3 * vel_shp3 * 6) + (slide_n3 * slide_shp3 * 6) + (press_n3 * press_shp3 * 6)).clip(0, 6);
-            final_shape4 = (shape4 + (m_shape4*6) + (vel_bip4 * vel_shp4 * 6) + (slide_n4 * slide_shp4 * 6) + (press_n4 * press_shp4 * 6)).clip(0, 6);
+            // Voice Iteration (Solves the 255 variable limit)
+            voices_out = 4.collect { |i|
+                var idx_str = (i+1).asString;
+                var d_sig = (LFNoise2.kr(0.01 + (i*0.001)) * drifts[i] * (6/1200)) + (LFNoise2.kr(3.1 + (i*0.1)) * spreads[i] * (3/1200));
+                var s_freq = Lag.kr(freqs[i], glides[i]);
+                var s_vol = Lag.kr(vols[i], 0.05);
+                
+                var m_pitch = calc_mod_pitch.("pitch" ++ idx_str, arp_cvs[i]);
+                var m_amp = calc_mod.("amp" ++ idx_str, arp_cvs[i]);
+                var m_shape = calc_mod.("shape" ++ idx_str, arp_cvs[i]);
+                
+                var mpe_bend_off = ((mpe_bends[i] - 8192) / 8192.0) * mpe_bend_range / 12.0;
+                var midi_off = (midi_notes[i] - 60) / 12.0;
+                var vel_bip = (midi_vels[i] - 64) / 63.0;
+                var slide_n = slides[i] / 127.0;
+                var press_n = presses[i] / 127.0;
+                
+                var vca = (s_vol.squared + m_amp + (vel_bip * vel_amts[i] * s_vol.squared) + (slide_n * slide_vols[i]) + (press_n * press_vols[i])).clip(0, 1);
+                var final_shape = (shapes[i] + (m_shape*6) + (vel_bip * vel_shps[i] * 6) + (slide_n * slide_shps[i] * 6) + (press_n * press_shps[i] * 6)).clip(0, 6);
+                var final_atk = (env_atks[i] + (vel_bip * vel_atks[i] * 5.0)).clip(0.001, 10.0);
+                
+                var env = EnvGen.kr(Env.asr(final_atk, 1.0, env_rels[i]), gates[i]);
+                var osc = mk_osc.(s_freq * (2.pow(m_pitch + d_sig + bend_offset + mpe_bend_off + midi_off)), final_shape) * vca * env;
+                
+                Pan2.ar(osc, pans[i].clip(-1,1));
+            };
 
-            final_atk1 = (env_atk1 + (vel_bip1 * vel_atk1 * 5.0)).clip(0.001, 10.0);
-            final_atk2 = (env_atk2 + (vel_bip2 * vel_atk2 * 5.0)).clip(0.001, 10.0);
-            final_atk3 = (env_atk3 + (vel_bip3 * vel_atk3 * 5.0)).clip(0.001, 10.0);
-            final_atk4 = (env_atk4 + (vel_bip4 * vel_atk4 * 5.0)).clip(0.001, 10.0);
+            sig_mix = (voices_out[0] + voices_out[1] + voices_out[2] + voices_out[3]) * 0.125;
 
-            env1 = EnvGen.kr(Env.asr(final_atk1, 1.0, env_rel1), gate1);
-            env2 = EnvGen.kr(Env.asr(final_atk2, 1.0, env_rel2), gate2);
-            env3 = EnvGen.kr(Env.asr(final_atk3, 1.0, env_rel3), gate3);
-            env4 = EnvGen.kr(Env.asr(final_atk4, 1.0, env_rel4), gate4);
-
-            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1 + bend_offset + mpe_bend_off1 + midi_off1)), final_shape1) * vca1 * env1;
-            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2 + bend_offset + mpe_bend_off2 + midi_off2)), final_shape2) * vca2 * env2;
-            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3 + bend_offset + mpe_bend_off3 + midi_off3)), final_shape3) * vca3 * env3;
-            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4 + bend_offset + mpe_bend_off4 + midi_off4)), final_shape4) * vca4 * env4;
-
-            sig_mix = (Pan2.ar(o1, pan1.clip(-1,1)) + Pan2.ar(o2, pan2.clip(-1,1)) + Pan2.ar(o3, pan3.clip(-1,1)) + Pan2.ar(o4, pan4.clip(-1,1))) * 0.125;
+            s_filt1 = Lag.kr(filt1_cutoff, 0.05); 
+            s_filt2 = Lag.kr(filt2_cutoff, 0.05);
+            m_filt1 = calc_mod.("filt1", arp_cvs[0]) * 5000; 
+            m_filt2 = calc_mod.("filt2", arp_cvs[0]) * 5000 + (mw_norm * mw_filt2 * 5000);
 
             sig_filt1 = DFM1.ar(sig_mix, (s_filt1 + m_filt1).clip(20, 18000), filt1_res.clip(0, 1.2), 1.0 + (filt1_drive * 3), filt1_type, 0.0003);
             sig_filt2 = DFM1.ar(sig_filt1, (s_filt2 + m_filt2).clip(20, 18000), filt2_res.clip(0, 1.2), 1.0 + (filt2_drive * 3), filt2_type, 0.0003);
@@ -278,6 +252,9 @@ Engine_Ltra : CroneEngine {
             ero_kr = Lag.kr(tapecho_erosion, 0.1);
             drive_kr = Lag.kr(tapecho_drive, 0.1);
             filter_kr = Lag.kr(tapecho_filter, 0.1); 
+
+            m_delay_t = calc_mod.("tapecho_time", arp_cvs[0]) * 0.1; 
+            m_delay_f = calc_mod.("tapecho_feedback", arp_cvs[0]) + (mw_norm * mw_delay_f);
 
             local_in = LocalIn.ar(1);
             local_in = local_in * (1.0 - Trig.kr(clear_trig, 0.05));
