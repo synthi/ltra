@@ -87,8 +87,8 @@ local function process_fader(id, val)
             params:set("mod3_lfo_rate", hz); trigger_popup("MOD3 RATE", string.format("%.2f Hz", hz))
         end
     elseif func == "tape_time" then 
-        local norm_cubed = norm^3 -- Cubic curve for extreme low-end resolution
-        local t = util.linexp(0, 1, 0.01, 2.0, norm_cubed)
+        --local norm_cubed = norm^3 -- Cubic curve for extreme low-end resolution
+        local t = util.linexp(0, 1, 0.01, 2.0, norm)
         params:set("tapecho_time", t); trigger_popup("TAPE TIME", string.format("%.2f s", t))
     elseif func == "tape_fb" then 
         local fb = util.linlin(0, 1, 0.0, 1.2, norm)
@@ -171,8 +171,7 @@ function Midi16n.sync_faders()
                 end
             elseif func == "tape_time" then
                 local val = params:get("tapecho_time")
-                local norm_cubed = util.explin(0.01, 2.0, 0, 1, val)
-                norm = norm_cubed^(1/3)
+                norm = util.explin(0.01, 2.0, 0, 1, val)
             elseif func == "tape_fb" then
                 local val = params:get("tapecho_feedback")
                 norm = util.linlin(0.0, 1.2, 0, 1, val)
