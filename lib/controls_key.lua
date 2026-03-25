@@ -1,5 +1,5 @@
--- lib/controls_key.lua | v2.1.0
--- FIX: Multi-Target Iteration, MIDI Menu Logic
+-- lib/controls_key.lua | v2.1.1
+-- FIX: Orthogonal Target Resolution (Array vs Dictionary)
 
 local Keys = {}
 local Globals
@@ -15,7 +15,15 @@ function Keys.event(n, z)
     Globals.dirty = true
     
     if Globals.menu_mode ~= Consts.MENU.NONE then
-        local targets = type(Globals.menu_target) == "table" and Globals.menu_target or {Globals.menu_target}
+        -- FIX: Safe resolution of targets
+        local targets = {Globals.menu_target}
+        if type(Globals.menu_target) == "table" then
+            if Globals.menu_target.src_name then
+                targets = {Globals.menu_target}
+            else
+                targets = Globals.menu_target
+            end
+        end
         
         if Globals.menu_mode == Consts.MENU.OSC then
             if n==2 then 
