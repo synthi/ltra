@@ -1,5 +1,5 @@
--- lib/ui.lua | v2.1.0
--- FIX: Ergonomic Reorder (E2-E3-E1), MPE Menus, Native VU
+-- lib/ui.lua | v2.1.1
+-- FIX: Safe String Concatenation for Matrix Dictionary
 
 local UI = {}
 local Globals
@@ -18,9 +18,25 @@ end
 
 local function draw_menu()
     screen.level(15); screen.rect(0,0,128,64); screen.fill(); screen.level(0)
-    local targets = type(Globals.menu_target) == "table" and Globals.menu_target or {Globals.menu_target}
-    local t_str = table.concat(targets, ",")
-    local t = targets[1] -- For reading current values
+    
+    -- FIX: Safe resolution of targets for UI display
+    local targets = {Globals.menu_target}
+    local t_str = "?"
+    local t = Globals.menu_target
+    
+    if type(Globals.menu_target) == "table" then
+        if Globals.menu_target.src_name then
+            targets = {Globals.menu_target}
+            t_str = "MAT"
+        else
+            targets = Globals.menu_target
+            t_str = table.concat(targets, ",")
+            t = targets[1]
+        end
+    else
+        t_str = tostring(Globals.menu_target)
+    end
+    
     local mode = Globals.menu_mode
     
     if mode == Consts.MENU.OSC then
@@ -201,7 +217,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v2.1.0")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v2.1.1")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
