@@ -47,7 +47,7 @@ function Params.init(g_ref)
     local midi_ch_options = {"1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","OMNI","MPE"}
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 19) 
+        params:add_group("VOICE "..i, 21) 
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -152,7 +152,7 @@ function Params.init(g_ref)
     params:add_control("mw_filt2", "MW to Filt2", controlspec.new(-1,1,"lin",0.01,0))
     params:set_action("mw_filt2", function(x) Bridge.set_param("mw_filt2", x) end)
 
-    params:add_group("MODULATION", 32) 
+    params:add_group("MODULATION", 30) 
     for i=1, 3 do
         params:add_binary("mod"..i.."_lfo_sync", "MOD"..i.." LFO Sync", "toggle", 0)
         params:add_option("mod"..i.."_lfo_div", "MOD"..i.." LFO Div", sync_opts, 10)
