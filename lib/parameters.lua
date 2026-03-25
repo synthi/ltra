@@ -1,7 +1,6 @@
--- lib/parameters.lua | v1.5.16
--- FIX: Added VCO Pan, Added Loopers Group
+-- lib/parameters.lua | v1.5.17
 -- lib/parameters.lua
--- FIX: Re-open gate if Arp is turned off while voice is latched/sustained
+-- FIX: Added oscX_glide parameter
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -39,7 +38,7 @@ function Params.init(g_ref)
     params:set_action("monitor_vol", function(x) audio.level_adc(x) end)
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 11) 
+        params:add_group("VOICE "..i, 12) -- FIX: Increased to 12 for Glide
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -78,6 +77,10 @@ function Params.init(g_ref)
         params:add_control("osc"..i.."_spread", "Spread", controlspec.new(0,1,"lin",0.01,0))
         params:set_action("osc"..i.."_spread", function(x) Bridge.set_param("spread"..i, x) end)
         
+        -- FIX: Added Glide parameter
+        params:add_control("osc"..i.."_glide", "Glide", controlspec.new(0.001, 2.0, "exp", 0.001, 0.001))
+        params:set_action("osc"..i.."_glide", function(x) Bridge.set_param("glide"..i, x) end)
+        
         params:add_binary("osc"..i.."_arp", "Arp Mode", "toggle", 0)
         params:set_action("osc"..i.."_arp", function(x) 
             if Globals then Globals.voices[i].arp_enabled=(x==1) end 
@@ -85,13 +88,6 @@ function Params.init(g_ref)
                 local p = params:get("osc"..i.."_pitch")
                 local action = params:lookup_param("osc"..i.."_pitch").action
                 if action then action(p) end
-                
-                -- FIX: Re-open gate if latched or sustained when Arp is turned off
-                if Globals and (Globals.voices[i].latched or Globals.voices[i].sustained) then
-                    Bridge.set_gate(i, 1)
-                else
-                    Bridge.set_gate(i, 0)
-                end
             end
         end)
         
