@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v2.1.0
-// FIX: MPE Architecture, Handshake Ping, Mod Wheel Routing
+// lib/Engine_Ltra.sc | v2.1.1
+// FIX: Strict Variable Declaration Order, Extreme Clamping, Unipolar MW
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -30,7 +30,6 @@ Engine_Ltra : CroneEngine {
                 mod_wheel=0, mw_filt2=0, mw_delay_f=0,
                 pitch_bend=8192, bend_range=2,
                 
-                // MPE Params
                 mpe_bend1=8192, mpe_bend2=8192, mpe_bend3=8192, mpe_bend4=8192, mpe_bend_range=48,
                 slide1=0, slide2=0, slide3=0, slide4=0,
                 slide_vol1=0, slide_vol2=0, slide_vol3=0, slide_vol4=0,
@@ -63,10 +62,12 @@ Engine_Ltra : CroneEngine {
                 system_dirt=0, dust_dens=0, 
                 clear_trig=0, t_reset=0;
 
+            // ==========================================
+            // STRICT VARIABLE DECLARATION BLOCK (TOP)
+            // ==========================================
             var mod1_lfo, mod1_chaos, mod1_sig;
             var mod2_lfo, mod2_chaos, mod2_sig;
             var mod3_lfo, mod3_chaos, mod3_sig;
-            
             var outline_sig, env_int, env_ext;
             var m_pitch1, m_pitch2, m_pitch3, m_pitch4;
             var m_amp1, m_amp2, m_amp3, m_amp4;
@@ -82,7 +83,6 @@ Engine_Ltra : CroneEngine {
             var s_filt1, s_filt2;
             var vca1, vca2, vca3, vca4;
             var env1, env2, env3, env4;
-            
             var bend_norm, bend_offset;
             var mpe_bend_off1, mpe_bend_off2, mpe_bend_off3, mpe_bend_off4;
             var midi_off1, midi_off2, midi_off3, midi_off4;
@@ -92,28 +92,33 @@ Engine_Ltra : CroneEngine {
             var press_n1, press_n2, press_n3, press_n4;
             var final_shape1, final_shape2, final_shape3, final_shape4;
             var final_atk1, final_atk2, final_atk3, final_atk4;
-            
             var tape_in, local_in, shared_wow, shared_flutter, shared_mod;
             var shared_dust_trig, shared_dropout_env, dt_mono, tape_del_mono;
             var sat_mono, ero_lpf_freq, ero_bass_cut, filt_mono, tone_filt_mono, final_mono;
             var skew_lfo, skew_l, skew_r, cross_l, cross_r, eq_var_l, eq_var_r;
             var tape_sig_l, tape_sig_r;
             var time_kr, fb_kr, wf_kr, ero_kr, drive_kr, filter_kr;
-
             var rev_in, lfo_l, lfo_r, combs_l, combs_r, cross_l_rev, cross_r_rev;
             var ap_l, ap_r, rev_filt_l, rev_filt_r, rev_out_l, rev_out_r;
             var decay_kr, bloom_kr, damp_kr, predelay_kr, mod_rate_kr, mod_depth_kr;
-            var prime_combs_l = #[0.031229, 0.037270, 0.043979, 0.050354, 0.057270, 0.064770];
-            var prime_combs_r = #[0.031479, 0.037729, 0.044354, 0.050479, 0.057354, 0.064979];
-            var prime_ap_l = #[0.011270, 0.031729];
-            var prime_ap_r = #[0.011604, 0.031895];
+            var prime_combs_l, prime_combs_r, prime_ap_l, prime_ap_r;
+            var d_sig1, d_sig2, d_sig3, d_sig4;
+            var scale_map, mk_osc, calc_mod, calc_mod_pitch;
+
+            // ==========================================
+            // SIGNAL FLOW & ASSIGNMENTS
+            // ==========================================
+            prime_combs_l = #[0.031229, 0.037270, 0.043979, 0.050354, 0.057270, 0.064770];
+            prime_combs_r = #[0.031479, 0.037729, 0.044354, 0.050479, 0.057354, 0.064979];
+            prime_ap_l = #[0.011270, 0.031729];
+            prime_ap_r = #[0.011604, 0.031895];
+
+            d_sig1 = (LFNoise2.kr(0.01) * drift1 * (6/1200)) + (LFNoise2.kr(3.1) * spread1 * (3/1200));
+            d_sig2 = (LFNoise2.kr(0.012) * drift2 * (6/1200)) + (LFNoise2.kr(3.4) * spread2 * (3/1200));
+            d_sig3 = (LFNoise2.kr(0.008) * drift3 * (6/1200)) + (LFNoise2.kr(2.9) * spread3 * (3/1200));
+            d_sig4 = (LFNoise2.kr(0.011) * drift4 * (6/1200)) + (LFNoise2.kr(3.2) * spread4 * (3/1200));
             
-            var d_sig1 = (LFNoise2.kr(0.01) * drift1 * (6/1200)) + (LFNoise2.kr(3.1) * spread1 * (3/1200));
-            var d_sig2 = (LFNoise2.kr(0.012) * drift2 * (6/1200)) + (LFNoise2.kr(3.4) * spread2 * (3/1200));
-            var d_sig3 = (LFNoise2.kr(0.008) * drift3 * (6/1200)) + (LFNoise2.kr(2.9) * spread3 * (3/1200));
-            var d_sig4 = (LFNoise2.kr(0.011) * drift4 * (6/1200)) + (LFNoise2.kr(3.2) * spread4 * (3/1200));
-            
-            var scale_map =[
+            scale_map =[
                 NamedControl.kr(\scale_map_0, 0), NamedControl.kr(\scale_map_1, 1),
                 NamedControl.kr(\scale_map_2, 2), NamedControl.kr(\scale_map_3, 3),
                 NamedControl.kr(\scale_map_4, 4), NamedControl.kr(\scale_map_5, 5),
@@ -122,9 +127,9 @@ Engine_Ltra : CroneEngine {
                 NamedControl.kr(\scale_map_10, 10), NamedControl.kr(\scale_map_11, 11)
             ];
 
-            var mk_osc = { |f, s| 
+            mk_osc = { |f, s| 
                 var shape_idx = s.clip(0, 6);
-                var safe_f = f.clip(20, 20000);
+                var safe_f = f.clip(20, 20000); // Extreme Pitch Clamping
                 var sig0 = PinkNoise.ar;
                 var core_saw = SawDPW.ar(safe_f);
                 var pm_amt = SelectX.kr(shape_idx.clip(1, 2) - 1, [0.15, 0.0]);
@@ -142,7 +147,7 @@ Engine_Ltra : CroneEngine {
                 SelectX.ar(shape_idx,[sig0, sig1, sig2, sig3, sig4, sig5, sig6]);
             };
 
-            var calc_mod = { |dest_name, arp_val|
+            calc_mod = { |dest_name, arp_val|
                 (mod1_sig * NamedControl.kr(("mod_mod1_" ++ dest_name).asSymbol, 0)) +
                 (mod2_sig * NamedControl.kr(("mod_mod2_" ++ dest_name).asSymbol, 0)) +
                 (mod3_sig * NamedControl.kr(("mod_mod3_" ++ dest_name).asSymbol, 0)) +
@@ -150,7 +155,7 @@ Engine_Ltra : CroneEngine {
                 (arp_val * NamedControl.kr(("mod_arp_" ++ dest_name).asSymbol, 0));
             };
             
-            var calc_mod_pitch = { |dest_name, arp_val|
+            calc_mod_pitch = { |dest_name, arp_val|
                 var raw_mod1 = mod1_sig * NamedControl.kr(("mod_mod1_" ++ dest_name).asSymbol, 0) * 24.0;
                 var raw_mod2 = mod2_sig * NamedControl.kr(("mod_mod2_" ++ dest_name).asSymbol, 0) * 24.0;
                 var raw_mod3 = mod3_sig * NamedControl.kr(("mod_mod3_" ++ dest_name).asSymbol, 0) * 24.0;
@@ -201,7 +206,7 @@ Engine_Ltra : CroneEngine {
             m_shape1 = calc_mod.("shape1", arp_cv1); m_shape2 = calc_mod.("shape2", arp_cv2);
             m_shape3 = calc_mod.("shape3", arp_cv3); m_shape4 = calc_mod.("shape4", arp_cv4);
             
-            mw_norm = (mod_wheel / 127.0) * 2.0 - 1.0; // Bipolar MW
+            mw_norm = mod_wheel / 127.0; // Unipolar 0 to 1
             m_filt1 = calc_mod.("filt1", arp_cv1) * 5000; 
             m_filt2 = calc_mod.("filt2", arp_cv1) * 5000 + (mw_norm * mw_filt2 * 5000);
             
@@ -354,7 +359,6 @@ Engine_Ltra : CroneEngine {
             Out.ar(out, sig_post);
 
             osc_trig = Impulse.kr(15);
-            // Removed amp_l/amp_r from OSC to use native Norns polling
             SendReply.kr(osc_trig, '/ltra/visuals',[mod1_sig, mod2_sig, mod3_sig, outline_sig]);
 
         }).add;
