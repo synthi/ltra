@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v2.1.0
--- FIX: Multi-Hold Array Logic, Row 5 MPE Menu, Active Snapshot Brightness
+-- lib/grid_pages.lua | v2.1.4
+-- FIX: Toggle-Hold Multi-Selection UX, Active Snapshot Brightness
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -16,6 +16,7 @@ function Pages.init(g_ref, hw_ref)
     Matrix.init(g_ref)
     Globals.snap_state = { last_click_time = {}, defer_id = {} }
     Globals.looper_state = { last_click_time = {}, defer_id = {}, press_time = {} }
+    Globals.multi_sel = { active = false, row = nil, targets = {} } -- FIX: Toggle-Hold State
 end
 
 function Pages.set_hw(h) HW = h end
@@ -52,35 +53,10 @@ local function draw_nav_bar()
     led_safe(16, 8, shift_b)
 end
 
-local function check_hold()
+local function check_hold_single()
     if Globals.page ~= 1 then return end
     
-    local held_targets = {}
-    local active_row = nil
-    
-    for y=5, 7 do
-        for x=1, 4 do
-            if Globals.button_state[x] and Globals.button_state[x][y] then 
-                table.insert(held_targets, x)
-                active_row = y
-            end
-        end
-        if #held_targets > 0 then break end
-    end
-    
-    if #held_targets > 0 then
-        if active_row == 5 then
-            Globals.menu_mode = Consts.MENU.MIDI; Globals.menu_target = held_targets
-        elseif active_row == 6 then
-            Globals.menu_mode = Consts.MENU.OSC; Globals.menu_target = held_targets
-        elseif active_row == 7 then
-            Globals.menu_mode = Consts.MENU.ENV; Globals.menu_target = held_targets
-        end
-        Globals.dirty = true
-        return
-    end
-    
-    -- Check single holds for other menus
+    -- Check single holds for non-voice menus
     local held_x = nil
     for x=6, 16 do
         if Globals.button_state[x] and Globals.button_state[x][6] then held_x = x; break end
@@ -126,7 +102,8 @@ local function check_hold()
         end
     end
 
-    if Globals.menu_mode ~= Consts.MENU.NONE then 
+    -- Only clear if multi-selection is also inactive
+    if Globals.menu_mode ~= Consts.MENU.NONE and not Globals.multi_sel.active then 
         Globals.menu_mode = Consts.MENU.NONE; Globals.dirty = true 
     end
 end
@@ -137,7 +114,7 @@ local function draw_snapshots()
         local b = Consts.BRIGHT.BG_NAV 
         if Globals.snapshots[i] then 
             b = Consts.BRIGHT.VAL_MED 
-            if Globals.active_snapshot == i then b = b + 4 end -- FIX: Active Snapshot Brightness
+            if Globals.active_snapshot == i then b = Consts.BRIGHT.VAL_PEAK end -- FIX: High Contrast for Active
         end 
         led_safe(x, 7, b)
     end
@@ -165,13 +142,13 @@ end
 
 function Pages.redraw()
     if not HW then return end
-    check_hold()
+    check_hold_single()
     
     if Globals.page == 1 then
         Matrix.draw(HW, led_safe)
         
-        for i=1, 4 do led_safe(i, 5, Consts.BRIGHT.BG_DASHBOARD) end -- Row 5 MIDI
-        for i=1, 4 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end -- Row 6 OSC
+        for i=1, 4 do led_safe(i, 5, Consts.BRIGHT.BG_DASHBOARD) end 
+        for i=1, 4 do led_safe(i, 6, Consts.BRIGHT.BG_DASHBOARD) end 
         
         local mod1 = math.floor(util.linlin(-1, 1, 2, 13, Globals.visuals.mod_vals[1] or 0))
         led_safe(6, 6, mod1)
@@ -242,6 +219,41 @@ end
 function Pages.key(x, y, z)
     if z==1 then Globals.grid_timers[x][y] = util.time() end
     local shift = Globals.button_state[16] and Globals.button_state[16][8]
+    
+    -- FIX: Toggle-Hold Multi-Selection Logic
+    if Globals.page == 1 and y >= 5 and y <= 7 and x >= 1 and x <= 4 then
+        if z == 1 then
+            if not Globals.multi_sel.active then
+                Globals.multi_sel.active = true
+                Globals.multi_sel.row = y
+                Globals.multi_sel.targets = {[x] = true}
+                if y == 5 then Globals.menu_mode = Consts.MENU.MIDI
+                elseif y == 6 then Globals.menu_mode = Consts.MENU.OSC
+                elseif y == 7 then Globals.menu_mode = Consts.MENU.ENV end
+            elseif Globals.multi_sel.row == y then
+                Globals.multi_sel.targets[x] = not Globals.multi_sel.targets[x]
+            end
+        else
+            local any_held = false
+            for i=1, 4 do
+                if Globals.button_state[i][y] then any_held = true; break end
+            end
+            if not any_held and Globals.multi_sel.row == y then
+                Globals.multi_sel.active = false
+                Globals.multi_sel.row = nil
+                Globals.multi_sel.targets = {}
+                Globals.menu_mode = Consts.MENU.NONE
+            end
+        end
+        
+        if Globals.multi_sel.active then
+            local t = {}
+            for i=1, 4 do if Globals.multi_sel.targets[i] then table.insert(t, i) end end
+            if #t > 0 then Globals.menu_target = t else Globals.menu_target = {x} end
+        end
+        Globals.dirty = true
+        return
+    end
     
     if y == 8 then
         if x == 16 and z == 1 then
