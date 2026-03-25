@@ -1,5 +1,5 @@
--- lib/parameters.lua | v2.1.3
--- FIX: Vectorized Matrix Routing
+-- lib/parameters.lua | v2.1.4
+-- FIX: Strict Folder Grouping, 18-Position MIDI Selector
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,43 +9,42 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v2.1.3")
+    params:add_separator("LTRA v2.1.4")
     
-    params:add_group("GLOBAL", 9)
+    params:add_group("GLOBAL", 5)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("master_vol", function(x) audio.level_dac(x) end)
-    
-    params:add_number("scale_idx", "Scale", 1, 32, 1)
-    params:set_action("scale_idx", function(x) 
-        if Globals then 
-            Globals.scale.current_idx = x; 
-            Globals.dirty=true 
-            if Globals.loaded then Scales.update_all_voices() end
-        end 
-    end)
-    
-    params:add_number("scale_root", "Root Note", 1, 12, 1)
-    params:set_action("scale_root", function(x) 
-        if Globals then 
-            Globals.scale.root_note = x; 
-            Globals.dirty=true 
-            if Globals.loaded then Scales.update_all_voices() end
-        end 
-    end)
-    
     params:add_control("monitor_vol", "Monitor In", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("monitor_vol", function(x) audio.level_adc(x) end)
+    params:add_control("system_dirt", "System Dirt", controlspec.new(0,1,"lin",0.01,0))
+    params:set_action("system_dirt", function(x) Bridge.set_param("system_dirt", x) end)
+    params:add_control("dust_dens", "Tape Dust", controlspec.new(0,50,"lin",0.1,0))
+    params:set_action("dust_dens", function(x) Bridge.set_param("dust_dens", x) end)
+    params:add_option("outline_src", "Outline Source", {"Internal Gates", "External Audio"}, 1)
+    params:set_action("outline_src", function(x) Bridge.set_param("outline_source", x-1) end)
     
+    params:add_group("SCALES & TUNING", 2)
+    params:add_number("scale_idx", "Scale", 1, 32, 1)
+    params:set_action("scale_idx", function(x) 
+        if Globals then Globals.scale.current_idx = x; Globals.dirty=true; if Globals.loaded then Scales.update_all_voices() end end 
+    end)
+    params:add_number("scale_root", "Root Note", 1, 12, 1)
+    params:set_action("scale_root", function(x) 
+        if Globals then Globals.scale.root_note = x; Globals.dirty=true; if Globals.loaded then Scales.update_all_voices() end end 
+    end)
+    
+    params:add_group("MIDI & MPE GLOBAL", 4)
     params:add_number("midi_device", "MIDI Device", 1, 4, 1)
     params:add_option("midi_poly_mode", "Poly Mode", Consts.POLY_MODES, 1)
-    params:add_number("midi_bend_range", "Bend Range", 1, 12, 2)
+    params:add_number("midi_bend_range", "Global Bend Range", 1, 12, 2)
     params:set_action("midi_bend_range", function(x) Bridge.set_param("bend_range", x) end)
-    
     params:add_option("mpe_bend_range", "MPE Bend Range", {"12", "24", "48", "96"}, 3)
     params:set_action("mpe_bend_range", function(x) 
         local vals = {12, 24, 48, 96}
         Bridge.set_param("mpe_bend_range", vals[x]) 
     end)
+
+    local midi_ch_options = {"1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","OMNI","MPE"}
 
     for i=1,4 do
         params:add_group("VOICE "..i, 19) 
@@ -56,7 +55,6 @@ function Params.init(g_ref)
             local action = params:lookup_param("osc"..i.."_pitch").action
             if action then action(p) end
         end)
-        
         params:add_control("osc"..i.."_pitch", "Pitch", controlspec.new(0,1,"lin",0,0.5))
         params:set_action("osc"..i.."_pitch", function(x)
             local deg = math.floor(x * 24)
@@ -65,31 +63,23 @@ function Params.init(g_ref)
             hz = hz * (2 ^ (tune / 12))
             Bridge.set_freq(i, hz)
         end)
-        
         params:add_control("osc"..i.."_vol", "Vol", controlspec.new(0,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_vol", function(x) if Globals then Globals.voices[i].vol=x end; Bridge.set_param("vol"..i, x) end)
-        
         params:add_control("osc"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_pan", function(x) Bridge.set_param("pan"..i, x) end)
-        
         params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,6,"lin",0.01,2))
         params:set_action("osc"..i.."_shape", function(x) if Globals then Globals.voices[i].shape=x end; Bridge.set_param("shape"..i, x) end)
-        
         params:add_control("osc"..i.."_tune", "Fine Tune", controlspec.new(-1,1,"lin",0.01,0))
         params:set_action("osc"..i.."_tune", function(x) 
             if Globals then Globals.voices[i].tune=x end
             if Globals and Globals.loaded then Scales.update_all_voices() end
         end)
-        
         params:add_control("osc"..i.."_drift", "Drift", controlspec.new(0,1,"lin",0.01,0))
         params:set_action("osc"..i.."_drift", function(x) Bridge.set_param("drift"..i, x) end)
-        
         params:add_control("osc"..i.."_spread", "Spread", controlspec.new(0,1,"lin",0.01,0))
         params:set_action("osc"..i.."_spread", function(x) Bridge.set_param("spread"..i, x) end)
-        
         params:add_control("osc"..i.."_glide", "Glide", controlspec.new(0.001, 2.0, "exp", 0.001, 0.001))
         params:set_action("osc"..i.."_glide", function(x) Bridge.set_param("glide"..i, x) end)
-        
         params:add_binary("osc"..i.."_arp", "Arp Mode", "toggle", 0)
         params:set_action("osc"..i.."_arp", function(x) 
             if Globals then Globals.voices[i].arp_enabled=(x==1) end 
@@ -99,16 +89,15 @@ function Params.init(g_ref)
                 if action then action(p) end
             end
         end)
-        
         params:add_control("env_atk"..i, "Attack", controlspec.new(0.001, 5.0, "exp", 0.01, 0.01))
         params:set_action("env_atk"..i, function(x) Bridge.set_param("env_atk"..i, x) end)
         params:add_control("env_rel"..i, "Release", controlspec.new(0.001, 11.0, "exp", 0.01, 0.2))
         params:set_action("env_rel"..i, function(x) Bridge.set_param("env_rel"..i, x) end)
-        
         params:add_binary("osc"..i.."_midi_note", "MIDI Note", "toggle", 0)
-        params:set_action("osc"..i.."_midi_note", function(x)
-            if x == 0 then Bridge.set_midi_note(i, 60) end
-        end)
+        params:set_action("osc"..i.."_midi_note", function(x) if x == 0 then Bridge.set_midi_note(i, 60) end end)
+        
+        -- FIX: 18-Position MIDI Channel Selector
+        params:add_option("osc"..i.."_midi_ch", "MIDI Channel", midi_ch_options, 17)
         
         params:add_control("osc"..i.."_vel_vol", "Vel to Vol", controlspec.new(0,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_vel_vol", function(x) Bridge.set_param("vel_amt"..i, x) end)
@@ -116,12 +105,10 @@ function Params.init(g_ref)
         params:set_action("osc"..i.."_vel_atk", function(x) Bridge.set_param("vel_atk"..i, x) end)
         params:add_control("osc"..i.."_vel_shp", "Vel to Shape", controlspec.new(-1,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_vel_shp", function(x) Bridge.set_param("vel_shp"..i, x) end)
-        
         params:add_control("osc"..i.."_slide_vol", "Slide to Vol", controlspec.new(-1,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_slide_vol", function(x) Bridge.set_param("slide_vol"..i, x) end)
         params:add_control("osc"..i.."_slide_shp", "Slide to Shape", controlspec.new(-1,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_slide_shp", function(x) Bridge.set_param("slide_shp"..i, x) end)
-        
         params:add_control("osc"..i.."_press_vol", "Press to Vol", controlspec.new(-1,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_press_vol", function(x) Bridge.set_param("press_vol"..i, x) end)
         params:add_control("osc"..i.."_press_shp", "Press to Shape", controlspec.new(-1,1,"lin",0.01,0.0))
@@ -182,25 +169,16 @@ function Params.init(g_ref)
         params:set_action("mod"..i.."_chaos_rate", function(x) if params:get("mod"..i.."_chaos_sync")==0 then Bridge.set_param("mod"..i.."_chaos_rate", x) end end)
         params:add_control("mod"..i.."_chaos_slew", "MOD"..i.." Chaos Slew", controlspec.new(0,1,"lin",0.01,0.1))
         params:set_action("mod"..i.."_chaos_slew", function(x) Bridge.set_param("mod"..i.."_chaos_slew", x) end)
-        
         params:add_control("mod"..i.."_mix", "MOD"..i.." Mix", controlspec.new(0,1,"lin",0.01,0.0)) 
         params:set_action("mod"..i.."_mix", function(x) Bridge.set_param("mod"..i.."_mix", x) end)
     end
     
-    params:add_option("outline_src", "Outline Source", {"Internal Gates", "External Audio"}, 1)
-    params:set_action("outline_src", function(x) Bridge.set_param("outline_source", x-1) end)
     params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0.1, 1))
     params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
 
-    params:add_group("SPACE", 17) 
-    params:add_control("system_dirt", "Dirt", controlspec.new(0,1,"lin",0.01,0))
-    params:set_action("system_dirt", function(x) Bridge.set_param("system_dirt", x) end)
-    params:add_control("dust_dens", "Dust", controlspec.new(0,50,"lin",0.1,0))
-    params:set_action("dust_dens", function(x) Bridge.set_param("dust_dens", x) end)
-    
+    params:add_group("SPACE (FX)", 15) 
     params:add_control("delay_send", "Delay Send", controlspec.new(0,1,"lin",0.01,0.5))
     params:set_action("delay_send", function(x) Bridge.set_param("delay_send", x) end)
-    
     params:add_control("tapecho_time", "Tape Time", controlspec.new(0.01,2.0,"exp",0.01,0.3))
     params:set_action("tapecho_time", function(x) Bridge.set_param("tapecho_time", x) end)
     params:add_control("tapecho_feedback", "Tape Feedback", controlspec.new(0,1.2,"lin",0.01,0.4))
@@ -218,7 +196,6 @@ function Params.init(g_ref)
     
     params:add_control("reverb_mix", "Reverb Mix", controlspec.new(0,1,"lin",0.01,0))
     params:set_action("reverb_mix", function(x) Bridge.set_param("reverb_mix", x) end)
-    
     params:add_control("blossomverb_decay", "Rev Decay", controlspec.new(0.1,100.0,"exp",0.1,4.75))
     params:set_action("blossomverb_decay", function(x) Bridge.set_param("blossomverb_decay", x) end)
     params:add_control("blossomverb_bloom", "Rev Bloom", controlspec.new(0.01,2.0,"lin",0.01,1.80))
@@ -245,6 +222,7 @@ function Params.init(g_ref)
         params:add_control("looper"..i.."_fade", "L"..i.." Fade", controlspec.new(0,16,"lin",0.1,0))
     end
 
+    params:add_group("MOD MATRIX (HIDDEN)", 80)
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
             local id = "mat_"..s_name.."_"..d_name
