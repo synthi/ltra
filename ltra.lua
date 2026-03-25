@@ -1,5 +1,5 @@
--- lib/ltra.lua | v1.5.14
--- FIX: Init sustained state for voices
+-- ltra.lua | v2.0.0
+-- FIX: Init MidiIn
 
 engine.name = 'Ltra'
 
@@ -18,13 +18,14 @@ local Enc = require('ltra/lib/controls_enc')
 local Keys = require('ltra/lib/controls_key')
 local Storage = require('ltra/lib/storage')
 local Loopers = require('ltra/lib/loopers')
+local MidiIn = require('ltra/lib/midi_in') -- FIX: Added MidiIn
 
 local g_state
 
 function osc.event(path, args, from) Bridge.handle_osc(path, args) end
 
 function init()
-    print("LTRA: Initializing v1.5.14 (Golden Master 7)...")
+    print("LTRA: Initializing v2.0.0 (Golden Master 8)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
@@ -36,7 +37,7 @@ function init()
     g_state.latch_mode = false
     for i=1, 4 do 
         g_state.voices[i].latched = false 
-        g_state.voices[i].sustained = false -- FIX: Init sustained state
+        g_state.voices[i].sustained = false 
     end
     
     Bridge.init(g_state)
@@ -49,6 +50,7 @@ function init()
     Keys.init(g_state)
     Storage.init(g_state)
     Loopers.init(g_state)
+    MidiIn.init(g_state) -- FIX: Init MidiIn
     
     GridPages.init(g_state, nil)
     GridHW.init(g_state, 1, GridPages)
