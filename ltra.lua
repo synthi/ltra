@@ -1,5 +1,5 @@
--- ltra.lua | v2.0.0
--- FIX: Init MidiIn
+-- ltra.lua | v2.1.0
+-- FIX: Handshake OSC, Native VU Polling, MIDI Thread Cleanup
 
 engine.name = 'Ltra'
 
@@ -18,14 +18,25 @@ local Enc = require('ltra/lib/controls_enc')
 local Keys = require('ltra/lib/controls_key')
 local Storage = require('ltra/lib/storage')
 local Loopers = require('ltra/lib/loopers')
-local MidiIn = require('ltra/lib/midi_in') -- FIX: Added MidiIn
+local MidiIn = require('ltra/lib/midi_in')
 
 local g_state
 
-function osc.event(path, args, from) Bridge.handle_osc(path, args) end
+function osc.event(path, args, from) 
+    if path == "/ltra/ready" then
+        if not g_state.engine_ready then
+            g_state.engine_ready = true
+            params:bang()
+            g_state.dirty = true
+            g_state.loaded = true
+            print("LTRA: Engine Ready. Handshake complete.")
+        end
+    end
+    Bridge.handle_osc(path, args) 
+end
 
 function init()
-    print("LTRA: Initializing v2.0.0 (Golden Master 8)...")
+    print("LTRA: Initializing v2.1.0 (MPE & Ergonomics Update)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
@@ -33,6 +44,7 @@ function init()
     g_state = Globals.new()
     g_state.tap_last = 0
     g_state.loaded = false 
+    g_state.engine_ready = false
     
     g_state.latch_mode = false
     for i=1, 4 do 
@@ -50,22 +62,27 @@ function init()
     Keys.init(g_state)
     Storage.init(g_state)
     Loopers.init(g_state)
-    MidiIn.init(g_state) -- FIX: Init MidiIn
+    MidiIn.init(g_state)
     
     GridPages.init(g_state, nil)
     GridHW.init(g_state, 1, GridPages)
     GridPages.set_hw(GridHW)
     
+    -- Native VU Polling (Norns 2.9.4+)
+    local amp_out_l = poll.set("amp_out_l")
+    local amp_out_r = poll.set("amp_out_r")
+    amp_out_l.time = 1/15
+    amp_out_r.time = 1/15
+    amp_out_l.callback = function(v) g_state.visuals.amp_l = v end
+    amp_out_r.callback = function(v) g_state.visuals.amp_r = v end
+    amp_out_l:start()
+    amp_out_r:start()
+    
     clock.run(function()
-        clock.sleep(1.0) 
+        clock.sleep(0.5) 
         Midi16n.init(g_state, UI)
         Bridge.query_config()
-        
-        params:bang()
-        g_state.dirty = true
-        
-        g_state.loaded = true
-        print("LTRA: System Ready. Audio Engine Active.")
+        engine.ping() -- Initiate Handshake
     end)
     
     local fps = metro.init()
@@ -129,5 +146,6 @@ function cleanup()
     print("LTRA: Cleanup")
     Arp.stop()
     Midi16n.stop()
+    MidiIn.stop() -- FIX: Cancel MIDI Watch Thread
     metro.free_all()
 end
