@@ -1,5 +1,5 @@
--- lib/parameters.lua | v2.1.0
--- FIX: MPE Bipolar Params, Mod Wheel Routing
+-- lib/parameters.lua | v2.1.3
+-- FIX: Vectorized Matrix Routing
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,7 +9,7 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v2.1.0")
+    params:add_separator("LTRA v2.1.3")
     
     params:add_group("GLOBAL", 9)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
@@ -110,7 +110,6 @@ function Params.init(g_ref)
             if x == 0 then Bridge.set_midi_note(i, 60) end
         end)
         
-        -- MPE / MIDI Modulations
         params:add_control("osc"..i.."_vel_vol", "Vel to Vol", controlspec.new(0,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_vel_vol", function(x) Bridge.set_param("vel_amt"..i, x) end)
         params:add_control("osc"..i.."_vel_atk", "Vel to Attack", controlspec.new(-1,1,"lin",0.01,0.0))
@@ -253,13 +252,7 @@ function Params.init(g_ref)
             params:hide(id)
             params:set_action(id, function(x) 
                 if Globals then Globals.matrix[s_idx][d_idx] = x end
-                local idx = string.match(d_name, "(%d+)$") or ""
-                local bridge_dest = d_name:lower():gsub("%d", "")
-                if bridge_dest == "filt" then bridge_dest = "filt" end 
-                if bridge_dest == "morph" then bridge_dest = "shape" end 
-                if bridge_dest == "delay_t" then bridge_dest = "tapecho_time" end
-                if bridge_dest == "delay_f" then bridge_dest = "tapecho_feedback" end
-                Bridge.set_matrix(s_name:lower(), bridge_dest, idx, x)
+                Bridge.set_matrix(s_idx, d_idx, x)
             end)
         end
     end
