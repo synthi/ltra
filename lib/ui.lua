@@ -1,6 +1,5 @@
--- lib/ui.lua | v1.5.17
--- lib/ui.lua
--- FIX: Added Glide to OSC Menu Page 3
+-- lib/ui.lua | v2.0.0
+-- FIX: ENV Menu Page 2 (MIDI Params), Looper Visuals (3 Loopers)
 
 local UI = {}
 local Globals
@@ -13,6 +12,7 @@ function UI.init(g_ref)
     Globals.mod_menu_page = Globals.mod_menu_page or 1
     Globals.delay_menu_page = Globals.delay_menu_page or 1
     Globals.reverb_menu_page = Globals.reverb_menu_page or 1
+    Globals.env_menu_page = Globals.env_menu_page or 1 -- FIX: ENV Pagination
 end
 
 local function draw_menu()
@@ -32,7 +32,6 @@ local function draw_menu()
             screen.move(5,35); screen.text("E2 Spread: "..string.format("%.2f", params:get("osc"..t.."_spread")))
             screen.move(5,45); screen.text("E3 Vol: "..string.format("%.2f", params:get("osc"..t.."_vol")))
         else
-            -- FIX: Added Glide to Page 3
             screen.move(5,10); screen.text("OSC "..t.." EDIT (3/3)")
             screen.move(5,25); screen.text("E1 Glide: "..string.format("%.3fs", params:get("osc"..t.."_glide")))
         end
@@ -40,10 +39,22 @@ local function draw_menu()
         screen.move(5,58); screen.text("K2: ARP["..arp_state.."]  K3: PAGE")
         
     elseif mode == Consts.MENU.ENV then
-        screen.move(5,10); screen.text("ENV "..t.." EDIT")
-        screen.move(5,25); screen.text("E1 Pan: "..string.format("%.2f", params:get("osc"..t.."_pan")))
-        screen.move(5,35); screen.text("E2 Attack: "..string.format("%.3fs", params:get("env_atk"..t)))
-        screen.move(5,45); screen.text("E3 Release: "..string.format("%.3fs", params:get("env_rel"..t)))
+        -- FIX: ENV Menu Pagination
+        if Globals.env_menu_page == 1 then
+            screen.move(5,10); screen.text("ENV "..t.." EDIT (1/2)")
+            screen.move(5,25); screen.text("E1 Pan: "..string.format("%.2f", params:get("osc"..t.."_pan")))
+            screen.move(5,35); screen.text("E2 Attack: "..string.format("%.3fs", params:get("env_atk"..t)))
+            screen.move(5,45); screen.text("E3 Release: "..string.format("%.3fs", params:get("env_rel"..t)))
+        else
+            screen.move(5,10); screen.text("ENV "..t.." MIDI (2/2)")
+            screen.move(5,25); screen.text("E1 Mod>Shape: "..string.format("%.0f%%", params:get("osc"..t.."_mod_shape") * 100))
+            screen.move(5,35); screen.text("E2 Vel>Vol: "..string.format("%.0f%%", params:get("osc"..t.."_vel_vol") * 100))
+            local ch = params:get("osc"..t.."_midi_ch")
+            local ch_str = (ch == 17) and "OMNI" or tostring(ch)
+            screen.move(5,45); screen.text("E3 MIDI Ch: "..ch_str)
+        end
+        local midi_state = params:get("osc"..t.."_midi_note") == 1 and "ON" or "OFF"
+        screen.move(5,58); screen.text("K2: MIDI["..midi_state.."]  K3: PAGE")
         
     elseif mode == Consts.MENU.MOD then
         if Globals.mod_menu_page == 1 then
@@ -179,7 +190,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v1.5.14")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v2.0.0")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
