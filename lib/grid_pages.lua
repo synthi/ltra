@@ -1,6 +1,5 @@
--- lib/grid_pages.lua | v1.5.15
--- lib/grid_pages.lua
--- FIX: Shift + Hold logic for Sustain
+-- lib/grid_pages.lua | v2.0.0
+-- FIX: 3 Loopers on Cols 8,9,10
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -131,8 +130,9 @@ end
 
 local function draw_loopers()
     local now = util.time()
-    for i=1, 4 do
-        local x = i + 6
+    -- FIX: 3 Loopers on Cols 8, 9, 10
+    for i=1, 3 do
+        local x = i + 7
         local state = Globals.loopers[i].state
         local b = Consts.BRIGHT.BG_NAV 
         
@@ -215,7 +215,6 @@ function Pages.key(x, y, z)
     local shift = Globals.button_state[16] and Globals.button_state[16][8]
     
     if y == 8 then
-        -- FIX: Shift + Hold logic for Sustain
         if x == 16 and z == 1 then
             local Bridge = require 'ltra/lib/engine_bridge'
             for i=1, 4 do
@@ -290,8 +289,9 @@ function Pages.key(x, y, z)
             return
         end
         
-        if x >= 7 and x <= 10 then
-            local idx = x - 6
+        -- FIX: 3 Loopers on Cols 8, 9, 10
+        if x >= 8 and x <= 10 then
+            local idx = x - 7
             if z == 1 then
                 Globals.looper_state.press_time[idx] = util.time()
             else
