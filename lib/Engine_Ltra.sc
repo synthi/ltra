@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v1.5.25
-// FIX: True Analog Topological Saw-Core (Full-Wave Rectification) + RMS Compensation
+// lib/Engine_Ltra.sc | v1.5.26
+// FIX: Removed 0.577 attenuation, Analog Comparator Topology for Square/Pulse, Shape 0-6
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -94,19 +94,21 @@ Engine_Ltra : CroneEngine {
                 NamedControl.kr(\scale_map_10, 10), NamedControl.kr(\scale_map_11, 11)
             ];
 
-            // FIX: True Analog Topological Saw-Core
+            // FIX: Analog Comparator Topology for Square and Pulse
             var mk_osc = { |f, s| 
-                var shape_idx = s.clip(0, 5);
+                var shape_idx = s.clip(0, 6); // Expanded to 6
                 var safe_f = f.clip(20, 20000);
+                var noise = PinkNoise.ar;
                 
                 // The Core
                 var core_saw = SawDPW.ar(safe_f);
                 
-                // Stage 0: Pure Noise (RMS Compensated)
-                var sig0 = PinkNoise.ar * 1.2;
+                // Stage 0: Pure Noise
+                var sig0 = noise * 1.2;
                 
                 // Stage 1: Blurred Saw (Phase Modulated via DelayC)
-                var pm_mod = LPF.ar(PinkNoise.ar, 10000) * 0.015;
+                var pm_amt = SelectX.kr(shape_idx.clip(1, 2) - 1,[0.15, 0.0]);
+                var pm_mod = LPF.ar(noise, 10000) * pm_amt * 0.015;
                 var sig1 = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
                 
                 // Stage 2: Pure Saw
@@ -115,15 +117,18 @@ Engine_Ltra : CroneEngine {
                 // Stage 3: Triangle (Full-Wave Rectification)
                 var sig3 = (core_saw.clip(-1.0, 1.0).abs * 2.0) - 1.0;
                 
-                // Stage 4: Sine (Trigonometric Shaper + RMS Comp)
-                var pure_sine = (sig3 * (pi/2)).sin;
-                var sig4 = pure_sine * 0.816;
+                // Stage 4: Sine (Trigonometric Shaper)
+                var sig4 = (sig3.clip(-1.0, 1.0) * (pi/2)).sin;
                 
-                // Stage 5: Square (Soft-Clipper + RMS Comp)
-                var sig5 = (pure_sine * 50.0).tanh * 0.577;
+                // Stage 5: Square (Analog Comparator on Saw)
+                // Removed 0.577 attenuation. Full pressure.
+                var sig5 = (core_saw * 50.0).tanh;
                 
-                // Continuous Morphing
-                SelectX.ar(shape_idx, [sig0, sig1, sig2, sig3, sig4, sig5]);
+                // Stage 6: Pulse 98% (Analog Comparator with DC Offset)
+                var sig6 = ((core_saw - 0.96) * 50.0).tanh;
+                
+                // Continuous Morphing + AC Coupling to protect speakers from Pulse DC
+                LeakDC.ar(SelectX.ar(shape_idx,[sig0, sig1, sig2, sig3, sig4, sig5, sig6]));
             };
             
             var mk_vactrol = { |g, t, atk, rel| 
@@ -227,10 +232,10 @@ Engine_Ltra : CroneEngine {
             env3 = EnvGen.kr(Env.asr(env_atk3, 1.0, env_rel3), gate3);
             env4 = EnvGen.kr(Env.asr(env_atk4, 1.0, env_rel4), gate4);
 
-            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1)), (shape1 + (m_shape1*5)).clip(0,5)) * vca1 * mk_vactrol.(gate1, t_arp1, env_atk1, env_rel1);
-            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2)), (shape2 + (m_shape2*5)).clip(0,5)) * vca2 * mk_vactrol.(gate2, t_arp2, env_atk2, env_rel2);
-            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3)), (shape3 + (m_shape3*5)).clip(0,5)) * vca3 * mk_vactrol.(gate3, t_arp3, env_atk3, env_rel3);
-            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4)), (shape4 + (m_shape4*5)).clip(0,5)) * vca4 * mk_vactrol.(gate4, t_arp4, env_atk4, env_rel4);
+            o1 = mk_osc.(s_freq1 * (2.pow(m_pitch1 + d_sig1)), (shape1 + (m_shape1*6)).clip(0,6)) * vca1 * env1;
+            o2 = mk_osc.(s_freq2 * (2.pow(m_pitch2 + d_sig2)), (shape2 + (m_shape2*6)).clip(0,6)) * vca2 * env2;
+            o3 = mk_osc.(s_freq3 * (2.pow(m_pitch3 + d_sig3)), (shape3 + (m_shape3*6)).clip(0,6)) * vca3 * env3;
+            o4 = mk_osc.(s_freq4 * (2.pow(m_pitch4 + d_sig4)), (shape4 + (m_shape4*6)).clip(0,6)) * vca4 * env4;
 
             sig_mix = (Pan2.ar(o1, pan1.clip(-1,1)) + Pan2.ar(o2, pan2.clip(-1,1)) + Pan2.ar(o3, pan3.clip(-1,1)) + Pan2.ar(o4, pan4.clip(-1,1))) * 0.125;
 
