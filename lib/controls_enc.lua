@@ -1,5 +1,6 @@
--- lib/controls_enc.lua | v1.5.14
--- FIX: ARP Menu Page 2, ENV Menu Pan
+-- lib/controls_enc.lua | v1.5.17
+-- lib/controls_enc.lua
+-- FIX: Added Glide to OSC Menu Page 3
 
 local Enc = {}
 local Globals
@@ -20,10 +21,13 @@ function Enc.delta(n, d)
                 if n==1 then params:delta("osc"..t.."_octave", d)
                 elseif n==2 then params:delta("osc"..t.."_shape", d)
                 elseif n==3 then params:delta("osc"..t.."_tune", d) end
-            else
+            elseif Globals.osc_menu_page == 2 then
                 if n==1 then params:delta("osc"..t.."_drift", d)
                 elseif n==2 then params:delta("osc"..t.."_spread", d)
                 elseif n==3 then params:delta("osc"..t.."_vol", d) end
+            else
+                -- FIX: Glide on Page 3
+                if n==1 then params:delta("osc"..t.."_glide", d) end
             end
             
         elseif m == Consts.MENU.ENV then
@@ -58,8 +62,8 @@ function Enc.delta(n, d)
                 elseif n==2 then params:delta("arp_chaos", d)
                 elseif n==3 then params:delta("arp_gate_len", d) end
             else
-                if n==2 then params:delta("arp_length", d)
-                elseif n==3 then params:delta("arp_octaves", d) end
+                if n==1 then params:delta("arp_length", d)
+                elseif n==2 then params:delta("arp_octaves", d) end
             end
             
         elseif m == Consts.MENU.OUTLINE then
