@@ -1,5 +1,5 @@
--- lib/engine_bridge.lua | v2.1.0
--- FIX: MPE Setters
+-- lib/engine_bridge.lua | v2.1.3
+-- FIX: O(1) Vectorized Matrix Routing
 
 local Bridge = {}
 local Globals
@@ -32,17 +32,9 @@ function Bridge.sync_matrix()
             local quant = Globals.matrix_quant[s_idx][d_idx] or 1
             
             if val > 0 or quant ~= 1 then 
-                local idx = string.match(d_name, "(%d+)$") or ""
-                local dest = d_name:lower():gsub("%d", "")
-                if dest == "filt" then dest = "filt" end 
-                if dest == "morph" then dest = "shape" end 
-                if dest == "delay_t" then dest = "tapecho_time" end
-                if dest == "delay_f" then dest = "tapecho_feedback" end
-                
-                engine.set_engine_param("mod_" .. s_name:lower() .. "_" .. dest .. idx, val)
-                
-                if dest == "pitch" then
-                    engine.set_engine_param("quant_" .. s_name:lower() .. "_" .. dest .. idx, quant)
+                engine.set_matrix(s_idx, d_idx, val)
+                if d_idx <= 4 then
+                    engine.set_matrix_quant(s_idx, d_idx, quant)
                 end
             end
         end
@@ -62,17 +54,17 @@ function Bridge.set_midi_vel(idx, vel) engine.set_engine_param("midi_vel"..idx, 
 function Bridge.set_mod_wheel(val) engine.set_engine_param("mod_wheel", val) end
 function Bridge.set_pitch_bend(val) engine.set_engine_param("pitch_bend", val) end
 
--- MPE Setters
 function Bridge.set_mpe_bend(idx, val) engine.set_engine_param("mpe_bend"..idx, val) end
 function Bridge.set_mpe_slide(idx, val) engine.set_engine_param("slide"..idx, val) end
 function Bridge.set_mpe_press(idx, val) engine.set_engine_param("press"..idx, val) end
 
-function Bridge.set_matrix(src, dest, idx, val)
-    engine.set_engine_param("mod_"..src.."_"..dest..idx, val)
+-- Vectorized Matrix Setters
+function Bridge.set_matrix(src_idx, dest_idx, val)
+    engine.set_matrix(src_idx, dest_idx, val)
 end
 
-function Bridge.set_matrix_quant(src, dest, idx, val)
-    engine.set_engine_param("quant_"..src.."_"..dest..idx, val)
+function Bridge.set_matrix_quant(src_idx, dest_idx, val)
+    engine.set_matrix_quant(src_idx, dest_idx, val)
 end
 
 return Bridge
