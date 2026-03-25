@@ -1,4 +1,4 @@
--- lib/midi_16n.lua | v2.1.0
+-- lib/midi_16n.lua | v2.1.5
 -- FIX: Polynomial Curves for Faders 14 (Cubic) and 16 (Quadratic)
 
 local Midi16n = {}
