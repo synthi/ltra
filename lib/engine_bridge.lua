@@ -1,5 +1,5 @@
--- lib/engine_bridge.lua | v2.0.0
--- FIX: Added MIDI Setters
+-- lib/engine_bridge.lua | v2.1.0
+-- FIX: MPE Setters
 
 local Bridge = {}
 local Globals
@@ -12,14 +12,11 @@ function Bridge.handle_osc(path, args)
     
     if path == "/ltra/visuals" then
         if Globals.visuals then
-            Globals.visuals.amp_l = args[1]
-            Globals.visuals.amp_r = args[2]
             Globals.visuals.mod_vals = Globals.visuals.mod_vals or {}
-            Globals.visuals.mod_vals[1] = args[3]
-            Globals.visuals.mod_vals[2] = args[4]
-            Globals.visuals.mod_vals[3] = args[5]
-            Globals.visuals.outline_val = args[6] or 0 
-            
+            Globals.visuals.mod_vals[1] = args[1]
+            Globals.visuals.mod_vals[2] = args[2]
+            Globals.visuals.mod_vals[3] = args[3]
+            Globals.visuals.outline_val = args[4] or 0 
             Globals.dirty = true
         end
     elseif path == "/ltra/config" then
@@ -60,11 +57,15 @@ function Bridge.set_freq(idx, hz) engine.set_engine_param("freq"..idx, hz) end
 function Bridge.set_gate(idx, val) engine.set_engine_param("gate"..idx, val) end
 function Bridge.reset_lfo() engine.set_engine_param("t_reset", 1) end
 
--- FIX: MIDI Setters
 function Bridge.set_midi_note(idx, note) engine.set_engine_param("midi_note"..idx, note) end
 function Bridge.set_midi_vel(idx, vel) engine.set_engine_param("midi_vel"..idx, vel) end
 function Bridge.set_mod_wheel(val) engine.set_engine_param("mod_wheel", val) end
 function Bridge.set_pitch_bend(val) engine.set_engine_param("pitch_bend", val) end
+
+-- MPE Setters
+function Bridge.set_mpe_bend(idx, val) engine.set_engine_param("mpe_bend"..idx, val) end
+function Bridge.set_mpe_slide(idx, val) engine.set_engine_param("slide"..idx, val) end
+function Bridge.set_mpe_press(idx, val) engine.set_engine_param("press"..idx, val) end
 
 function Bridge.set_matrix(src, dest, idx, val)
     engine.set_engine_param("mod_"..src.."_"..dest..idx, val)
