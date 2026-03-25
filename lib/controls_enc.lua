@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v2.1.1
--- FIX: Orthogonal Target Resolution (Array vs Dictionary)
+-- lib/controls_enc.lua | v2.1.4
+-- FIX: Strict Ergonomic Mappings (E1-E2-E3)
 
 local Enc = {}
 local Globals
@@ -11,13 +11,12 @@ function Enc.delta(n, d)
     Globals.dirty = true
     
     if Globals.menu_mode ~= Consts.MENU.NONE then
-        -- FIX: Safe resolution of targets to prevent dictionary iteration crash
         local targets = {Globals.menu_target}
         if type(Globals.menu_target) == "table" then
             if Globals.menu_target.src_name then
-                targets = {Globals.menu_target} -- It's a Matrix Dictionary
+                targets = {Globals.menu_target}
             else
-                targets = Globals.menu_target -- It's an Array of Voices
+                targets = Globals.menu_target
             end
         end
         
@@ -26,57 +25,57 @@ function Enc.delta(n, d)
         for _, t in ipairs(targets) do
             if m == Consts.MENU.OSC then
                 if Globals.osc_menu_page == 1 then
-                    if n==2 then params:delta("osc"..t.."_octave", d)
-                    elseif n==3 then params:delta("osc"..t.."_shape", d)
-                    elseif n==1 then params:delta("osc"..t.."_tune", d) end
+                    if n==1 then params:delta("osc"..t.."_tune", d)
+                    elseif n==2 then params:delta("osc"..t.."_shape", d)
+                    elseif n==3 then params:delta("osc"..t.."_octave", d) end
                 elseif Globals.osc_menu_page == 2 then
-                    if n==2 then params:delta("osc"..t.."_drift", d)
-                    elseif n==3 then params:delta("osc"..t.."_spread", d)
-                    elseif n==1 then params:delta("osc"..t.."_vol", d) end
+                    if n==1 then params:delta("osc"..t.."_vol", d)
+                    elseif n==2 then params:delta("osc"..t.."_drift", d)
+                    elseif n==3 then params:delta("osc"..t.."_spread", d) end
                 else
                     if n==2 then params:delta("osc"..t.."_glide", d) end
                 end
                 
             elseif m == Consts.MENU.ENV then
-                if n==2 then params:delta("osc"..t.."_pan", d)
-                elseif n==3 then params:delta("env_atk"..t, d)
-                elseif n==1 then params:delta("env_rel"..t, d) end
+                if n==1 then params:delta("osc"..t.."_pan", d)
+                elseif n==2 then params:delta("env_atk"..t, d)
+                elseif n==3 then params:delta("env_rel"..t, d) end
                 
             elseif m == Consts.MENU.MIDI then
                 if Globals.midi_menu_page == 1 then
-                    if n==2 then params:delta("osc"..t.."_vel_vol", d)
-                    elseif n==3 then params:delta("osc"..t.."_vel_atk", d)
-                    elseif n==1 then params:delta("osc"..t.."_vel_shp", d) end
+                    if n==1 then params:delta("osc"..t.."_vel_vol", d)
+                    elseif n==2 then params:delta("osc"..t.."_vel_shp", d)
+                    elseif n==3 then params:delta("osc"..t.."_vel_atk", d) end
                 elseif Globals.midi_menu_page == 2 then
-                    if n==2 then params:delta("osc"..t.."_slide_vol", d)
-                    elseif n==3 then params:delta("osc"..t.."_slide_shp", d)
-                    elseif n==1 then params:delta("mw_filt2", d) end
+                    if n==1 then params:delta("mw_filt2", d)
+                    elseif n==2 then params:delta("osc"..t.."_slide_vol", d)
+                    elseif n==3 then params:delta("osc"..t.."_slide_shp", d) end
                 else
-                    if n==2 then params:delta("osc"..t.."_press_vol", d)
-                    elseif n==3 then params:delta("osc"..t.."_press_shp", d)
-                    elseif n==1 then params:delta("mw_delay_f", d) end
+                    if n==1 then params:delta("mw_delay_f", d)
+                    elseif n==2 then params:delta("osc"..t.."_press_vol", d)
+                    elseif n==3 then params:delta("osc"..t.."_press_shp", d) end
                 end
                 
             elseif m == Consts.MENU.MOD then
                 if Globals.mod_menu_page == 1 then
-                    if n==2 then params:delta("mod"..t.."_lfo_shape", d)
-                    elseif n==3 then 
+                    if n==1 then params:delta("mod"..t.."_lfo_shape", d)
+                    elseif n==2 then 
                         if params:get("mod"..t.."_lfo_sync") == 1 then params:delta("mod"..t.."_lfo_div", d)
                         else params:delta("mod"..t.."_lfo_rate", d) end
-                    elseif n==1 then params:delta("mod"..t.."_depth", d) end
+                    elseif n==3 then params:delta("mod"..t.."_depth", d) end
                 else
-                    if n==2 then params:delta("mod"..t.."_mix", d)
-                    elseif n==3 then 
+                    if n==1 then params:delta("mod"..t.."_chaos_slew", d)
+                    elseif n==2 then 
                         if params:get("mod"..t.."_chaos_sync") == 1 then params:delta("mod"..t.."_chaos_div", d)
                         else params:delta("mod"..t.."_chaos_rate", d) end
-                    elseif n==1 then params:delta("mod"..t.."_chaos_slew", d) end
+                    elseif n==3 then params:delta("mod"..t.."_mix", d) end
                 end
                 
             elseif m == Consts.MENU.ARP then
                 if Globals.arp_menu_page == 1 then
-                    if n==2 then params:delta("arp_div", d)
-                    elseif n==3 then params:delta("arp_chaos", d)
-                    elseif n==1 then params:delta("arp_gate_len", d) end
+                    if n==1 then params:delta("arp_gate_len", d)
+                    elseif n==2 then params:delta("arp_div", d)
+                    elseif n==3 then params:delta("arp_chaos", d) end
                 else
                     if n==2 then params:delta("arp_length", d)
                     elseif n==3 then params:delta("arp_octaves", d) end
@@ -87,38 +86,38 @@ function Enc.delta(n, d)
                 elseif n==3 then params:delta("outline_gain", d) end
                 
             elseif m == Consts.MENU.FILTER then
-                if n==2 then params:delta("filt"..t.."_drive", d)
-                elseif n==3 then params:delta("filt"..t.."_cutoff", d)
-                elseif n==1 then params:delta("filt"..t.."_res", d) end
+                if n==1 then params:delta("filt"..t.."_drive", d)
+                elseif n==2 then params:delta("filt"..t.."_cutoff", d)
+                elseif n==3 then params:delta("filt"..t.."_res", d) end
                 
             elseif m == Consts.MENU.DELAY then
                 if Globals.delay_menu_page == 1 then
-                    if n==2 then params:delta("delay_send", d)
-                    elseif n==3 then params:delta("tapecho_time", d)
-                    elseif n==1 then params:delta("tapecho_feedback", d) end
+                    if n==1 then params:delta("delay_send", d)
+                    elseif n==2 then params:delta("tapecho_time", d)
+                    elseif n==3 then params:delta("tapecho_feedback", d) end
                 else
-                    if n==2 then params:delta("tapecho_drive", d)
-                    elseif n==3 then params:delta("tapecho_erosion", d)
-                    elseif n==1 then params:delta("tapecho_wow_flutter", d) end
+                    if n==1 then params:delta("tapecho_drive", d)
+                    elseif n==2 then params:delta("tapecho_erosion", d)
+                    elseif n==3 then params:delta("tapecho_wow_flutter", d) end
                 end
                 
             elseif m == Consts.MENU.REVERB then
                 if Globals.reverb_menu_page == 1 then
-                    if n==2 then params:delta("reverb_mix", d)
-                    elseif n==3 then params:delta("blossomverb_decay", d)
-                    elseif n==1 then params:delta("blossomverb_bloom", d) end
+                    if n==1 then params:delta("reverb_mix", d)
+                    elseif n==2 then params:delta("blossomverb_bloom", d)
+                    elseif n==3 then params:delta("blossomverb_decay", d) end
                 elseif Globals.reverb_menu_page == 2 then
-                    if n==2 then params:delta("blossomverb_damp", d)
-                    elseif n==3 then params:delta("blossomverb_predelay", d)
-                    elseif n==1 then params:delta("blossomverb_mod_rate", d) end
+                    if n==2 then params:delta("blossomverb_predelay", d)
+                    elseif n==3 then params:delta("blossomverb_damp", d) end
                 else
-                    if n==2 then params:delta("blossomverb_mod_depth", d) end
+                    if n==2 then params:delta("blossomverb_mod_rate", d)
+                    elseif n==3 then params:delta("blossomverb_mod_depth", d) end
                 end
                 
             elseif m == Consts.MENU.LOOPER then 
-                if n==2 then params:delta("monitor_vol", d)
-                elseif n==3 then params:delta("master_vol", d)
-                elseif n==1 then params:delta("system_dirt", d) end
+                if n==1 then params:delta("system_dirt", d)
+                elseif n==2 then params:delta("monitor_vol", d)
+                elseif n==3 then params:delta("master_vol", d) end
                 
             elseif m == Consts.MENU.MATRIX then
                 local src_idx = Consts.SOURCES[t.src_name]
@@ -143,9 +142,9 @@ function Enc.delta(n, d)
         return
     end
     
-    if n==2 then params:delta("master_vol", d)
-    elseif n==3 then params:delta("scale_idx", d)
-    elseif n==1 then params:delta("scale_root", d) end
+    if n==1 then params:delta("master_vol", d)
+    elseif n==2 then params:delta("scale_idx", d)
+    elseif n==3 then params:delta("scale_root", d) end
 end
 
 return Enc
