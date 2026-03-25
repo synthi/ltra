@@ -1,5 +1,5 @@
--- lib/storage.lua
--- FIX: Trigger Midi16n.sync_faders() after loading PSETs or Snapshots
+-- lib/storage.lua | v2.0.0
+-- FIX: Stereo Looper Saving (L/R files)
 
 local Storage = {}
 local Globals
@@ -31,10 +31,14 @@ function Storage.save_sidecar(pset_number)
     tab.save(data, data_path)
     
     local timestamp = os.date("%Y%m%d_%H%M%S")
-    for i=1, 4 do
-        local audio_path = _path.audio .. "ltra/snapshots/pset_" .. pset_number .. "_trk_" .. i .. "_" .. timestamp .. ".wav"
-        local start_pos = (i-1) * 80
-        softcut.buffer_write_mono(audio_path, start_pos, 80, 1)
+    for i=1, 3 do
+        local audio_path_L = _path.audio .. "ltra/snapshots/pset_" .. pset_number .. "_trk_" .. i .. "_L_" .. timestamp .. ".wav"
+        local audio_path_R = _path.audio .. "ltra/snapshots/pset_" .. pset_number .. "_trk_" .. i .. "_R_" .. timestamp .. ".wav"
+        local start_pos = (i-1) * 115
+        
+        -- Save Buffer 1 (L) and Buffer 2 (R)
+        softcut.buffer_write_mono(audio_path_L, start_pos, 110, 1)
+        softcut.buffer_write_mono(audio_path_R, start_pos, 110, 2)
     end
     
     print("LTRA: Save Complete.")
@@ -58,7 +62,6 @@ function Storage.load_sidecar(pset_number)
     Bridge.clear_delay()
     Bridge.sync_matrix()
     
-    -- FIX: Sync physical faders to newly loaded PSET parameters
     local Midi16n = require 'ltra/lib/midi_16n'
     Midi16n.sync_faders()
     
@@ -106,7 +109,6 @@ function Storage.load_snapshot(slot)
         end
     end
     
-    -- FIX: Sync physical faders to newly loaded Snapshot parameters
     local Midi16n = require 'ltra/lib/midi_16n'
     Midi16n.sync_faders()
     
