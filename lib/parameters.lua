@@ -1,6 +1,5 @@
--- lib/parameters.lua | v1.5.17
--- lib/parameters.lua
--- FIX: Added oscX_glide parameter
+-- lib/parameters.lua | v1.5.22
+-- FIX: Shape parameter expanded to 0-5 for new Saw-Core
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -10,7 +9,7 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v1.5.14")
+    params:add_separator("LTRA v1.5.22")
     
     params:add_group("GLOBAL", 4)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
@@ -38,7 +37,7 @@ function Params.init(g_ref)
     params:set_action("monitor_vol", function(x) audio.level_adc(x) end)
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 12) -- FIX: Increased to 12 for Glide
+        params:add_group("VOICE "..i, 12) 
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -62,7 +61,8 @@ function Params.init(g_ref)
         params:add_control("osc"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_pan", function(x) Bridge.set_param("pan"..i, x) end)
         
-        params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,4,"lin",0.01,2))
+        -- FIX: Shape expanded to 0-5
+        params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,5,"lin",0.01,2))
         params:set_action("osc"..i.."_shape", function(x) if Globals then Globals.voices[i].shape=x end; Bridge.set_param("shape"..i, x) end)
         
         params:add_control("osc"..i.."_tune", "Fine Tune", controlspec.new(-1,1,"lin",0.01,0))
@@ -77,7 +77,6 @@ function Params.init(g_ref)
         params:add_control("osc"..i.."_spread", "Spread", controlspec.new(0,1,"lin",0.01,0))
         params:set_action("osc"..i.."_spread", function(x) Bridge.set_param("spread"..i, x) end)
         
-        -- FIX: Added Glide parameter
         params:add_control("osc"..i.."_glide", "Glide", controlspec.new(0.001, 2.0, "exp", 0.001, 0.001))
         params:set_action("osc"..i.."_glide", function(x) Bridge.set_param("glide"..i, x) end)
         
