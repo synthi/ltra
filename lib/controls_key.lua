@@ -1,6 +1,5 @@
--- lib/controls_key.lua | v1.5.17
--- lib/controls_key.lua
--- FIX: OSC Menu Pagination to 3 pages
+-- lib/controls_key.lua | v2.0.0
+-- FIX: ENV Menu Pagination and MIDI Toggle
 
 local Keys = {}
 local Globals
@@ -23,9 +22,17 @@ function Keys.event(n, z)
                 local curr = params:get("osc"..t.."_arp")
                 params:set("osc"..t.."_arp", 1-curr)
             elseif n==3 then
-                -- FIX: 3 Pages for OSC Menu
                 Globals.osc_menu_page = Globals.osc_menu_page + 1
                 if Globals.osc_menu_page > 3 then Globals.osc_menu_page = 1 end
+            end
+            
+        elseif Globals.menu_mode == Consts.MENU.ENV then
+            -- FIX: ENV Menu K2 (MIDI Toggle) and K3 (Page)
+            if n==2 then
+                local curr = params:get("osc"..t.."_midi_note")
+                params:set("osc"..t.."_midi_note", 1-curr)
+            elseif n==3 then
+                Globals.env_menu_page = (Globals.env_menu_page == 1) and 2 or 1
             end
             
         elseif Globals.menu_mode == Consts.MENU.MOD then
