@@ -1,6 +1,5 @@
--- lib/controls_enc.lua | v1.5.17
--- lib/controls_enc.lua
--- FIX: Added Glide to OSC Menu Page 3
+-- lib/controls_enc.lua | v2.0.0
+-- FIX: ENV Menu Page 2 (MIDI Params)
 
 local Enc = {}
 local Globals
@@ -26,14 +25,20 @@ function Enc.delta(n, d)
                 elseif n==2 then params:delta("osc"..t.."_spread", d)
                 elseif n==3 then params:delta("osc"..t.."_vol", d) end
             else
-                -- FIX: Glide on Page 3
                 if n==1 then params:delta("osc"..t.."_glide", d) end
             end
             
         elseif m == Consts.MENU.ENV then
-            if n==1 then params:delta("osc"..t.."_pan", d)
-            elseif n==2 then params:delta("env_atk"..t, d)
-            elseif n==3 then params:delta("env_rel"..t, d) end
+            -- FIX: ENV Menu Pagination
+            if Globals.env_menu_page == 1 then
+                if n==1 then params:delta("osc"..t.."_pan", d)
+                elseif n==2 then params:delta("env_atk"..t, d)
+                elseif n==3 then params:delta("env_rel"..t, d) end
+            else
+                if n==1 then params:delta("osc"..t.."_mod_shape", d)
+                elseif n==2 then params:delta("osc"..t.."_vel_vol", d)
+                elseif n==3 then params:delta("osc"..t.."_midi_ch", d) end
+            end
             
         elseif m == Consts.MENU.MOD then
             if Globals.mod_menu_page == 1 then
