@@ -1,7 +1,5 @@
--- lib/arp.lua | v1.5.16
--- FIX: Active Voices Logic (Only Held/Latched/Sustained)
--- lib/arp.lua
--- FIX: Arp Gate Logic (Always close gate to re-trigger envelopes), Tempo-synced Gate Length
+-- lib/arp.lua | v2.0.0
+-- FIX: Cross-Voice Arpeggiator (Only active voices)
 
 local Arp = {}
 local Globals
@@ -95,9 +93,7 @@ function Arp.tick()
         
         Bridge.set_freq(target_voice, hz)
         
-        -- FIX: Calculate exact gate time based on tempo and ratio
         local step_dur = Globals.arp.current_sync_val or 0.25
-        -- Clamp ratio to 0.95 max to ensure a tiny gap for envelope re-triggering
         local gate_ratio = math.min(params:get("arp_gate_len") or 0.5, 0.95)
         local gate_time = step_dur * gate_ratio
         
@@ -113,7 +109,6 @@ function Arp.tick()
                 if gate_time < 0.01 then gate_time = 0.01 end
             end
             clock.sleep(gate_time)
-            -- FIX: ALWAYS close the gate so the next note can attack properly
             Bridge.set_gate(target_voice, 0)
         end)
     end
