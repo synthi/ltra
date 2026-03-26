@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v2.1.6
-// FIX: 8-Voice True Polyphony Architecture, MPE Curves, Vectorized Controls
+// lib/Engine_Ltra.sc | v2.2.0
+// FIX: Math Cage (Anti-NaN), 8-Stage Continuous Morphing (Buchla Folding)
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -16,7 +16,6 @@ Engine_Ltra : CroneEngine {
         SynthDef(\ltra_core, {
             var out = \out.kr(0);
             
-            // Global Controls
             var mod_wheel = \mod_wheel.kr(0);
             var mw_filt2 = \mw_filt2.kr(0);
             var mw_delay_f = \mw_delay_f.kr(0);
@@ -82,7 +81,6 @@ Engine_Ltra : CroneEngine {
             var dust_dens = \dust_dens.kr(0);
             var clear_trig = \clear_trig.kr(0);
             
-            // 8-Voice Independent Arrays (Polyphony)
             var freqs = 8.collect { |i| NamedControl.kr("freq" ++ (i+1), 110) };
             var gates = 8.collect { |i| NamedControl.kr("gate" ++ (i+1), 0) };
             var midi_notes = 8.collect { |i| NamedControl.kr("midi_note" ++ (i+1), 60) };
@@ -91,7 +89,6 @@ Engine_Ltra : CroneEngine {
             var slides = 8.collect { |i| NamedControl.kr("slide" ++ (i+1), 0) };
             var presses = 8.collect { |i| NamedControl.kr("press" ++ (i+1), 0) };
             
-            // 4-Voice Shared Parameter Arrays (Panel Controls)
             var shapes = 4.collect { |i| NamedControl.kr("shape" ++ (i+1), 2) };
             var vols = 4.collect { |i| NamedControl.kr("vol" ++ (i+1), 0) };
             var pans = 4.collect { |i| NamedControl.kr("pan" ++ (i+1), 0) };
@@ -108,8 +105,10 @@ Engine_Ltra : CroneEngine {
             var press_vols = 4.collect { |i| NamedControl.kr("press_vol" ++ (i+1), 0) };
             var press_shps = 4.collect { |i| NamedControl.kr("press_shp" ++ (i+1), 0) };
             var arp_cvs = 4.collect { |i| NamedControl.kr("arp_cv" ++ (i+1), 0) };
+            var mw_shps = 4.collect { |i| NamedControl.kr("mw_shp" ++ (i+1), 0) };
+            var twin_enables = 4.collect { |i| NamedControl.kr("twin_enable" ++ (i+1), 0) };
+            var midi_gates = 4.collect { |i| NamedControl.kr("midi_gate" ++ (i+1), 0) };
 
-            // VECTORIZED MATRIX CONTROLS
             var mod1_dest = \mod1_dest.kr(0!16);
             var mod2_dest = \mod2_dest.kr(0!16);
             var mod3_dest = \mod3_dest.kr(0!16);
@@ -122,7 +121,6 @@ Engine_Ltra : CroneEngine {
             var outline_quant = \outline_quant.kr(1!16);
             var arp_quant = \arp_quant.kr(1!16);
 
-            // Internal Variables
             var mod1_lfo, mod1_chaos, mod1_sig;
             var mod2_lfo, mod2_chaos, mod2_sig;
             var mod3_lfo, mod3_chaos, mod3_sig;
@@ -150,30 +148,45 @@ Engine_Ltra : CroneEngine {
             var prime_ap_l = #[0.011270, 0.031729];
             var prime_ap_r = #[0.011604, 0.031895];
 
-            // ==========================================
-            // SIGNAL FLOW
-            // ==========================================
-            
             scale_map = 12.collect { |i| NamedControl.kr("scale_map_" ++ i, i) };
 
+            // ==========================================
+            // 8-STAGE CONTINUOUS MORPHING (BUCHLA FOLDING)
+            // ==========================================
             mk_osc = { |f, s| 
-                var shape_idx = s.clip(0, 6);
+                var shape_idx = s.clip(0, 7);
                 var safe_f = f.clip(20, 20000);
-                var sig0 = PinkNoise.ar;
                 var core_saw = SawDPW.ar(safe_f);
-                var pm_amt = SelectX.kr(shape_idx.clip(1, 2) - 1,[0.15, 0.0]);
-                var pm_mod = LPF.ar(PinkNoise.ar, 10000) * pm_amt * 0.015;
-                var sig1 = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
-                var sig2 = core_saw;
-                var sqr_raw = core_saw - DelayC.ar(core_saw, 0.1, 0.5 / safe_f);
-                var sig5 = LeakDC.ar(sqr_raw) * 0.5;
-                var tri_raw = Integrator.ar(sig5, 0.999) * (4.0 * safe_f / SampleRate.ir);
-                var sig3 = LeakDC.ar(tri_raw);
-                var sig4 = (sig3.clip(-1.0, 1.0) * (pi/2)).sin;
-                var pulse_delay = (0.02 / safe_f).max(SampleDur.ir);
-                var pulse_raw = core_saw - DelayC.ar(core_saw, 0.1, pulse_delay);
-                var sig6 = LeakDC.ar(pulse_raw) * 0.5 * 1.5;
-                SelectX.ar(shape_idx,[sig0, sig1, sig2, sig3, sig4, sig5, sig6]);
+                var noise_src = PinkNoise.ar;
+                
+                // Morphing Coefficients
+                var noise_mix = (1.0 - shape_idx).clip(0, 1);
+                var pm_amt = (2.0 - shape_idx).clip(0, 1) - noise_mix;
+                var sub_mix = (shape_idx - 2.0).clip(0, 1);
+                var duty_cycle = 0.5 - ((shape_idx - 2.0).clip(0, 1) * 0.4) + ((shape_idx - 4.0).clip(0, 1) * 0.4);
+                var int_mix = (shape_idx - 3.0).clip(0, 1);
+                var sine_mix = (shape_idx - 5.0).clip(0, 1);
+                var fold_drive = 1.0 + ((shape_idx - 6.0).clip(0, 1) * 5.0);
+                
+                // Stage 0-2: Noise -> Noised Saw -> Pure Saw
+                var pm_mod = LPF.ar(noise_src, 10000) * pm_amt * 0.015;
+                var saw_pm = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
+                var base_osc = (saw_pm * (1.0 - noise_mix)) + (noise_src * noise_mix);
+                
+                // Stage 2-4: Pure Saw -> Pulse 10%
+                var delay_time = (duty_cycle / safe_f).max(SampleDur.ir);
+                var pulse_raw = base_osc - (DelayC.ar(base_osc, 0.1, delay_time) * sub_mix);
+                var pulse_dc = LeakDC.ar(pulse_raw) * 0.5;
+                
+                // Stage 4-5: Pulse 10% -> Skewed Tri -> Pure Tri (THE MATH CAGE)
+                var tri_raw = Clip.ar(Integrator.ar(pulse_dc, 0.99), -10.0, 10.0) * (4.0 * safe_f / SampleRate.ir);
+                var tri_dc = LeakDC.ar(tri_raw);
+                var osc_stage2 = (pulse_dc * (1.0 - int_mix)) + (tri_dc * int_mix);
+                
+                // Stage 5-7: Pure Tri -> Pure Sine -> Buchla Folded Sine (Zero Aliasing)
+                var shaped = (osc_stage2 * fold_drive * 0.5pi).sin;
+                
+                (osc_stage2 * (1.0 - sine_mix)) + (shaped * sine_mix);
             };
 
             mod1_lfo = SelectX.kr(mod1_lfo_shape * 3,[ LFPulse.kr(mod1_lfo_rate, 0, 0.5), (LFSaw.kr(mod1_lfo_rate, 0) + 1) * 0.5, (LFTri.kr(mod1_lfo_rate, 0) + 1) * 0.5, (SinOsc.kr(mod1_lfo_rate, 0) + 1) * 0.5 ]);
@@ -227,13 +240,9 @@ Engine_Ltra : CroneEngine {
             bend_norm = (pitch_bend - 8192) / 8192.0;
             bend_offset = bend_norm * bend_range / 12.0;
 
-            // 8-Voice Iteration (True Polyphony)
             voices_out = 8.collect { |i|
-                var p_idx = i % 4; // Parent index (0-3)
-                
-                // Independent Noise Generators for every voice (0-7)
+                var p_idx = i % 4; 
                 var d_sig = (LFNoise2.kr(0.01 + (i*0.001)) * drifts[p_idx] * (6/1200)) + (LFNoise2.kr(3.1 + (i*0.1)) * spreads[p_idx] * (3/1200));
-                
                 var s_freq = Lag.kr(freqs[i], glides[p_idx]);
                 var s_vol = Lag.kr(vols[p_idx], 0.05);
                 
@@ -249,13 +258,15 @@ Engine_Ltra : CroneEngine {
                 var press_n = Lag.kr(presses[i] / 127.0, mpe_lag).lincurve(0.0, 1.0, 0.0, 1.0, press_curve);
                 
                 var vca = (s_vol.squared + m_amp + (vel_bip * vel_amts[p_idx] * s_vol.squared) + (slide_n * slide_vols[p_idx]) + (press_n * press_vols[p_idx])).clip(0, 1);
-                var final_shape = (shapes[p_idx] + (m_shape*6) + (vel_bip * vel_shps[p_idx] * 6) + (slide_n * slide_shps[p_idx] * 6) + (press_n * press_shps[p_idx] * 6)).clip(0, 6);
+                
+                // Shape range expanded to 7.0
+                var final_shape = (shapes[p_idx] + (m_shape*7) + (vel_bip * vel_shps[p_idx] * 7) + (slide_n * slide_shps[p_idx] * 7) + (press_n * press_shps[p_idx] * 7) + (mw_norm * mw_shps[p_idx] * 7)).clip(0, 7);
+                
                 var final_atk = (env_atks[p_idx] + (vel_bip * vel_atks[p_idx] * 5.0)).clip(0.001, 10.0);
                 
                 var env = EnvGen.kr(Env.asr(final_atk, 1.0, env_rels[p_idx]), gates[i]);
                 var osc = mk_osc.(s_freq * (2.pow(m_pitch + d_sig + bend_offset + mpe_bend_off + midi_off)), final_shape) * vca * env;
                 
-                // Invert Pan for Twin Voices (i >= 4)
                 var pan_val = pans[p_idx] * (i >= 4).if(-1.0, 1.0);
                 Pan2.ar(osc, pan_val.clip(-1,1));
             };
