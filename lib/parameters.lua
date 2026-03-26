@@ -1,5 +1,5 @@
--- lib/parameters.lua | v2.1.6
--- FIX: Infinite Resolution (Step 0) for all continuous params
+-- lib/parameters.lua | v2.2.0
+-- FIX: Shape Range Expanded to 7.0
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,9 +9,9 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v2.1.6")
+    params:add_separator("LTRA v2.2.0")
     
-    params:add_group("GLOBAL", 5)
+    params:add_group("GLOBAL", 6)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0,1))
     params:set_action("master_vol", function(x) audio.level_dac(x) end)
     params:add_control("monitor_vol", "Monitor In", controlspec.new(0,1,"lin",0,0))
@@ -22,6 +22,8 @@ function Params.init(g_ref)
     params:set_action("dust_dens", function(x) Bridge.set_param("dust_dens", x) end)
     params:add_option("outline_src", "Outline Source", {"Internal Gates", "External Audio"}, 1)
     params:set_action("outline_src", function(x) Bridge.set_param("outline_source", x-1) end)
+    params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0, 1))
+    params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
     
     params:add_group("SCALES & TUNING", 2)
     params:add_number("scale_idx", "Scale", 1, 32, 1)
@@ -55,7 +57,7 @@ function Params.init(g_ref)
     local midi_ch_options = {"1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","OMNI","MPE"}
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 22) 
+        params:add_group("VOICE "..i, 23) 
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -70,14 +72,17 @@ function Params.init(g_ref)
             local tune = params:get("osc"..i.."_tune") or 0
             hz = hz * (2 ^ (tune / 12))
             Bridge.set_freq(i, hz)
-            Bridge.set_freq(i+4, hz) -- Update Twin Voice
+            Bridge.set_freq(i+4, hz) 
         end)
         params:add_control("osc"..i.."_vol", "Vol", controlspec.new(0,1,"lin",0,0.0))
         params:set_action("osc"..i.."_vol", function(x) if Globals then Globals.voices[i].vol=x end; Bridge.set_param("vol"..i, x) end)
         params:add_control("osc"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0,0.0))
         params:set_action("osc"..i.."_pan", function(x) Bridge.set_param("pan"..i, x) end)
-        params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,6,"lin",0,2))
+        
+        -- FIX: Shape Range Expanded to 7.0 for 8-Stage Morphing
+        params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,7,"lin",0,2))
         params:set_action("osc"..i.."_shape", function(x) if Globals then Globals.voices[i].shape=x end; Bridge.set_param("shape"..i, x) end)
+        
         params:add_control("osc"..i.."_tune", "Fine Tune", controlspec.new(-1,1,"lin",0,0))
         params:set_action("osc"..i.."_tune", function(x) 
             if Globals then Globals.voices[i].tune=x end
@@ -121,6 +126,10 @@ function Params.init(g_ref)
         params:set_action("osc"..i.."_press_vol", function(x) Bridge.set_param("press_vol"..i, x) end)
         params:add_control("osc"..i.."_press_shp", "Press to Shape", controlspec.new(-1,1,"lin",0,0.0))
         params:set_action("osc"..i.."_press_shp", function(x) Bridge.set_param("press_shp"..i, x) end)
+        
+        params:add_control("osc"..i.."_mod_shape", "Legacy MW>Shape", controlspec.new(0,1,"lin",0,0.0))
+        params:set_action("osc"..i.."_mod_shape", function(x) Bridge.set_param("mw_shp"..i, x) end)
+        params:hide("osc"..i.."_mod_shape")
     end
     
     local sync_opts = {}
@@ -180,9 +189,6 @@ function Params.init(g_ref)
         params:add_control("mod"..i.."_mix", "MOD"..i.." Mix", controlspec.new(0,1,"lin",0,0.0)) 
         params:set_action("mod"..i.."_mix", function(x) Bridge.set_param("mod"..i.."_mix", x) end)
     end
-    
-    params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0, 1))
-    params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
 
     params:add_group("SPACE (FX)", 15) 
     params:add_control("delay_send", "Delay Send", controlspec.new(0,1,"lin",0,0.5))
