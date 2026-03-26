@@ -1,5 +1,5 @@
--- lib/midi_in.lua | v2.1.6
--- FIX: 8-Voice Polyphony Allocation (Twin Voices)
+-- lib/midi_in.lua | v2.1.7
+-- FIX: Sequential Voice Allocation (Main 1-4 first, then Twins 5-8)
 
 local MidiIn = {}
 local Globals
@@ -79,6 +79,8 @@ end
 function MidiIn.note_on(note, vel, ch)
     local poly_mode = params:get("midi_poly_mode") or 1
     local target_voices = {}
+    local main_pool = {}
+    local twin_pool = {}
     
     for i=1, 4 do
         local v_ch = params:get("osc"..i.."_midi_ch")
@@ -86,12 +88,16 @@ function MidiIn.note_on(note, vel, ch)
         local twin_on = params:get("osc"..i.."_twin_enable")
         
         if v_on == 1 and (v_ch == 17 or v_ch == 18 or v_ch == ch) then
-            table.insert(target_voices, i)
+            table.insert(main_pool, i)
             if twin_on == 1 then
-                table.insert(target_voices, i+4) -- Add Twin Voice as independent polyphony slot
+                table.insert(twin_pool, i+4)
             end
         end
     end
+    
+    -- FIX: Combine pools sequentially (Main voices first, then Twin voices)
+    for _, v in ipairs(main_pool) do table.insert(target_voices, v) end
+    for _, v in ipairs(twin_pool) do table.insert(target_voices, v) end
     
     if #target_voices == 0 then return end
     
@@ -160,6 +166,7 @@ function MidiIn.note_off(note, ch)
             if not Globals.voices[p_idx].latched and not Globals.voices[p_idx].sustained then
                 Bridge.set_gate(v, 0)
             end
+            Bridge.set_midi_gate(v, 0)
             Globals.midi_voice_vel[v] = 0 
             Globals.voices[v].mpe_channel = nil
             Globals.dirty = true
@@ -176,6 +183,7 @@ function MidiIn.trigger_voice(v, note, vel, ch)
     Globals.dirty = true
     
     local p_idx = ((v-1) % 4) + 1
+    Bridge.set_midi_gate(v, 1)
     if not Globals.voices[p_idx].latched and not Globals.voices[p_idx].sustained then
         Bridge.set_gate(v, 1)
     end
