@@ -1,5 +1,5 @@
--- lib/parameters.lua | v2.1.4
--- FIX: Strict Folder Grouping, 18-Position MIDI Selector
+-- lib/parameters.lua | v2.1.5
+-- FIX: Strict Group Counts, MPE Curves, Voice Doubling
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,9 +9,9 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v2.1.4")
+    params:add_separator("LTRA v2.1.5")
     
-    params:add_group("GLOBAL", 5)
+    params:add_group("GLOBAL", 6)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0.01,1))
     params:set_action("master_vol", function(x) audio.level_dac(x) end)
     params:add_control("monitor_vol", "Monitor In", controlspec.new(0,1,"lin",0.01,0))
@@ -22,6 +22,8 @@ function Params.init(g_ref)
     params:set_action("dust_dens", function(x) Bridge.set_param("dust_dens", x) end)
     params:add_option("outline_src", "Outline Source", {"Internal Gates", "External Audio"}, 1)
     params:set_action("outline_src", function(x) Bridge.set_param("outline_source", x-1) end)
+    params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0.1, 1))
+    params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
     
     params:add_group("SCALES & TUNING", 2)
     params:add_number("scale_idx", "Scale", 1, 32, 1)
@@ -33,7 +35,7 @@ function Params.init(g_ref)
         if Globals then Globals.scale.root_note = x; Globals.dirty=true; if Globals.loaded then Scales.update_all_voices() end end 
     end)
     
-    params:add_group("MIDI & MPE GLOBAL", 4)
+    params:add_group("MIDI & MPE GLOBAL", 8)
     params:add_number("midi_device", "MIDI Device", 1, 4, 1)
     params:add_option("midi_poly_mode", "Poly Mode", Consts.POLY_MODES, 1)
     params:add_number("midi_bend_range", "Global Bend Range", 1, 12, 2)
@@ -43,11 +45,19 @@ function Params.init(g_ref)
         local vals = {12, 24, 48, 96}
         Bridge.set_param("mpe_bend_range", vals[x]) 
     end)
+    params:add_control("mpe_lag", "MPE Lag", controlspec.new(0.0, 0.01, "lin", 0.001, 0.0))
+    params:set_action("mpe_lag", function(x) Bridge.set_param("mpe_lag", x) end)
+    params:add_control("vel_curve", "Velocity Curve", controlspec.new(-100, 100, "lin", 1, 0))
+    params:set_action("vel_curve", function(x) Bridge.set_param("vel_curve", util.linlin(-100, 100, -8.0, 8.0, x)) end)
+    params:add_control("slide_curve", "Slide Curve", controlspec.new(-100, 100, "lin", 1, 0))
+    params:set_action("slide_curve", function(x) Bridge.set_param("slide_curve", util.linlin(-100, 100, -8.0, 8.0, x)) end)
+    params:add_control("press_curve", "Pressure Curve", controlspec.new(-100, 100, "lin", 1, 0))
+    params:set_action("press_curve", function(x) Bridge.set_param("press_curve", util.linlin(-100, 100, -8.0, 8.0, x)) end)
 
     local midi_ch_options = {"1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","OMNI","MPE"}
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 21) 
+        params:add_group("VOICE "..i, 22) 
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -95,9 +105,10 @@ function Params.init(g_ref)
         params:set_action("env_rel"..i, function(x) Bridge.set_param("env_rel"..i, x) end)
         params:add_binary("osc"..i.."_midi_note", "MIDI Note", "toggle", 0)
         params:set_action("osc"..i.."_midi_note", function(x) if x == 0 then Bridge.set_midi_note(i, 60) end end)
-        
-        -- FIX: 18-Position MIDI Channel Selector
         params:add_option("osc"..i.."_midi_ch", "MIDI Channel", midi_ch_options, 17)
+        
+        params:add_binary("osc"..i.."_twin_enable", "Voice x2 (Twin)", "toggle", 0)
+        params:set_action("osc"..i.."_twin_enable", function(x) Bridge.set_param("twin_enable"..i, x) end)
         
         params:add_control("osc"..i.."_vel_vol", "Vel to Vol", controlspec.new(0,1,"lin",0.01,0.0))
         params:set_action("osc"..i.."_vel_vol", function(x) Bridge.set_param("vel_amt"..i, x) end)
@@ -118,7 +129,7 @@ function Params.init(g_ref)
     local sync_opts = {}
     for _, v in ipairs(Consts.SYNC_DIVS) do table.insert(sync_opts, v.name) end
 
-    params:add_group("ARP", 10)
+    params:add_group("ARP", 6)
     params:add_option("arp_div", "Clock Div", sync_opts, 10) 
     params:add_control("arp_chaos", "Chaos Prob", controlspec.new(0,1,"lin",0.01,0.2))
     params:add_number("arp_length", "Length", 1, 8, 8)
@@ -172,9 +183,6 @@ function Params.init(g_ref)
         params:add_control("mod"..i.."_mix", "MOD"..i.." Mix", controlspec.new(0,1,"lin",0.01,0.0)) 
         params:set_action("mod"..i.."_mix", function(x) Bridge.set_param("mod"..i.."_mix", x) end)
     end
-    
-    params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0.1, 1))
-    params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
 
     params:add_group("SPACE (FX)", 15) 
     params:add_control("delay_send", "Delay Send", controlspec.new(0,1,"lin",0.01,0.5))
