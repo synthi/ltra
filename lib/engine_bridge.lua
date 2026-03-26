@@ -1,5 +1,5 @@
--- lib/engine_bridge.lua | v2.1.3
--- FIX: O(1) Vectorized Matrix Routing
+-- lib/engine_bridge.lua | v2.1.5
+-- FIX: Added set_midi_gate for Voice Doubling
 
 local Bridge = {}
 local Globals
@@ -47,6 +47,7 @@ function Bridge.clear_delay() engine.clear_delay() end
 function Bridge.set_param(name, value) engine.set_engine_param(name, value) end
 function Bridge.set_freq(idx, hz) engine.set_engine_param("freq"..idx, hz) end
 function Bridge.set_gate(idx, val) engine.set_engine_param("gate"..idx, val) end
+function Bridge.set_midi_gate(idx, val) engine.set_engine_param("midi_gate"..idx, val) end
 function Bridge.reset_lfo() engine.set_engine_param("t_reset", 1) end
 
 function Bridge.set_midi_note(idx, note) engine.set_engine_param("midi_note"..idx, note) end
@@ -58,7 +59,6 @@ function Bridge.set_mpe_bend(idx, val) engine.set_engine_param("mpe_bend"..idx, 
 function Bridge.set_mpe_slide(idx, val) engine.set_engine_param("slide"..idx, val) end
 function Bridge.set_mpe_press(idx, val) engine.set_engine_param("press"..idx, val) end
 
--- Vectorized Matrix Setters
 function Bridge.set_matrix(src_idx, dest_idx, val)
     engine.set_matrix(src_idx, dest_idx, val)
 end
