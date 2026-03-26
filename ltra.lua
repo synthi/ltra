@@ -1,5 +1,5 @@
--- ltra.lua | v2.1.5
--- FIX: Initialization Bug (Sync Faders on Handshake)
+-- ltra.lua | v2.2.0
+-- FIX: Version Bump
 
 engine.name = 'Ltra'
 
@@ -28,7 +28,7 @@ function osc.event(path, args, from)
             g_state.engine_ready = true
             params:bang()
             g_state.loaded = true
-            Midi16n.sync_faders() -- FIX: Sync faders immediately after engine is ready
+            Midi16n.sync_faders() 
             g_state.dirty = true
             print("LTRA: Engine Ready. Handshake complete.")
         end
@@ -37,7 +37,7 @@ function osc.event(path, args, from)
 end
 
 function init()
-    print("LTRA: Initializing v2.1.5 (8-Voice MPE Update)...")
+    print("LTRA: Initializing v2.2.0 (Phase Wave Elite Update)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
