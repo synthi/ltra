@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v2.1.4
--- FIX: Toggle-Hold Multi-Selection UX, Active Snapshot Brightness
+-- lib/grid_pages.lua | v2.2.0
+-- FIX: Active Snapshot Brightness (VAL_PEAK)
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -16,7 +16,7 @@ function Pages.init(g_ref, hw_ref)
     Matrix.init(g_ref)
     Globals.snap_state = { last_click_time = {}, defer_id = {} }
     Globals.looper_state = { last_click_time = {}, defer_id = {}, press_time = {} }
-    Globals.multi_sel = { active = false, row = nil, targets = {} } -- FIX: Toggle-Hold State
+    Globals.multi_sel = { active = false, row = nil, targets = {} }
 end
 
 function Pages.set_hw(h) HW = h end
@@ -56,7 +56,6 @@ end
 local function check_hold_single()
     if Globals.page ~= 1 then return end
     
-    -- Check single holds for non-voice menus
     local held_x = nil
     for x=6, 16 do
         if Globals.button_state[x] and Globals.button_state[x][6] then held_x = x; break end
@@ -102,7 +101,6 @@ local function check_hold_single()
         end
     end
 
-    -- Only clear if multi-selection is also inactive
     if Globals.menu_mode ~= Consts.MENU.NONE and not Globals.multi_sel.active then 
         Globals.menu_mode = Consts.MENU.NONE; Globals.dirty = true 
     end
@@ -114,7 +112,8 @@ local function draw_snapshots()
         local b = Consts.BRIGHT.BG_NAV 
         if Globals.snapshots[i] then 
             b = Consts.BRIGHT.VAL_MED 
-            if Globals.active_snapshot == i then b = Consts.BRIGHT.VAL_PEAK end -- FIX: High Contrast for Active
+            -- FIX: High Contrast for Active Snapshot
+            if Globals.active_snapshot == i then b = Consts.BRIGHT.VAL_PEAK end 
         end 
         led_safe(x, 7, b)
     end
@@ -220,7 +219,6 @@ function Pages.key(x, y, z)
     if z==1 then Globals.grid_timers[x][y] = util.time() end
     local shift = Globals.button_state[16] and Globals.button_state[16][8]
     
-    -- FIX: Toggle-Hold Multi-Selection Logic
     if Globals.page == 1 and y >= 5 and y <= 7 and x >= 1 and x <= 4 then
         if z == 1 then
             if not Globals.multi_sel.active then
