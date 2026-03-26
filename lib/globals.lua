@@ -1,5 +1,5 @@
--- lib/globals.lua | v2.1.0
--- FIX: Added active_snapshot, midi_watch_thread, mpe_channels
+-- lib/globals.lua | v2.1.6
+-- FIX: 8-Voice Array Expansion
 
 local Globals = {}
 local Consts = require 'ltra/lib/consts'
@@ -61,7 +61,8 @@ function Globals.new()
         end 
     end
     
-    for i=1, 4 do state.voices[i] = {shape=0, pan=0, tune=0, arp_enabled=false, to_looper=true, latched=false, mpe_channel=nil} end
+    -- FIX: 8 Voices for Polyphony
+    for i=1, 8 do state.voices[i] = {shape=0, pan=0, tune=0, arp_enabled=false, to_looper=true, latched=false, mpe_channel=nil} end
 
     for i=1, 3 do
         state.tracks[i] = {
