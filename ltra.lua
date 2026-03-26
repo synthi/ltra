@@ -1,5 +1,5 @@
--- ltra.lua | v2.1.0
--- FIX: Handshake OSC, Native VU Polling, MIDI Thread Cleanup
+-- ltra.lua | v2.1.5
+-- FIX: Initialization Bug (Sync Faders on Handshake)
 
 engine.name = 'Ltra'
 
@@ -27,8 +27,9 @@ function osc.event(path, args, from)
         if not g_state.engine_ready then
             g_state.engine_ready = true
             params:bang()
-            g_state.dirty = true
             g_state.loaded = true
+            Midi16n.sync_faders() -- FIX: Sync faders immediately after engine is ready
+            g_state.dirty = true
             print("LTRA: Engine Ready. Handshake complete.")
         end
     end
@@ -36,7 +37,7 @@ function osc.event(path, args, from)
 end
 
 function init()
-    print("LTRA: Initializing v2.1.0 (MPE & Ergonomics Update)...")
+    print("LTRA: Initializing v2.1.5 (8-Voice MPE Update)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
@@ -68,7 +69,6 @@ function init()
     GridHW.init(g_state, 1, GridPages)
     GridPages.set_hw(GridHW)
     
-    -- Native VU Polling (Norns 2.9.4+)
     local amp_out_l = poll.set("amp_out_l")
     local amp_out_r = poll.set("amp_out_r")
     amp_out_l.time = 1/15
@@ -82,7 +82,7 @@ function init()
         clock.sleep(0.5) 
         Midi16n.init(g_state, UI)
         Bridge.query_config()
-        engine.ping() -- Initiate Handshake
+        engine.ping() 
     end)
     
     local fps = metro.init()
@@ -146,6 +146,6 @@ function cleanup()
     print("LTRA: Cleanup")
     Arp.stop()
     Midi16n.stop()
-    MidiIn.stop() -- FIX: Cancel MIDI Watch Thread
+    MidiIn.stop() 
     metro.free_all()
 end
