@@ -1,5 +1,5 @@
--- lib/storage.lua | v2.1.0
--- FIX: Track Active Snapshot
+-- lib/storage.lua | v2.2.0
+-- FIX: Safe Snapshot Loading (pcall + lookup)
 
 local Storage = {}
 local Globals
@@ -50,9 +50,31 @@ function Storage.load_sidecar(pset_number)
     if util.file_exists(data_path) then
         local data = tab.load(data_path)
         if data then
-            if data.custom_scales then Globals.scale.custom_slots = data.custom_scales end
+            if data.custom_scales then 
+                Globals.scale.custom_slots = data.custom_scales 
+            else
+                Globals.scale.custom_slots = {}
+                for i=1, 16 do
+                    Globals.scale.custom_slots[i] = { modified = false, intervals = {} }
+                    local preset = Consts.SCALES_A[i] or Consts.SCALES_B[i - #Consts.SCALES_A]
+                    if preset then
+                        for _, v in ipairs(preset.intervals) do table.insert(Globals.scale.custom_slots[i].intervals, v) end
+                    else
+                        Globals.scale.custom_slots[i].intervals = {0, 2, 4, 5, 7, 9, 11}
+                    end
+                end
+            end
+            
             if data.snapshots then Globals.snapshots = data.snapshots end
-            if data.matrix_quant then Globals.matrix_quant = data.matrix_quant end
+            
+            if data.matrix_quant then 
+                Globals.matrix_quant = data.matrix_quant 
+            else
+                for s=1, 5 do 
+                    Globals.matrix_quant[s] = {} 
+                    for d=1, 16 do Globals.matrix_quant[s][d] = 1 end 
+                end
+            end
         end
     else
         print("LTRA: No sidecar data found (New PSET?)")
@@ -94,8 +116,14 @@ function Storage.load_snapshot(slot)
     local snap = Globals.snapshots[slot]
     if not snap then return end
     
+    -- FIX: Safe Parameter Loading (Ignores removed parameters without crashing)
     for id, val in pairs(snap.params) do
-        params:set(id, val) 
+        if params.lookup[id] then
+            local p = params.params[params.lookup[id]]
+            if p.t ~= 4 then -- Ensure it's not a group/separator
+                pcall(function() params:set(id, val) end)
+            end
+        end
     end
     
     if snap.volatile then
