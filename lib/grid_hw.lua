@@ -1,21 +1,24 @@
--- =============================================================================
--- PROJECT: LTRA
--- FILE: lib/grid_hw.lua
--- VERSION: v1.4.8
--- DESCRIPTION: Hardware Abstraction Layer with Differential Cache & Boot Protection.
--- =============================================================================
+-- lib/grid_hw.lua | v2.1.6
+-- FIX: Hardware Debounce (20ms) for Norns Shield
 
 local GridHW = {}
 local Globals; local Pages; local g
 local cache = {}
+local last_z = {}
+local last_t = {}
+local debounce_time = 0.02 -- 20ms
 
 function GridHW.init(g_ref, dev, p_ref)
     Globals = g_ref; Pages = p_ref; g = grid.connect(dev)
     
     for x=1,16 do 
         cache[x]={} 
+        last_z[x]={}
+        last_t[x]={}
         for y=1,8 do 
             cache[x][y] = -1 
+            last_z[x][y] = 0
+            last_t[x][y] = 0
         end 
     end
     
@@ -45,8 +48,14 @@ function GridHW.redraw()
 end
 
 function GridHW.handle_key(x, y, z)
-    -- FIX 3.1: Boot Protection. Ignorar hardware si Lua no está 100% listo.
     if not Globals or not Globals.loaded then return end
+    
+    local now = util.time()
+    if z == last_z[x][y] then return end
+    if (now - last_t[x][y]) < debounce_time then return end
+    
+    last_z[x][y] = z
+    last_t[x][y] = now
     
     Globals.button_state[x][y] = (z==1)
     if Pages then 
