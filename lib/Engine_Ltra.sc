@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v2.1.3
-// FIX: Phase Wave Elite Protocol - Vectorized Array Controls (Bypasses 255 Limit)
+// lib/Engine_Ltra.sc | v2.1.5
+// FIX: 8-Voice Doubling Architecture, MPE Lag & Curves
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -10,7 +10,6 @@ Engine_Ltra : CroneEngine {
     *new { arg context, doneCallback; ^super.new(context, doneCallback); }
 
     alloc {
-        // State arrays for the Mod Matrix (5 sources x 16 destinations)
         matrix_amts = Array.fill(5, { Array.fill(16, 0.0) });
         matrix_quants = Array.fill(5, { Array.fill(16, 1.0) });
 
@@ -24,6 +23,12 @@ Engine_Ltra : CroneEngine {
             var pitch_bend = \pitch_bend.kr(8192);
             var bend_range = \bend_range.kr(2);
             var mpe_bend_range = \mpe_bend_range.kr(48);
+            
+            // NEW: MPE Lag & Curves
+            var mpe_lag = \mpe_lag.kr(0.0);
+            var vel_curve = \vel_curve.kr(0.0);
+            var slide_curve = \slide_curve.kr(0.0);
+            var press_curve = \press_curve.kr(0.0);
             
             var mod1_lfo_rate = \mod1_lfo_rate.kr(0.5);
             var mod1_lfo_shape = \mod1_lfo_shape.kr(0);
@@ -105,8 +110,12 @@ Engine_Ltra : CroneEngine {
             var press_shps =[ \press_shp1.kr(0), \press_shp2.kr(0), \press_shp3.kr(0), \press_shp4.kr(0) ];
             
             var arp_cvs =[ \arp_cv1.kr(0), \arp_cv2.kr(0), \arp_cv3.kr(0), \arp_cv4.kr(0) ];
+            
+            // NEW: Voice Doubling Arrays
+            var twin_enables =[ \twin_enable1.kr(0), \twin_enable2.kr(0), \twin_enable3.kr(0), \twin_enable4.kr(0) ];
+            var midi_gates =[ \midi_gate1.kr(0), \midi_gate2.kr(0), \midi_gate3.kr(0), \midi_gate4.kr(0) ];
 
-            // VECTORIZED MATRIX CONTROLS (10 Controls instead of 160)
+            // VECTORIZED MATRIX CONTROLS
             var mod1_dest = \mod1_dest.kr(0!16);
             var mod2_dest = \mod2_dest.kr(0!16);
             var mod3_dest = \mod3_dest.kr(0!16);
@@ -189,7 +198,6 @@ Engine_Ltra : CroneEngine {
             env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); 
             outline_sig = Select.kr(outline_source,[env_int, env_ext]) * outline_gain;
 
-            // Vectorized Mod Calculation
             calc_mod = { |dest_idx, arp_val|
                 (mod1_sig * mod1_dest[dest_idx]) +
                 (mod2_sig * mod2_dest[dest_idx]) +
@@ -225,31 +233,42 @@ Engine_Ltra : CroneEngine {
             bend_norm = (pitch_bend - 8192) / 8192.0;
             bend_offset = bend_norm * bend_range / 12.0;
 
-            // Voice Iteration
+            // Voice Iteration (8 Voices Total: 4 Main + 4 Twins)
             voices_out = 4.collect { |i|
+                // Main Voice Noise Generators
                 var d_sig = (LFNoise2.kr(0.01 + (i*0.001)) * drifts[i] * (6/1200)) + (LFNoise2.kr(3.1 + (i*0.1)) * spreads[i] * (3/1200));
+                // Twin Voice Noise Generators (Independent Seeds)
+                var d_sig_twin = (LFNoise2.kr(0.015 + (i*0.001)) * drifts[i] * (6/1200)) + (LFNoise2.kr(3.2 + (i*0.1)) * spreads[i] * (3/1200));
+                
                 var s_freq = Lag.kr(freqs[i], glides[i]);
                 var s_vol = Lag.kr(vols[i], 0.05);
                 
-                // Matrix Indices: PITCH=0..3, AMP=4..7, SHAPE=8..11
                 var m_pitch = calc_mod_pitch.(i, arp_cvs[i]);
                 var m_amp = calc_mod.(i + 4, arp_cvs[i]);
                 var m_shape = calc_mod.(i + 8, arp_cvs[i]);
                 
                 var mpe_bend_off = ((mpe_bends[i] - 8192) / 8192.0) * mpe_bend_range / 12.0;
                 var midi_off = (midi_notes[i] - 60) / 12.0;
-                var vel_bip = (midi_vels[i] - 64) / 63.0;
-                var slide_n = slides[i] / 127.0;
-                var press_n = presses[i] / 127.0;
+                
+                // MPE Lag & Curves
+                var vel_bip = ((midi_vels[i] - 64) / 63.0).lincurve(-1.0, 1.0, -1.0, 1.0, vel_curve);
+                var slide_n = Lag.kr(slides[i] / 127.0, mpe_lag).lincurve(0.0, 1.0, 0.0, 1.0, slide_curve);
+                var press_n = Lag.kr(presses[i] / 127.0, mpe_lag).lincurve(0.0, 1.0, 0.0, 1.0, press_curve);
                 
                 var vca = (s_vol.squared + m_amp + (vel_bip * vel_amts[i] * s_vol.squared) + (slide_n * slide_vols[i]) + (press_n * press_vols[i])).clip(0, 1);
                 var final_shape = (shapes[i] + (m_shape*6) + (vel_bip * vel_shps[i] * 6) + (slide_n * slide_shps[i] * 6) + (press_n * press_shps[i] * 6)).clip(0, 6);
                 var final_atk = (env_atks[i] + (vel_bip * vel_atks[i] * 5.0)).clip(0.001, 10.0);
                 
+                // Main Voice
                 var env = EnvGen.kr(Env.asr(final_atk, 1.0, env_rels[i]), gates[i]);
                 var osc = mk_osc.(s_freq * (2.pow(m_pitch + d_sig + bend_offset + mpe_bend_off + midi_off)), final_shape) * vca * env;
                 
-                Pan2.ar(osc, pans[i].clip(-1,1));
+                // Twin Voice (Only active via MIDI Gate + Twin Enable)
+                var env_twin = EnvGen.kr(Env.asr(final_atk, 1.0, env_rels[i]), midi_gates[i] * twin_enables[i]);
+                var osc_twin = mk_osc.(s_freq * (2.pow(m_pitch + d_sig_twin + bend_offset + mpe_bend_off + midi_off)), final_shape) * vca * env_twin;
+                
+                // Mix Main (Normal Pan) + Twin (Inverted Pan)
+                Pan2.ar(osc, pans[i].clip(-1,1)) + Pan2.ar(osc_twin, (pans[i] * -1.0).clip(-1,1));
             };
 
             sig_mix = (voices_out[0] + voices_out[1] + voices_out[2] + voices_out[3]) * 0.125;
@@ -257,7 +276,6 @@ Engine_Ltra : CroneEngine {
             s_filt1 = Lag.kr(filt1_cutoff, 0.05); 
             s_filt2 = Lag.kr(filt2_cutoff, 0.05);
             
-            // Matrix Indices: FILT1=12, FILT2=13
             m_filt1 = calc_mod.(12, arp_cvs[0]) * 5000; 
             m_filt2 = calc_mod.(13, arp_cvs[0]) * 5000 + (mw_norm * mw_filt2 * 5000);
 
@@ -278,7 +296,6 @@ Engine_Ltra : CroneEngine {
             drive_kr = Lag.kr(tapecho_drive, 0.1);
             filter_kr = Lag.kr(tapecho_filter, 0.1); 
 
-            // Matrix Indices: DELAY_T=14, DELAY_F=15
             m_delay_t = calc_mod.(14, arp_cvs[0]) * 0.1; 
             m_delay_f = calc_mod.(15, arp_cvs[0]) + (mw_norm * mw_delay_f);
 
@@ -377,9 +394,8 @@ Engine_Ltra : CroneEngine {
         this.addCommand("clear_delay", "", { synth.set(\clear_trig, 1); });
         this.addCommand("ping", "", { NetAddr("127.0.0.1", 10111).sendMsg("/ltra/ready"); });
         
-        // VECTORIZED MATRIX COMMANDS (O(1) Routing)
         this.addCommand("set_matrix", "iif", { arg msg;
-            var src = msg[1] - 1; // Lua is 1-indexed
+            var src = msg[1] - 1; 
             var dest = msg[2] - 1;
             var val = msg[3];
             var src_names =[\mod1_dest, \mod2_dest, \mod3_dest, \outline_dest, \arp_dest];
