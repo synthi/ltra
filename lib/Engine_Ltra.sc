@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v2.1.5
-// FIX: 8-Voice Doubling Architecture, MPE Lag & Curves
+// lib/Engine_Ltra.sc | v2.1.6
+// FIX: 8-Voice True Polyphony Architecture, MPE Curves, Vectorized Controls
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -24,7 +24,6 @@ Engine_Ltra : CroneEngine {
             var bend_range = \bend_range.kr(2);
             var mpe_bend_range = \mpe_bend_range.kr(48);
             
-            // NEW: MPE Lag & Curves
             var mpe_lag = \mpe_lag.kr(0.0);
             var vel_curve = \vel_curve.kr(0.0);
             var slide_curve = \slide_curve.kr(0.0);
@@ -83,37 +82,32 @@ Engine_Ltra : CroneEngine {
             var dust_dens = \dust_dens.kr(0);
             var clear_trig = \clear_trig.kr(0);
             
-            // Voice Arrays
-            var freqs =[ \freq1.kr(110), \freq2.kr(150), \freq3.kr(220), \freq4.kr(330) ];
-            var shapes =[ \shape1.kr(2), \shape2.kr(2), \shape3.kr(2), \shape4.kr(2) ];
-            var vols =[ \vol1.kr(0), \vol2.kr(0), \vol3.kr(0), \vol4.kr(0) ];
-            var pans =[ \pan1.kr(0), \pan2.kr(0), \pan3.kr(0), \pan4.kr(0) ];
-            var drifts =[ \drift1.kr(0), \drift2.kr(0), \drift3.kr(0), \drift4.kr(0) ];
-            var spreads =[ \spread1.kr(0), \spread2.kr(0), \spread3.kr(0), \spread4.kr(0) ];
-            var glides =[ \glide1.kr(0.001), \glide2.kr(0.001), \glide3.kr(0.001), \glide4.kr(0.001) ];
-            var gates =[ \gate1.kr(0), \gate2.kr(0), \gate3.kr(0), \gate4.kr(0) ];
-            var env_atks =[ \env_atk1.kr(0.01), \env_atk2.kr(0.01), \env_atk3.kr(0.01), \env_atk4.kr(0.01) ];
-            var env_rels =[ \env_rel1.kr(0.2), \env_rel2.kr(0.2), \env_rel3.kr(0.2), \env_rel4.kr(0.2) ];
+            // 8-Voice Independent Arrays (Polyphony)
+            var freqs = 8.collect { |i| NamedControl.kr("freq" ++ (i+1), 110) };
+            var gates = 8.collect { |i| NamedControl.kr("gate" ++ (i+1), 0) };
+            var midi_notes = 8.collect { |i| NamedControl.kr("midi_note" ++ (i+1), 60) };
+            var midi_vels = 8.collect { |i| NamedControl.kr("midi_vel" ++ (i+1), 64) };
+            var mpe_bends = 8.collect { |i| NamedControl.kr("mpe_bend" ++ (i+1), 8192) };
+            var slides = 8.collect { |i| NamedControl.kr("slide" ++ (i+1), 0) };
+            var presses = 8.collect { |i| NamedControl.kr("press" ++ (i+1), 0) };
             
-            var midi_notes =[ \midi_note1.kr(60), \midi_note2.kr(60), \midi_note3.kr(60), \midi_note4.kr(60) ];
-            var midi_vels =[ \midi_vel1.kr(64), \midi_vel2.kr(64), \midi_vel3.kr(64), \midi_vel4.kr(64) ];
-            var vel_amts =[ \vel_amt1.kr(0), \vel_amt2.kr(0), \vel_amt3.kr(0), \vel_amt4.kr(0) ];
-            var vel_atks =[ \vel_atk1.kr(0), \vel_atk2.kr(0), \vel_atk3.kr(0), \vel_atk4.kr(0) ];
-            var vel_shps =[ \vel_shp1.kr(0), \vel_shp2.kr(0), \vel_shp3.kr(0), \vel_shp4.kr(0) ];
-            
-            var mpe_bends =[ \mpe_bend1.kr(8192), \mpe_bend2.kr(8192), \mpe_bend3.kr(8192), \mpe_bend4.kr(8192) ];
-            var slides =[ \slide1.kr(0), \slide2.kr(0), \slide3.kr(0), \slide4.kr(0) ];
-            var slide_vols =[ \slide_vol1.kr(0), \slide_vol2.kr(0), \slide_vol3.kr(0), \slide_vol4.kr(0) ];
-            var slide_shps =[ \slide_shp1.kr(0), \slide_shp2.kr(0), \slide_shp3.kr(0), \slide_shp4.kr(0) ];
-            var presses =[ \press1.kr(0), \press2.kr(0), \press3.kr(0), \press4.kr(0) ];
-            var press_vols =[ \press_vol1.kr(0), \press_vol2.kr(0), \press_vol3.kr(0), \press_vol4.kr(0) ];
-            var press_shps =[ \press_shp1.kr(0), \press_shp2.kr(0), \press_shp3.kr(0), \press_shp4.kr(0) ];
-            
-            var arp_cvs =[ \arp_cv1.kr(0), \arp_cv2.kr(0), \arp_cv3.kr(0), \arp_cv4.kr(0) ];
-            
-            // NEW: Voice Doubling Arrays
-            var twin_enables =[ \twin_enable1.kr(0), \twin_enable2.kr(0), \twin_enable3.kr(0), \twin_enable4.kr(0) ];
-            var midi_gates =[ \midi_gate1.kr(0), \midi_gate2.kr(0), \midi_gate3.kr(0), \midi_gate4.kr(0) ];
+            // 4-Voice Shared Parameter Arrays (Panel Controls)
+            var shapes = 4.collect { |i| NamedControl.kr("shape" ++ (i+1), 2) };
+            var vols = 4.collect { |i| NamedControl.kr("vol" ++ (i+1), 0) };
+            var pans = 4.collect { |i| NamedControl.kr("pan" ++ (i+1), 0) };
+            var drifts = 4.collect { |i| NamedControl.kr("drift" ++ (i+1), 0) };
+            var spreads = 4.collect { |i| NamedControl.kr("spread" ++ (i+1), 0) };
+            var glides = 4.collect { |i| NamedControl.kr("glide" ++ (i+1), 0.001) };
+            var env_atks = 4.collect { |i| NamedControl.kr("env_atk" ++ (i+1), 0.01) };
+            var env_rels = 4.collect { |i| NamedControl.kr("env_rel" ++ (i+1), 0.2) };
+            var vel_amts = 4.collect { |i| NamedControl.kr("vel_amt" ++ (i+1), 0) };
+            var vel_atks = 4.collect { |i| NamedControl.kr("vel_atk" ++ (i+1), 0) };
+            var vel_shps = 4.collect { |i| NamedControl.kr("vel_shp" ++ (i+1), 0) };
+            var slide_vols = 4.collect { |i| NamedControl.kr("slide_vol" ++ (i+1), 0) };
+            var slide_shps = 4.collect { |i| NamedControl.kr("slide_shp" ++ (i+1), 0) };
+            var press_vols = 4.collect { |i| NamedControl.kr("press_vol" ++ (i+1), 0) };
+            var press_shps = 4.collect { |i| NamedControl.kr("press_shp" ++ (i+1), 0) };
+            var arp_cvs = 4.collect { |i| NamedControl.kr("arp_cv" ++ (i+1), 0) };
 
             // VECTORIZED MATRIX CONTROLS
             var mod1_dest = \mod1_dest.kr(0!16);
@@ -194,7 +188,7 @@ Engine_Ltra : CroneEngine {
             mod3_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod3_chaos_rate * 4)), mod3_chaos_slew * 10, mod3_chaos_slew * 10);
             mod3_sig = SelectX.kr(mod3_mix,[mod3_lfo, mod3_chaos]) * mod3_depth;
 
-            env_int = LagUD.kr((gates[0]+gates[1]+gates[2]+gates[3]).clip(0,1), 0.01, 0.5);
+            env_int = LagUD.kr(gates.sum.clip(0,1), 0.01, 0.5);
             env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); 
             outline_sig = Select.kr(outline_source,[env_int, env_ext]) * outline_gain;
 
@@ -233,45 +227,40 @@ Engine_Ltra : CroneEngine {
             bend_norm = (pitch_bend - 8192) / 8192.0;
             bend_offset = bend_norm * bend_range / 12.0;
 
-            // Voice Iteration (8 Voices Total: 4 Main + 4 Twins)
-            voices_out = 4.collect { |i|
-                // Main Voice Noise Generators
-                var d_sig = (LFNoise2.kr(0.01 + (i*0.001)) * drifts[i] * (6/1200)) + (LFNoise2.kr(3.1 + (i*0.1)) * spreads[i] * (3/1200));
-                // Twin Voice Noise Generators (Independent Seeds)
-                var d_sig_twin = (LFNoise2.kr(0.015 + (i*0.001)) * drifts[i] * (6/1200)) + (LFNoise2.kr(3.2 + (i*0.1)) * spreads[i] * (3/1200));
+            // 8-Voice Iteration (True Polyphony)
+            voices_out = 8.collect { |i|
+                var p_idx = i % 4; // Parent index (0-3)
                 
-                var s_freq = Lag.kr(freqs[i], glides[i]);
-                var s_vol = Lag.kr(vols[i], 0.05);
+                // Independent Noise Generators for every voice (0-7)
+                var d_sig = (LFNoise2.kr(0.01 + (i*0.001)) * drifts[p_idx] * (6/1200)) + (LFNoise2.kr(3.1 + (i*0.1)) * spreads[p_idx] * (3/1200));
                 
-                var m_pitch = calc_mod_pitch.(i, arp_cvs[i]);
-                var m_amp = calc_mod.(i + 4, arp_cvs[i]);
-                var m_shape = calc_mod.(i + 8, arp_cvs[i]);
+                var s_freq = Lag.kr(freqs[i], glides[p_idx]);
+                var s_vol = Lag.kr(vols[p_idx], 0.05);
+                
+                var m_pitch = calc_mod_pitch.(p_idx, arp_cvs[p_idx]);
+                var m_amp = calc_mod.(p_idx + 4, arp_cvs[p_idx]);
+                var m_shape = calc_mod.(p_idx + 8, arp_cvs[p_idx]);
                 
                 var mpe_bend_off = ((mpe_bends[i] - 8192) / 8192.0) * mpe_bend_range / 12.0;
                 var midi_off = (midi_notes[i] - 60) / 12.0;
                 
-                // MPE Lag & Curves
                 var vel_bip = ((midi_vels[i] - 64) / 63.0).lincurve(-1.0, 1.0, -1.0, 1.0, vel_curve);
                 var slide_n = Lag.kr(slides[i] / 127.0, mpe_lag).lincurve(0.0, 1.0, 0.0, 1.0, slide_curve);
                 var press_n = Lag.kr(presses[i] / 127.0, mpe_lag).lincurve(0.0, 1.0, 0.0, 1.0, press_curve);
                 
-                var vca = (s_vol.squared + m_amp + (vel_bip * vel_amts[i] * s_vol.squared) + (slide_n * slide_vols[i]) + (press_n * press_vols[i])).clip(0, 1);
-                var final_shape = (shapes[i] + (m_shape*6) + (vel_bip * vel_shps[i] * 6) + (slide_n * slide_shps[i] * 6) + (press_n * press_shps[i] * 6)).clip(0, 6);
-                var final_atk = (env_atks[i] + (vel_bip * vel_atks[i] * 5.0)).clip(0.001, 10.0);
+                var vca = (s_vol.squared + m_amp + (vel_bip * vel_amts[p_idx] * s_vol.squared) + (slide_n * slide_vols[p_idx]) + (press_n * press_vols[p_idx])).clip(0, 1);
+                var final_shape = (shapes[p_idx] + (m_shape*6) + (vel_bip * vel_shps[p_idx] * 6) + (slide_n * slide_shps[p_idx] * 6) + (press_n * press_shps[p_idx] * 6)).clip(0, 6);
+                var final_atk = (env_atks[p_idx] + (vel_bip * vel_atks[p_idx] * 5.0)).clip(0.001, 10.0);
                 
-                // Main Voice
-                var env = EnvGen.kr(Env.asr(final_atk, 1.0, env_rels[i]), gates[i]);
+                var env = EnvGen.kr(Env.asr(final_atk, 1.0, env_rels[p_idx]), gates[i]);
                 var osc = mk_osc.(s_freq * (2.pow(m_pitch + d_sig + bend_offset + mpe_bend_off + midi_off)), final_shape) * vca * env;
                 
-                // Twin Voice (Only active via MIDI Gate + Twin Enable)
-                var env_twin = EnvGen.kr(Env.asr(final_atk, 1.0, env_rels[i]), midi_gates[i] * twin_enables[i]);
-                var osc_twin = mk_osc.(s_freq * (2.pow(m_pitch + d_sig_twin + bend_offset + mpe_bend_off + midi_off)), final_shape) * vca * env_twin;
-                
-                // Mix Main (Normal Pan) + Twin (Inverted Pan)
-                Pan2.ar(osc, pans[i].clip(-1,1)) + Pan2.ar(osc_twin, (pans[i] * -1.0).clip(-1,1));
+                // Invert Pan for Twin Voices (i >= 4)
+                var pan_val = pans[p_idx] * (i >= 4).if(-1.0, 1.0);
+                Pan2.ar(osc, pan_val.clip(-1,1));
             };
 
-            sig_mix = (voices_out[0] + voices_out[1] + voices_out[2] + voices_out[3]) * 0.125;
+            sig_mix = voices_out.sum * 0.125;
 
             s_filt1 = Lag.kr(filt1_cutoff, 0.05); 
             s_filt2 = Lag.kr(filt2_cutoff, 0.05);
