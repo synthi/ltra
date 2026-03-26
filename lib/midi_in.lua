@@ -1,5 +1,5 @@
--- lib/midi_in.lua | v2.1.5
--- FIX: MIDI Gate Routing for Voice Doubling
+-- lib/midi_in.lua | v2.1.6
+-- FIX: 8-Voice Polyphony Allocation (Twin Voices)
 
 local MidiIn = {}
 local Globals
@@ -9,7 +9,7 @@ function MidiIn.init(g_ref)
     Globals = g_ref
     Globals.midi_active_notes = {}
     Globals.midi_rr_index = 1
-    Globals.midi_voice_vel = {0, 0, 0, 0} 
+    Globals.midi_voice_vel = {0, 0, 0, 0, 0, 0, 0, 0} 
     
     MidiIn.device = midi.connect(1)
     MidiIn.device.event = MidiIn.handle_event
@@ -48,8 +48,9 @@ function MidiIn.handle_event(data)
         if msg.ch == 1 then 
             Bridge.set_pitch_bend(msg.val)
         else
-            for i=1, 4 do
-                if Globals.voices[i].mpe_channel == msg.ch and params:get("osc"..i.."_midi_ch") == 18 then
+            for i=1, 8 do
+                local p_idx = ((i-1) % 4) + 1
+                if Globals.voices[i].mpe_channel == msg.ch and params:get("osc"..p_idx.."_midi_ch") == 18 then
                     Bridge.set_mpe_bend(i, msg.val)
                 end
             end
@@ -58,15 +59,17 @@ function MidiIn.handle_event(data)
         if msg.cc == 1 and msg.ch == 1 then
             Bridge.set_mod_wheel(msg.val)
         elseif msg.cc == 74 then
-            for i=1, 4 do
-                if Globals.voices[i].mpe_channel == msg.ch and params:get("osc"..i.."_midi_ch") == 18 then
+            for i=1, 8 do
+                local p_idx = ((i-1) % 4) + 1
+                if Globals.voices[i].mpe_channel == msg.ch and params:get("osc"..p_idx.."_midi_ch") == 18 then
                     Bridge.set_mpe_slide(i, msg.val)
                 end
             end
         end
     elseif msg.type == "channel_pressure" then
-        for i=1, 4 do
-            if Globals.voices[i].mpe_channel == msg.ch and params:get("osc"..i.."_midi_ch") == 18 then
+        for i=1, 8 do
+            local p_idx = ((i-1) % 4) + 1
+            if Globals.voices[i].mpe_channel == msg.ch and params:get("osc"..p_idx.."_midi_ch") == 18 then
                 Bridge.set_mpe_press(i, msg.val)
             end
         end
@@ -80,8 +83,13 @@ function MidiIn.note_on(note, vel, ch)
     for i=1, 4 do
         local v_ch = params:get("osc"..i.."_midi_ch")
         local v_on = params:get("osc"..i.."_midi_note")
+        local twin_on = params:get("osc"..i.."_twin_enable")
+        
         if v_on == 1 and (v_ch == 17 or v_ch == 18 or v_ch == ch) then
             table.insert(target_voices, i)
+            if twin_on == 1 then
+                table.insert(target_voices, i+4) -- Add Twin Voice as independent polyphony slot
+            end
         end
     end
     
@@ -148,10 +156,10 @@ end
 function MidiIn.note_off(note, ch)
     if Globals.midi_active_notes[note] then
         for _, v in ipairs(Globals.midi_active_notes[note]) do
-            if not Globals.voices[v].latched and not Globals.voices[v].sustained then
+            local p_idx = ((v-1) % 4) + 1
+            if not Globals.voices[p_idx].latched and not Globals.voices[p_idx].sustained then
                 Bridge.set_gate(v, 0)
             end
-            Bridge.set_midi_gate(v, 0) -- FIX: Release Twin Voice
             Globals.midi_voice_vel[v] = 0 
             Globals.voices[v].mpe_channel = nil
             Globals.dirty = true
@@ -166,8 +174,9 @@ function MidiIn.trigger_voice(v, note, vel, ch)
     Globals.midi_voice_vel[v] = vel 
     Globals.voices[v].mpe_channel = ch
     Globals.dirty = true
-    Bridge.set_midi_gate(v, 1) -- FIX: Trigger Twin Voice
-    if not Globals.voices[v].latched and not Globals.voices[v].sustained then
+    
+    local p_idx = ((v-1) % 4) + 1
+    if not Globals.voices[p_idx].latched and not Globals.voices[p_idx].sustained then
         Bridge.set_gate(v, 1)
     end
 end
