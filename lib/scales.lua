@@ -1,5 +1,5 @@
--- lib/scales.lua | v1.5.3
--- FIX: Scale Quantization Map, User Scales Init
+-- lib/scales.lua | v2.1.6
+-- FIX: 8-Voice Frequency Update
 
 local Scales = {}
 local Consts = require 'ltra/lib/consts'
@@ -10,7 +10,6 @@ local Globals
 function Scales.init(g_ref) 
     Globals = g_ref 
     
-    -- FIX: Initialize 16 User Scales
     if not Globals.scale.custom_slots or #Globals.scale.custom_slots < 16 then
         Globals.scale.custom_slots = {}
         for i=1, 16 do
@@ -71,7 +70,6 @@ function Scales.get_freq(degree, octave)
     end
 end
 
--- FIX: Send Scale Map to SC for perfect quantization
 function Scales.update_scale_map()
     if not Globals or not Globals.scale then return end
     local active_notes = {}
@@ -102,6 +100,7 @@ function Scales.update_all_voices()
         local tune = params:get("osc"..i.."_tune") or 0
         hz = hz * (2 ^ (tune / 12))
         Bridge.set_freq(i, hz)
+        Bridge.set_freq(i+4, hz) -- FIX: Update Twin Voice Base Frequency
     end
 end
 
