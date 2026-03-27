@@ -1,5 +1,5 @@
--- lib/controls_key.lua | v2.1.3
--- FIX: Vectorized Matrix Routing
+-- lib/controls_key.lua | v2.2.2
+-- FIX: Matrix Quantization uses params:set for Snapshot compatibility
 
 local Keys = {}
 local Globals
@@ -92,10 +92,10 @@ function Keys.event(n, z)
                     local dst_idx = Consts.DESTINATIONS[t.dest_name]
                     if src_idx and dst_idx then
                         if dst_idx <= 4 then
-                            local current_q = Globals.matrix_quant[src_idx][dst_idx]
-                            local new_q = 1 - current_q
-                            Globals.matrix_quant[src_idx][dst_idx] = new_q
-                            Bridge.set_matrix_quant(src_idx, dst_idx, new_q)
+                            -- FIX: Use params:set to ensure Snapshot compatibility
+                            local q_id = "quant_"..t.src_name.."_"..t.dest_name
+                            local current_q = params:get(q_id)
+                            params:set(q_id, 1 - current_q)
                         else
                             local current = Globals.matrix[src_idx][dst_idx]
                             local id = "mat_"..t.src_name.."_"..t.dest_name
