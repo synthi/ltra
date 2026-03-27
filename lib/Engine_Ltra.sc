@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v2.2.2
-// FIX: Buchla Hard Folder (fold2) on Sine Wave with Anti-Aliasing LPF
+// lib/Engine_Ltra.sc | v2.3.0
+// FIX: 11-Stage Morphing, Dust->Pink Physics, dB Gain Map, Antilog Curves
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -150,40 +150,73 @@ Engine_Ltra : CroneEngine {
 
             scale_map = 12.collect { |i| NamedControl.kr("scale_map_" ++ i, i) };
 
+            // ==========================================
+            // 11-STAGE CONTINUOUS MORPHING (0.0 to 10.0)
+            // ==========================================
             mk_osc = { |f, s| 
-                var shape_idx = s.clip(0, 7);
+                var shape_idx = s.clip(0, 10);
                 var safe_f = f.clip(20, 20000);
                 var core_saw = SawDPW.ar(safe_f);
-                var noise_src = PinkNoise.ar;
                 
-                var noise_mix = (1.0 - shape_idx).clip(0, 1);
-                var pm_amt = (2.0 - shape_idx).clip(0, 1) - noise_mix;
-                var sub_mix = (shape_idx - 2.0).clip(0, 1);
-                var duty_cycle = 0.5 - ((shape_idx - 2.0).clip(0, 1) * 0.4) + ((shape_idx - 4.0).clip(0, 1) * 0.4);
-                var int_mix = (shape_idx - 3.0).clip(0, 1);
-                var sine_mix = (shape_idx - 5.0).clip(0, 1);
+                // Stage 0-1: Dust -> Pink Noise (Physics Morph)
+                var density = shape_idx.clip(0, 1).linexp(0, 1, 2, 20000);
+                var dust_env = Clip.ar(Decay.ar(Dust.ar(density), 0.05) * 10.0, 0.0, 1.0);
+                var noise_src = PinkNoise.ar * dust_env;
                 
-                var fold_drive = 1.0 + ((shape_idx - 6.0).clip(0, 1) * 11.0);
-                var sine_boost = 1.0 + ((1.0 - (shape_idx - 6.0).abs).max(0) * 0.414);
+                // Stage 1-2: Pink Noise -> Tuned Noise (Comb Filter)
+                var comb_decay = (shape_idx - 1.0).clip(0, 1).linexp(0, 1, 0.001, 2.0);
+                var tuned_noise = CombL.ar(noise_src, 0.1, safe_f.reciprocal, comb_decay);
                 
-                var pm_mod = LPF.ar(noise_src, 10000) * pm_amt * 0.015;
+                // Stage 2-4: Tuned Noise -> Tuned Noised Saw -> Pure Saw
+                var pm_index = (4.0 - shape_idx).clip(0, 2).lincurve(0, 2, 0.0, 10.0, 4);
+                var pm_mod = LPF.ar(tuned_noise, 10000) * pm_index * 0.005;
                 var saw_pm = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
-                var base_osc = (saw_pm * (1.0 - noise_mix)) + (noise_src * noise_mix);
+                
+                var carrier_mix = (shape_idx - 2.0).clip(0, 1);
+                var base_osc = (tuned_noise * (1.0 - carrier_mix)) + (saw_pm * carrier_mix);
+                
+                // Stage 4-7: Saw -> Square -> Pulse 2.5% -> Skewed Tri -> Pure Tri
+                var sub_mix = (shape_idx - 4.0).clip(0, 1);
+                var dc_narrow = (shape_idx - 5.0).clip(0, 1).lincurve(0, 1, 0.0, 0.475, 4);
+                var dc_widen = (shape_idx - 6.0).clip(0, 1).lincurve(0, 1, 0.0, 0.475, -4);
+                var duty_cycle = 0.5 - dc_narrow + dc_widen;
                 
                 var delay_time = (duty_cycle / safe_f).max(SampleDur.ir);
                 var pulse_raw = base_osc - (DelayC.ar(base_osc, 0.1, delay_time) * sub_mix);
                 var pulse_dc = LeakDC.ar(pulse_raw) * 0.5;
                 
+                var int_mix = (shape_idx - 6.0).clip(0, 1);
                 var tri_raw = Clip.ar(Integrator.ar(pulse_dc, 0.99), -10.0, 10.0) * (4.0 * safe_f / SampleRate.ir);
                 var tri_dc = LeakDC.ar(tri_raw);
                 var osc_stage2 = (pulse_dc * (1.0 - int_mix)) + (tri_dc * int_mix);
                 
-                // FIX: Buchla Hard Folder (fold2) on Sine Wave with Anti-Aliasing
-                var pure_sine = (osc_stage2 * 0.5pi).sin;
+                // Stage 7-10: Tri -> Sine -> Buchla Folded -> Buchla Asym
+                var sine_mix = (shape_idx - 7.0).clip(0, 1);
+                var fold_drive = 1.0 + ((shape_idx - 8.0).clip(0, 1).linexp(0, 1, 0.001, 11.0));
+                var asym_offset = (shape_idx - 9.0).clip(0, 1).lincurve(0, 1, 0.0, 0.4, 2);
+                
+                var pure_sine = ((osc_stage2 + asym_offset) * 0.5pi).sin - asym_offset;
                 var folded_sine = (pure_sine * fold_drive).fold2(1.0);
                 var mitigated_folded = LPF.ar(folded_sine, (safe_f * 10.0).clip(20, 18000));
                 
-                ((osc_stage2 * (1.0 - sine_mix)) + (mitigated_folded * sine_mix)) * sine_boost;
+                var final_osc = (osc_stage2 * (1.0 - sine_mix)) + (mitigated_folded * sine_mix);
+                
+                // Gain Map (dB Interpolation for Equal Power Loudness)
+                var gain_db = SelectX.kr(shape_idx,[
+                    9.5,   // 0.0 Dust
+                    8.0,   // 1.0 Pink Noise
+                    3.5,   // 2.0 Tuned Noise
+                    0.0,   // 3.0 Tuned Noised Saw
+                    0.0,   // 4.0 Pure Saw
+                    0.0,   // 5.0 Square
+                    12.0,  // 6.0 Pulse 2.5%
+                    2.0,   // 7.0 Pure Tri
+                    0.0,   // 8.0 Pure Sine
+                    -9.0,  // 9.0 Buchla Folded
+                    -10.4  // 10.0 Buchla Asym
+                ]);
+                
+                final_osc * gain_db.dbamp;
             };
 
             mod1_lfo = SelectX.kr(mod1_lfo_shape * 3,[ LFPulse.kr(mod1_lfo_rate, 0, 0.5), (LFSaw.kr(mod1_lfo_rate, 0) + 1) * 0.5, (LFTri.kr(mod1_lfo_rate, 0) + 1) * 0.5, (SinOsc.kr(mod1_lfo_rate, 0) + 1) * 0.5 ]);
@@ -256,7 +289,8 @@ Engine_Ltra : CroneEngine {
                 
                 var vca = (s_vol.squared + m_amp + (vel_bip * vel_amts[p_idx] * s_vol.squared) + (slide_n * slide_vols[p_idx]) + (press_n * press_vols[p_idx])).clip(0, 1);
                 
-                var final_shape = (shapes[p_idx] + (m_shape*7) + (vel_bip * vel_shps[p_idx] * 7) + (slide_n * slide_shps[p_idx] * 7) + (press_n * press_shps[p_idx] * 7) + (mw_norm * mw_shps[p_idx] * 7)).clip(0, 7);
+                // Shape range expanded to 10.0
+                var final_shape = (shapes[p_idx] + (m_shape*10) + (vel_bip * vel_shps[p_idx] * 10) + (slide_n * slide_shps[p_idx] * 10) + (press_n * press_shps[p_idx] * 10) + (mw_norm * mw_shps[p_idx] * 10)).clip(0, 10);
                 
                 var final_atk = (env_atks[p_idx] + (vel_bip * vel_atks[p_idx] * 5.0)).clip(0.001, 10.0);
                 
