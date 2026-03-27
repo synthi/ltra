@@ -1,5 +1,5 @@
--- lib/parameters.lua | v2.2.2 (CORRECTED)
--- FIX: Restored LOOPERS block and appended 160 Hidden Matrix Params
+-- lib/parameters.lua | v2.3.0
+-- FIX: Shape Range Expanded to 10.0
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,7 +9,7 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v2.2.2")
+    params:add_separator("LTRA v2.3.0")
     
     params:add_group("GLOBAL", 6)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0,1))
@@ -78,8 +78,11 @@ function Params.init(g_ref)
         params:set_action("osc"..i.."_vol", function(x) if Globals then Globals.voices[i].vol=x end; Bridge.set_param("vol"..i, x) end)
         params:add_control("osc"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0,0.0))
         params:set_action("osc"..i.."_pan", function(x) Bridge.set_param("pan"..i, x) end)
-        params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,7,"lin",0,2))
+        
+        -- FIX: Shape Range Expanded to 10.0 for 11-Stage Morphing
+        params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,10,"lin",0,4))
         params:set_action("osc"..i.."_shape", function(x) if Globals then Globals.voices[i].shape=x end; Bridge.set_param("shape"..i, x) end)
+        
         params:add_control("osc"..i.."_tune", "Fine Tune", controlspec.new(-1,1,"lin",0,0))
         params:set_action("osc"..i.."_tune", function(x) 
             if Globals then Globals.voices[i].tune=x end
@@ -220,7 +223,6 @@ function Params.init(g_ref)
     params:add_control("blossomverb_mod_depth", "Rev Mod Depth", controlspec.new(0.0,0.002,"lin",0,0.002))
     params:set_action("blossomverb_mod_depth", function(x) Bridge.set_param("blossomverb_mod_depth", x) end)
 
-    -- RESTORED BLOCK: LOOPERS
     params:add_group("LOOPERS", 15)
     for i=1, 3 do
         params:add_control("looper"..i.."_vol", "L"..i.." Vol", controlspec.new(0,1,"lin",0,1.0))
@@ -234,7 +236,6 @@ function Params.init(g_ref)
         params:add_control("looper"..i.."_fade", "L"..i.." Fade", controlspec.new(0,16,"lin",0.1,0))
     end
 
-    -- APPENDED BLOCK: MOD MATRIX
     params:add_group("MOD MATRIX (HIDDEN)", 160)
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
