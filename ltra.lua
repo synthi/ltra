@@ -1,4 +1,4 @@
--- ltra.lua | v2.2.0
+-- ltra.lua | v2.2.1
 -- FIX: Version Bump
 
 engine.name = 'Ltra'
@@ -37,7 +37,7 @@ function osc.event(path, args, from)
 end
 
 function init()
-    print("LTRA: Initializing v2.2.0 (Phase Wave Elite Update)...")
+    print("LTRA: Initializing v2.2.1 (Phase Wave Elite Update)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
