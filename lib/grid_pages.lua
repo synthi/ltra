@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v2.2.0
--- FIX: Active Snapshot Brightness (VAL_PEAK)
+-- lib/grid_pages.lua | v2.2.2
+-- FIX: CRITICAL RESTITUTION - Restored Matrix and Snapshot logic in Pages.key
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -112,7 +112,6 @@ local function draw_snapshots()
         local b = Consts.BRIGHT.BG_NAV 
         if Globals.snapshots[i] then 
             b = Consts.BRIGHT.VAL_MED 
-            -- FIX: High Contrast for Active Snapshot
             if Globals.active_snapshot == i then b = Consts.BRIGHT.VAL_PEAK end 
         end 
         led_safe(x, 7, b)
@@ -168,13 +167,22 @@ function Pages.redraw()
         for i=1, 4 do 
             local b = Consts.BRIGHT.BG_DASHBOARD
             if params:get("osc"..i.."_midi_note") == 1 then
-                local vel = Globals.midi_voice_vel and Globals.midi_voice_vel[i] or 0
-                if vel > 0 then
+                local vel_main = Globals.midi_voice_vel and Globals.midi_voice_vel[i] or 0
+                local vel_twin = Globals.midi_voice_vel and Globals.midi_voice_vel[i+4] or 0
+                
+                if vel_main > 0 or vel_twin > 0 then
                     local vel_vol = params:get("osc"..i.."_vel_vol") or 0
                     local added_b = 5
+                    
+                    local active_vel = vel_main > 0 and vel_main or vel_twin
                     if vel_vol > 0 then
-                        added_b = math.floor(util.linlin(1, 127, 2, 9, vel))
+                        added_b = math.floor(util.linlin(1, 127, 2, 9, active_vel))
                     end
+                    
+                    if vel_main > 0 then
+                        added_b = added_b + 3
+                    end
+                    
                     b = util.clamp(b + added_b, 0, 15)
                 end
             end
@@ -366,6 +374,7 @@ function Pages.key(x, y, z)
         end
     end
     
+    -- FIX: RESTORED BLOCK (Matrix Tapping and Snapshot Management)
     if Globals.page == 1 then
         if y <= 4 then 
             if z == 0 then
@@ -378,20 +387,20 @@ function Pages.key(x, y, z)
                         params:set(id, 0)
                     else
                         Matrix.key(x, y, 1) 
-                        
+
                         local src_name = ({[1]="MOD1",[2]="MOD2",[3]="MOD3",[4]="OUTLINE"})[y]
                         local dest_name = Consts.COL_TO_DEST_NAMES[x] or "UNK"
                         if dest_name == "DELAY T" then dest_name = "DELAY_T" end
                         if dest_name == "DELAY F" then dest_name = "DELAY_F" end
-                        
+
                         local src_idx = Consts.SOURCES[src_name]
                         local val = Globals.matrix[src_idx][x]
-                        
+
                         local q_str = ""
                         if x <= 4 then 
                             q_str = (Globals.matrix_quant[src_idx][x] == 1) and "[Q]" or "[F]"
                         end
-                        
+
                         Globals.ui_popup.active = true
                         Globals.ui_popup.text = src_name.." > "..dest_name
                         Globals.ui_popup.val = string.format("%.2f %s", val, q_str)
@@ -411,7 +420,7 @@ function Pages.key(x, y, z)
                     local press_time = Globals.grid_timers[x][y]
                     local duration = util.time() - press_time
                     local is_filled = (Globals.snapshots[snap_idx] ~= nil)
-                    
+
                     if duration >= 0.8 then
                         if is_filled then
                             Storage.save_snapshot(snap_idx)
