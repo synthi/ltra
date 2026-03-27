@@ -1,5 +1,5 @@
--- lib/storage.lua | v2.2.0
--- FIX: Safe Snapshot Loading (pcall + lookup)
+-- lib/storage.lua | v2.2.2
+-- FIX: Safe Snapshot Loading (pcall) and Sidecar Param Sync
 
 local Storage = {}
 local Globals
@@ -69,10 +69,21 @@ function Storage.load_sidecar(pset_number)
             
             if data.matrix_quant then 
                 Globals.matrix_quant = data.matrix_quant 
+                -- FIX: Sync loaded sidecar data to the new hidden params
+                for s_name, s_idx in pairs(Consts.SOURCES) do
+                    for d_name, d_idx in pairs(Consts.DESTINATIONS) do
+                        local q_id = "quant_"..s_name.."_"..d_name
+                        if params.lookup[q_id] then
+                            pcall(function() params:set(q_id, Globals.matrix_quant[s_idx][d_idx] or 1) end)
+                        end
+                    end
+                end
             else
                 for s=1, 5 do 
                     Globals.matrix_quant[s] = {} 
-                    for d=1, 16 do Globals.matrix_quant[s][d] = 1 end 
+                    for d=1, 16 do 
+                        Globals.matrix_quant[s][d] = 1 
+                    end 
                 end
             end
         end
@@ -120,7 +131,7 @@ function Storage.load_snapshot(slot)
     for id, val in pairs(snap.params) do
         if params.lookup[id] then
             local p = params.params[params.lookup[id]]
-            if p.t ~= 4 then -- Ensure it's not a group/separator
+            if p.t ~= 4 then 
                 pcall(function() params:set(id, val) end)
             end
         end
