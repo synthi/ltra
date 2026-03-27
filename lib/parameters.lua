@@ -1,5 +1,5 @@
--- lib/parameters.lua | v2.2.0
--- FIX: Shape Range Expanded to 7.0
+-- lib/parameters.lua | v2.2.2
+-- FIX: 160 Hidden Matrix Params (Quantization saved in Snapshots)
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,7 +9,7 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v2.2.0")
+    params:add_separator("LTRA v2.2.2")
     
     params:add_group("GLOBAL", 6)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0,1))
@@ -78,11 +78,8 @@ function Params.init(g_ref)
         params:set_action("osc"..i.."_vol", function(x) if Globals then Globals.voices[i].vol=x end; Bridge.set_param("vol"..i, x) end)
         params:add_control("osc"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0,0.0))
         params:set_action("osc"..i.."_pan", function(x) Bridge.set_param("pan"..i, x) end)
-        
-        -- FIX: Shape Range Expanded to 7.0 for 8-Stage Morphing
         params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,7,"lin",0,2))
         params:set_action("osc"..i.."_shape", function(x) if Globals then Globals.voices[i].shape=x end; Bridge.set_param("shape"..i, x) end)
-        
         params:add_control("osc"..i.."_tune", "Fine Tune", controlspec.new(-1,1,"lin",0,0))
         params:set_action("osc"..i.."_tune", function(x) 
             if Globals then Globals.voices[i].tune=x end
@@ -223,20 +220,8 @@ function Params.init(g_ref)
     params:add_control("blossomverb_mod_depth", "Rev Mod Depth", controlspec.new(0.0,0.002,"lin",0,0.002))
     params:set_action("blossomverb_mod_depth", function(x) Bridge.set_param("blossomverb_mod_depth", x) end)
 
-    params:add_group("LOOPERS", 15)
-    for i=1, 3 do
-        params:add_control("looper"..i.."_vol", "L"..i.." Vol", controlspec.new(0,1,"lin",0,1.0))
-        params:set_action("looper"..i.."_vol", function(x) Loopers.set_vol(i, x) end)
-        params:add_control("looper"..i.."_cut", "L"..i.." Cutoff", controlspec.new(20,18000,"exp",0,18000))
-        params:set_action("looper"..i.."_cut", function(x) Loopers.set_cut(i, x) end)
-        params:add_control("looper"..i.."_res", "L"..i.." Res", controlspec.new(0,1,"lin",0,0))
-        params:set_action("looper"..i.."_res", function(x) Loopers.set_res(i, x) end)
-        params:add_control("looper"..i.."_pan", "L"..i.." Pan", controlspec.new(-1,1,"lin",0,0))
-        params:set_action("looper"..i.."_pan", function(x) Loopers.set_pan(i, x) end)
-        params:add_control("looper"..i.."_fade", "L"..i.." Fade", controlspec.new(0,16,"lin",0.1,0))
-    end
-
-    params:add_group("MOD MATRIX (HIDDEN)", 80)
+    -- FIX: 160 Hidden Matrix Params (Quantization saved in Snapshots)
+    params:add_group("MOD MATRIX (HIDDEN)", 160)
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
             local id = "mat_"..s_name.."_"..d_name
@@ -245,6 +230,14 @@ function Params.init(g_ref)
             params:set_action(id, function(x) 
                 if Globals then Globals.matrix[s_idx][d_idx] = x end
                 Bridge.set_matrix(s_idx, d_idx, x)
+            end)
+            
+            local q_id = "quant_"..s_name.."_"..d_name
+            params:add_binary(q_id, q_id, "toggle", 1)
+            params:hide(q_id)
+            params:set_action(q_id, function(x)
+                if Globals then Globals.matrix_quant[s_idx][d_idx] = x end
+                Bridge.set_matrix_quant(s_idx, d_idx, x)
             end)
         end
     end
