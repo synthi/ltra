@@ -1,4 +1,3 @@
-supercollider
 // lib/Engine_Ltra.sc | v2.2.2
 // FIX: Buchla Hard Folder (fold2) on Sine Wave with Anti-Aliasing LPF
 
