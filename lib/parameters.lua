@@ -1,5 +1,5 @@
--- lib/parameters.lua | v2.2.2
--- FIX: 160 Hidden Matrix Params (Quantization saved in Snapshots)
+-- lib/parameters.lua | v2.2.2 (CORRECTED)
+-- FIX: Restored LOOPERS block and appended 160 Hidden Matrix Params
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -220,7 +220,21 @@ function Params.init(g_ref)
     params:add_control("blossomverb_mod_depth", "Rev Mod Depth", controlspec.new(0.0,0.002,"lin",0,0.002))
     params:set_action("blossomverb_mod_depth", function(x) Bridge.set_param("blossomverb_mod_depth", x) end)
 
-    -- FIX: 160 Hidden Matrix Params (Quantization saved in Snapshots)
+    -- RESTORED BLOCK: LOOPERS
+    params:add_group("LOOPERS", 15)
+    for i=1, 3 do
+        params:add_control("looper"..i.."_vol", "L"..i.." Vol", controlspec.new(0,1,"lin",0,1.0))
+        params:set_action("looper"..i.."_vol", function(x) Loopers.set_vol(i, x) end)
+        params:add_control("looper"..i.."_cut", "L"..i.." Cutoff", controlspec.new(20,18000,"exp",0,18000))
+        params:set_action("looper"..i.."_cut", function(x) Loopers.set_cut(i, x) end)
+        params:add_control("looper"..i.."_res", "L"..i.." Res", controlspec.new(0,1,"lin",0,0))
+        params:set_action("looper"..i.."_res", function(x) Loopers.set_res(i, x) end)
+        params:add_control("looper"..i.."_pan", "L"..i.." Pan", controlspec.new(-1,1,"lin",0,0))
+        params:set_action("looper"..i.."_pan", function(x) Loopers.set_pan(i, x) end)
+        params:add_control("looper"..i.."_fade", "L"..i.." Fade", controlspec.new(0,16,"lin",0.1,0))
+    end
+
+    -- APPENDED BLOCK: MOD MATRIX
     params:add_group("MOD MATRIX (HIDDEN)", 160)
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
