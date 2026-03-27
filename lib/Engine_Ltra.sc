@@ -1,5 +1,6 @@
-// lib/Engine_Ltra.sc | v2.2.1
-// FIX: Buchla 208 Timbre (6 Folds), Sine Psychoacoustic Compensation (+3dB)
+supercollider
+// lib/Engine_Ltra.sc | v2.2.2
+// FIX: Buchla Hard Folder (fold2) on Sine Wave with Anti-Aliasing LPF
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -163,10 +164,7 @@ Engine_Ltra : CroneEngine {
                 var int_mix = (shape_idx - 3.0).clip(0, 1);
                 var sine_mix = (shape_idx - 5.0).clip(0, 1);
                 
-                // FIX: Buchla 208 Timbre (12.0 max drive for 6 full folds)
                 var fold_drive = 1.0 + ((shape_idx - 6.0).clip(0, 1) * 11.0);
-                
-                // FIX: Sine Wave Psychoacoustic Compensation (+3dB at Shape 6.0)
                 var sine_boost = 1.0 + ((1.0 - (shape_idx - 6.0).abs).max(0) * 0.414);
                 
                 var pm_mod = LPF.ar(noise_src, 10000) * pm_amt * 0.015;
@@ -181,9 +179,12 @@ Engine_Ltra : CroneEngine {
                 var tri_dc = LeakDC.ar(tri_raw);
                 var osc_stage2 = (pulse_dc * (1.0 - int_mix)) + (tri_dc * int_mix);
                 
-                var shaped = (osc_stage2 * fold_drive * 0.5pi).sin;
+                // FIX: Buchla Hard Folder (fold2) on Sine Wave with Anti-Aliasing
+                var pure_sine = (osc_stage2 * 0.5pi).sin;
+                var folded_sine = (pure_sine * fold_drive).fold2(1.0);
+                var mitigated_folded = LPF.ar(folded_sine, (safe_f * 10.0).clip(20, 18000));
                 
-                ((osc_stage2 * (1.0 - sine_mix)) + (shaped * sine_mix)) * sine_boost;
+                ((osc_stage2 * (1.0 - sine_mix)) + (mitigated_folded * sine_mix)) * sine_boost;
             };
 
             mod1_lfo = SelectX.kr(mod1_lfo_shape * 3,[ LFPulse.kr(mod1_lfo_rate, 0, 0.5), (LFSaw.kr(mod1_lfo_rate, 0) + 1) * 0.5, (LFTri.kr(mod1_lfo_rate, 0) + 1) * 0.5, (SinOsc.kr(mod1_lfo_rate, 0) + 1) * 0.5 ]);
