@@ -1,5 +1,5 @@
 // lib/Engine_Ltra.sc | v2.3.1
-// FIX: Skewed Tri at 7.0, Relaxed Wavefolder LPF, Bipolar Chaos to LFO Shape
+// FIX: Dynamic Q for Tuned Noise, PM Index Recalibration, Psychoacoustic Gain Map
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -169,26 +169,24 @@ Engine_Ltra : CroneEngine {
                 var noise_src = LPF.ar(PinkNoise.ar * dust_env, lpf_freq);
                 
                 // Stage 1-2: Pink Noise -> Tuned Noise
-                var tuned_mix = (shape_idx - 1.0).clip(0, 1);
-                var tuned_noise = Resonz.ar(noise_src, safe_f, 0.02) * 20.0;
-                var stage1_osc = XFade2.ar(noise_src, tuned_noise, tuned_mix * 2.0 - 1.0);
+                // MASTERING TEAM: Tweak the 0.007 value here for Tuned Noise resonance (lower = more sine-like, higher = more noisy)
+                var tuned_rq = shape_idx.clip(1, 2).linexp(1, 2, 0.02, 0.007);
+                var tuned_noise = Resonz.ar(noise_src, safe_f, tuned_rq) * (tuned_rq ** -0.5) * 0.5;
+                var stage1_osc = XFade2.ar(noise_src, tuned_noise, (shape_idx - 1.0).clip(0, 1) * 2.0 - 1.0);
                 
-                // Stage 2-3: Tuned Noise -> Noised Saw
-                var noised_saw_mix = (shape_idx - 2.0).clip(0, 1);
-                var pm_mod = LPF.ar(PinkNoise.ar, 10000) * 0.015;
-                var noised_saw = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
-                var stage2_osc = XFade2.ar(stage1_osc, noised_saw, noised_saw_mix * 2.0 - 1.0);
+                // Stage 2-4: Tuned Noise -> Tuned Noised Saw -> Pure Saw
+                // FIX: PM Index recalibrated to 0.05 max at shape 3.0
+                var pm_index = (4.0 - shape_idx).clip(0, 1).lincurve(0, 1, 0.0, 0.05, 2);
+                var pm_mod = LPF.ar(tuned_noise, 10000) * pm_index;
+                var saw_pm = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
                 
-                // Stage 3-4: Noised Saw -> Pure Saw
-                var pm_amt = (4.0 - shape_idx).clip(0, 1);
-                var pm_mod2 = LPF.ar(PinkNoise.ar, 10000) * pm_amt * 0.015;
-                var saw_osc = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod2);
-                var base_osc = SelectX.ar((shape_idx - 3.0).clip(0, 1), [stage2_osc, saw_osc]);
+                var carrier_mix = (shape_idx - 2.0).clip(0, 1);
+                var base_osc = (stage1_osc * (1.0 - carrier_mix)) + (saw_pm * carrier_mix);
                 
                 // Stage 4-6: Saw -> Square -> Pulse 2.5%
                 var sub_mix = (shape_idx - 4.0).clip(0, 1);
                 var dc_narrow = (shape_idx - 5.0).clip(0, 1).lincurve(0, 1, 0.0, 0.475, 4);
-                var dc_widen = (shape_idx - 7.0).clip(0, 0.5).lincurve(0, 0.5, 0.0, 0.475, -4); // 7.0 to 7.5
+                var dc_widen = (shape_idx - 7.0).clip(0, 0.5).lincurve(0, 0.5, 0.0, 0.475, -2); // Opens from 7.0 to 7.5
                 var duty_cycle = 0.5 - dc_narrow + dc_widen;
                 
                 var delay_time = (duty_cycle / safe_f).max(SampleDur.ir);
@@ -210,23 +208,21 @@ Engine_Ltra : CroneEngine {
                 
                 var pure_sine = ((osc_stage3 + asym_offset) * 0.5pi).sin - asym_offset;
                 var folded_sine = (pure_sine * fold_drive_actual).fold2(1.0);
-                
-                // FIX: Relaxed LPF for Wavefolder (24x fundamental, max 19kHz)
                 var mitigated_folded = LPF.ar(folded_sine, (safe_f * 24.0).clip(20, 19000));
                 
                 var final_osc = (osc_stage3 * (1.0 - sine_mix)) + (mitigated_folded * sine_mix);
                 
-                // Gain Map (dB Interpolation for Equal Power Loudness)
+                // FIX: Psychoacoustic Gain Map (dB Interpolation)
                 var gain_db = SelectX.kr(shape_idx,[
                     9.5,   // 0.0 Dust
                     8.0,   // 1.0 Pink Noise
                     3.5,   // 2.0 Tuned Noise
-                    0.0,   // 3.0 Noised Saw
+                    0.0,   // 3.0 Tuned Noised Saw
                     0.0,   // 4.0 Pure Saw
-                    0.0,   // 5.0 Square
-                    6.0,   // 6.0 Pulse 2.5%
+                    -2.0,  // 5.0 Square (Attenuated RMS)
+                    2.5,   // 6.0 Pulse 2.5% (Tamed piercing highs)
                     8.0,   // 7.0 Skewed Tri
-                    0.0,   // 8.0 Pure Sine
+                    0.0,   // 8.0 Pure Sine (7.5 Pure Tri is interpolated to +4.0dB automatically)
                     -9.0,  // 9.0 Buchla Folded
                     -10.4  // 10.0 Buchla Asym
                 ]);
@@ -234,7 +230,6 @@ Engine_Ltra : CroneEngine {
                 final_osc * gain_db.dbamp;
             };
 
-            // FIX: Bipolar Chaos Routing to LFO Shape (25% of Mix)
             mod1_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod1_chaos_rate * 4)), mod1_chaos_slew * 10, mod1_chaos_slew * 10);
             m1_shape_mod = (mod1_chaos * 2.0 - 1.0) * 0.25 * mod1_mix;
             m1_final_shape = (mod1_lfo_shape + m1_shape_mod).wrap(0, 1) * 3.0;
@@ -251,7 +246,7 @@ Engine_Ltra : CroneEngine {
             m3_shape_mod = (mod3_chaos * 2.0 - 1.0) * 0.25 * mod3_mix;
             m3_final_shape = (mod3_lfo_shape + m3_shape_mod).wrap(0, 1) * 3.0;
             mod3_lfo = SelectX.kr(m3_final_shape,[ LFPulse.kr(mod3_lfo_rate, 0, 0.5), (LFSaw.kr(mod3_lfo_rate, 0) + 1) * 0.5, (LFTri.kr(mod3_lfo_rate, 0) + 1) * 0.5, (SinOsc.kr(mod3_lfo_rate, 0) + 1) * 0.5 ]);
-            mod3_sig = SelectX.kr(mod3_mix, [mod3_lfo, mod3_chaos]) * mod3_depth;
+            mod3_sig = SelectX.kr(mod3_mix,[mod3_lfo, mod3_chaos]) * mod3_depth;
 
             env_int = LagUD.kr(gates.sum.clip(0,1), 0.01, 0.5);
             env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); 
