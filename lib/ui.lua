@@ -1,5 +1,5 @@
--- lib/ui.lua | v2.1.4
--- FIX: Strict Ergonomic Visual Order (E1 Top, E2 Mid, E3 Bot)
+-- lib/ui.lua | v2.4.0
+-- FIX: LFO 4 (Outline Hybrid) Pages, 0.001 Hz Display Resolution
 
 local UI = {}
 local Globals
@@ -14,6 +14,7 @@ function UI.init(g_ref)
     Globals.reverb_menu_page = Globals.reverb_menu_page or 1
     Globals.env_menu_page = Globals.env_menu_page or 1 
     Globals.midi_menu_page = Globals.midi_menu_page or 1
+    Globals.outline_menu_page = Globals.outline_menu_page or 1 -- FIX: Outline Pagination
 end
 
 local function draw_menu()
@@ -90,7 +91,7 @@ local function draw_menu()
                 local div = params:get("mod"..t.."_lfo_div")
                 screen.move(5,35); screen.text("E2 Div: "..Consts.SYNC_DIVS[div].name)
             else
-                screen.move(5,35); screen.text("E2 Rate: "..string.format("%.2f Hz", params:get("mod"..t.."_lfo_rate")))
+                screen.move(5,35); screen.text("E2 Rate: "..string.format("%.3f Hz", params:get("mod"..t.."_lfo_rate")))
             end
             screen.move(5,45); screen.text("E3 Depth: "..string.format("%.2f", params:get("mod"..t.."_depth")))
             local sync_str = params:get("mod"..t.."_lfo_sync") == 1 and "ON" or "OFF"
@@ -102,7 +103,7 @@ local function draw_menu()
                 local div = params:get("mod"..t.."_chaos_div")
                 screen.move(5,35); screen.text("E2 Div: "..Consts.SYNC_DIVS[div].name)
             else
-                screen.move(5,35); screen.text("E2 Rate: "..string.format("%.2f Hz", params:get("mod"..t.."_chaos_rate")))
+                screen.move(5,35); screen.text("E2 Rate: "..string.format("%.3f Hz", params:get("mod"..t.."_chaos_rate")))
             end
             screen.move(5,45); screen.text("E3 Mix: "..string.format("%.2f", params:get("mod"..t.."_mix")))
             local sync_str = params:get("mod"..t.."_chaos_sync") == 1 and "ON" or "OFF"
@@ -125,10 +126,38 @@ local function draw_menu()
         screen.move(5,58); screen.text("K3: PAGE")
         
     elseif mode == Consts.MENU.OUTLINE then
-        screen.move(5,10); screen.text("OUTLINE FOLLOWER")
-        local src = params:get("outline_src") == 1 and "INT GATE" or "EXT AUDIO"
-        screen.move(5,35); screen.text("E2 Source: "..src)
-        screen.move(5,45); screen.text("E3 Gain: "..string.format("%.1f", params:get("outline_gain")))
+        -- FIX: Outline Follower Hybrid LFO 4 Pages
+        if Globals.outline_menu_page == 1 then
+            screen.move(5,10); screen.text("OUTLINE FOLLOWER (1/3)")
+            local src = params:get("outline_src") == 1 and "INT GATE" or "EXT AUDIO"
+            screen.move(5,35); screen.text("E2 Source: "..src)
+            screen.move(5,45); screen.text("E3 Gain: "..string.format("%.1f", params:get("outline_gain")))
+            screen.move(5,58); screen.text("K3: PAGE")
+        elseif Globals.outline_menu_page == 2 then
+            screen.move(5,10); screen.text("OUTLINE LFO 4 (2/3)")
+            screen.move(5,25); screen.text("E1 Shape: "..string.format("%.2f", params:get("mod4_lfo_shape")))
+            if params:get("mod4_lfo_sync") == 1 then
+                local div = params:get("mod4_lfo_div")
+                screen.move(5,35); screen.text("E2 Div: "..Consts.SYNC_DIVS[div].name)
+            else
+                screen.move(5,35); screen.text("E2 Rate: "..string.format("%.3f Hz", params:get("mod4_lfo_rate")))
+            end
+            screen.move(5,45); screen.text("E3 Depth: "..string.format("%.2f", params:get("mod4_depth")))
+            local sync_str = params:get("mod4_lfo_sync") == 1 and "ON" or "OFF"
+            screen.move(5,58); screen.text("K2: SYNC["..sync_str.."]  K3: PAGE")
+        else
+            screen.move(5,10); screen.text("OUTLINE CHAOS 4 (3/3)")
+            screen.move(5,25); screen.text("E1 Slew: "..string.format("%.2f", params:get("mod4_chaos_slew")))
+            if params:get("mod4_chaos_sync") == 1 then
+                local div = params:get("mod4_chaos_div")
+                screen.move(5,35); screen.text("E2 Div: "..Consts.SYNC_DIVS[div].name)
+            else
+                screen.move(5,35); screen.text("E2 Rate: "..string.format("%.3f Hz", params:get("mod4_chaos_rate")))
+            end
+            screen.move(5,45); screen.text("E3 Mix: "..string.format("%.2f", params:get("mod4_mix")))
+            local sync_str = params:get("mod4_chaos_sync") == 1 and "ON" or "OFF"
+            screen.move(5,58); screen.text("K2: SYNC["..sync_str.."]  K3: PAGE")
+        end
         
     elseif mode == Consts.MENU.FILTER then
         local f_name = (t==1) and "VADIM" or "DFM1"
@@ -216,7 +245,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v2.1.4")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v2.4.0")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
@@ -238,7 +267,6 @@ function UI.redraw()
             root_name = Consts.NOTE_NAMES[Globals.scale.root_note] or "?"
         end
         
-        -- FIX: Main Display Ergonomic Order
         screen.move(0, 25); screen.text("E1 Vol: "..string.format("%.2f", params:get("master_vol")))
         screen.move(0, 35); screen.text("E2 Scl: "..s_name)
         screen.move(0, 45); screen.text("E3 Root: "..root_name)
