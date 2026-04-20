@@ -1,5 +1,5 @@
--- lib/parameters.lua | v2.3.0
--- FIX: Shape Range Expanded to 10.0
+-- lib/parameters.lua | v2.4.0
+-- FIX: LFO 4 (Outline Hybrid), Ultra-Slow LFO Rates (0.001 Hz)
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,7 +9,7 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v2.3.0")
+    params:add_separator("LTRA v2.4.0")
     
     params:add_group("GLOBAL", 6)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0,1))
@@ -22,7 +22,7 @@ function Params.init(g_ref)
     params:set_action("dust_dens", function(x) Bridge.set_param("dust_dens", x) end)
     params:add_option("outline_src", "Outline Source", {"Internal Gates", "External Audio"}, 1)
     params:set_action("outline_src", function(x) Bridge.set_param("outline_source", x-1) end)
-    params:add_control("outline_gain", "Outline Gain", controlspec.new(1, 20, "lin", 0, 1))
+    params:add_control("outline_gain", "Outline Gain", controlspec.new(0, 20, "lin", 0, 1))
     params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
     
     params:add_group("SCALES & TUNING", 2)
@@ -78,11 +78,8 @@ function Params.init(g_ref)
         params:set_action("osc"..i.."_vol", function(x) if Globals then Globals.voices[i].vol=x end; Bridge.set_param("vol"..i, x) end)
         params:add_control("osc"..i.."_pan", "Pan", controlspec.new(-1,1,"lin",0,0.0))
         params:set_action("osc"..i.."_pan", function(x) Bridge.set_param("pan"..i, x) end)
-        
-        -- FIX: Shape Range Expanded to 10.0 for 11-Stage Morphing
         params:add_control("osc"..i.."_shape", "Shape", controlspec.new(0,10,"lin",0,4))
         params:set_action("osc"..i.."_shape", function(x) if Globals then Globals.voices[i].shape=x end; Bridge.set_param("shape"..i, x) end)
-        
         params:add_control("osc"..i.."_tune", "Fine Tune", controlspec.new(-1,1,"lin",0,0))
         params:set_action("osc"..i.."_tune", function(x) 
             if Globals then Globals.voices[i].tune=x end
@@ -169,11 +166,12 @@ function Params.init(g_ref)
     params:add_control("mw_filt2", "MW to Filt2", controlspec.new(-1,1,"lin",0,0))
     params:set_action("mw_filt2", function(x) Bridge.set_param("mw_filt2", x) end)
 
-    params:add_group("MODULATION", 30) 
-    for i=1, 3 do
+    -- FIX: 4 LFOs (Outline Hybrid) and Ultra-Slow Rates (0.001 Hz)
+    params:add_group("MODULATION", 40) 
+    for i=1, 4 do
         params:add_binary("mod"..i.."_lfo_sync", "MOD"..i.." LFO Sync", "toggle", 0)
         params:add_option("mod"..i.."_lfo_div", "MOD"..i.." LFO Div", sync_opts, 10)
-        params:add_control("mod"..i.."_lfo_rate", "MOD"..i.." LFO Rate", controlspec.new(0.01,20,"exp",0,0.5))
+        params:add_control("mod"..i.."_lfo_rate", "MOD"..i.." LFO Rate", controlspec.new(0.001,10,"exp",0,0.5))
         params:set_action("mod"..i.."_lfo_rate", function(x) if params:get("mod"..i.."_lfo_sync")==0 then Bridge.set_param("mod"..i.."_lfo_rate", x) end end)
         params:add_control("mod"..i.."_lfo_shape", "MOD"..i.." LFO Shape", controlspec.new(0,1,"lin",0,0))
         params:set_action("mod"..i.."_lfo_shape", function(x) Bridge.set_param("mod"..i.."_lfo_shape", x) end)
@@ -182,7 +180,7 @@ function Params.init(g_ref)
         
         params:add_binary("mod"..i.."_chaos_sync", "MOD"..i.." Chaos Sync", "toggle", 0)
         params:add_option("mod"..i.."_chaos_div", "MOD"..i.." Chaos Div", sync_opts, 10)
-        params:add_control("mod"..i.."_chaos_rate", "MOD"..i.." Chaos Rate", controlspec.new(0.01,20,"exp",0,0.5))
+        params:add_control("mod"..i.."_chaos_rate", "MOD"..i.." Chaos Rate", controlspec.new(0.001,10,"exp",0,0.5))
         params:set_action("mod"..i.."_chaos_rate", function(x) if params:get("mod"..i.."_chaos_sync")==0 then Bridge.set_param("mod"..i.."_chaos_rate", x) end end)
         params:add_control("mod"..i.."_chaos_slew", "MOD"..i.." Chaos Slew", controlspec.new(0,1,"lin",0,0.1))
         params:set_action("mod"..i.."_chaos_slew", function(x) Bridge.set_param("mod"..i.."_chaos_slew", x) end)
