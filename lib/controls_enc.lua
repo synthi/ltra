@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v2.1.6
--- FIX: Dynamic Acceleration (10x Resolution)
+-- lib/controls_enc.lua | v2.4.0
+-- FIX: Dynamic Acceleration (10x Resolution), LFO 4 Pages
 
 local Enc = {}
 local Globals
@@ -13,7 +13,6 @@ end
 function Enc.delta(n, d)
     Globals.dirty = true
     
-    -- Dynamic Acceleration Logic
     local now = util.time()
     local dt = now - (Enc.last_time[n] or 0)
     Enc.last_time[n] = now
@@ -21,7 +20,7 @@ function Enc.delta(n, d)
     local accel = 1
     if dt < 0.03 then accel = 5
     elseif dt < 0.06 then accel = 2
-    elseif dt > 0.15 then accel = 0.1 end -- 10x Finer Resolution
+    elseif dt > 0.15 then accel = 0.1 end 
     
     local function do_delta(id, delta_val)
         local p = params:lookup_param(id)
@@ -106,8 +105,23 @@ function Enc.delta(n, d)
                 end
                 
             elseif m == Consts.MENU.OUTLINE then
-                if n==2 then do_delta("outline_src", d)
-                elseif n==3 then do_delta("outline_gain", d) end
+                -- FIX: Outline Follower Hybrid LFO 4 Pages
+                if Globals.outline_menu_page == 1 then
+                    if n==2 then do_delta("outline_src", d)
+                    elseif n==3 then do_delta("outline_gain", d) end
+                elseif Globals.outline_menu_page == 2 then
+                    if n==1 then do_delta("mod4_lfo_shape", d)
+                    elseif n==2 then 
+                        if params:get("mod4_lfo_sync") == 1 then do_delta("mod4_lfo_div", d)
+                        else do_delta("mod4_lfo_rate", d) end
+                    elseif n==3 then do_delta("mod4_depth", d) end
+                else
+                    if n==1 then do_delta("mod4_chaos_slew", d)
+                    elseif n==2 then 
+                        if params:get("mod4_chaos_sync") == 1 then do_delta("mod4_chaos_div", d)
+                        else do_delta("mod4_chaos_rate", d) end
+                    elseif n==3 then do_delta("mod4_mix", d) end
+                end
                 
             elseif m == Consts.MENU.FILTER then
                 if n==1 then do_delta("filt"..t.."_drive", d)
