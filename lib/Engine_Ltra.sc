@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v2.3.1
-// FIX: Dynamic Q for Tuned Noise, PM Index Recalibration, Psychoacoustic Gain Map
+// lib/Engine_Ltra.sc | v2.4.0
+// FIX: LFO 4 (Outline Hybrid), Quadratic Curve for Shape Modulation
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -48,6 +48,14 @@ Engine_Ltra : CroneEngine {
             var mod3_chaos_rate = \mod3_chaos_rate.kr(0.5);
             var mod3_chaos_slew = \mod3_chaos_slew.kr(0.1);
             var mod3_mix = \mod3_mix.kr(0);
+            
+            // FIX: LFO 4 Parameters
+            var mod4_lfo_rate = \mod4_lfo_rate.kr(0.5);
+            var mod4_lfo_shape = \mod4_lfo_shape.kr(0);
+            var mod4_depth = \mod4_depth.kr(1);
+            var mod4_chaos_rate = \mod4_chaos_rate.kr(0.5);
+            var mod4_chaos_slew = \mod4_chaos_slew.kr(0.1);
+            var mod4_mix = \mod4_mix.kr(0);
             
             var outline_source = \outline_source.kr(0);
             var outline_gain = \outline_gain.kr(1.0);
@@ -124,9 +132,11 @@ Engine_Ltra : CroneEngine {
             var mod1_lfo, mod1_chaos, mod1_sig;
             var mod2_lfo, mod2_chaos, mod2_sig;
             var mod3_lfo, mod3_chaos, mod3_sig;
+            var mod4_lfo, mod4_chaos, mod4_sig;
             var m1_shape_mod, m1_final_shape;
             var m2_shape_mod, m2_final_shape;
             var m3_shape_mod, m3_final_shape;
+            var m4_shape_mod, m4_final_shape;
             
             var env_int, env_ext, outline_sig;
             var mw_norm, bend_norm, bend_offset;
@@ -154,28 +164,20 @@ Engine_Ltra : CroneEngine {
 
             scale_map = 12.collect { |i| NamedControl.kr("scale_map_" ++ i, i) };
 
-            // ==========================================
-            // 11-STAGE CONTINUOUS MORPHING (0.0 to 10.0)
-            // ==========================================
             mk_osc = { |f, s| 
                 var shape_idx = s.clip(0, 10);
                 var safe_f = f.clip(20, 20000);
                 var core_saw = SawDPW.ar(safe_f);
                 
-                // Stage 0-1: Dust -> Pink Noise
                 var density = shape_idx.clip(0, 1).linexp(0, 1, 4, 20000);
                 var lpf_freq = shape_idx.clip(0, 1).linexp(0, 1, 400, 20000);
                 var dust_env = Clip.ar(Decay.ar(Dust.ar(density), 0.05) * 10.0, 0.0, 1.0);
                 var noise_src = LPF.ar(PinkNoise.ar * dust_env, lpf_freq);
                 
-                // Stage 1-2: Pink Noise -> Tuned Noise
-                // MASTERING TEAM: Tweak the 0.007 value here for Tuned Noise resonance (lower = more sine-like, higher = more noisy)
                 var tuned_rq = shape_idx.clip(1, 2).linexp(1, 2, 0.02, 0.007);
                 var tuned_noise = Resonz.ar(noise_src, safe_f, tuned_rq) * (tuned_rq ** -0.5) * 0.5;
                 var stage1_osc = XFade2.ar(noise_src, tuned_noise, (shape_idx - 1.0).clip(0, 1) * 2.0 - 1.0);
                 
-                // Stage 2-4: Tuned Noise -> Tuned Noised Saw -> Pure Saw
-                // FIX: PM Index recalibrated to 0.05 max at shape 3.0
                 var pm_index = (4.0 - shape_idx).clip(0, 1).lincurve(0, 1, 0.0, 0.05, 2);
                 var pm_mod = LPF.ar(tuned_noise, 10000) * pm_index;
                 var saw_pm = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
@@ -183,46 +185,42 @@ Engine_Ltra : CroneEngine {
                 var carrier_mix = (shape_idx - 2.0).clip(0, 1);
                 var base_osc = (stage1_osc * (1.0 - carrier_mix)) + (saw_pm * carrier_mix);
                 
-                // Stage 4-6: Saw -> Square -> Pulse 2.5%
                 var sub_mix = (shape_idx - 4.0).clip(0, 1);
                 var dc_narrow = (shape_idx - 5.0).clip(0, 1).lincurve(0, 1, 0.0, 0.475, 4);
-                var dc_widen = (shape_idx - 7.0).clip(0, 0.5).lincurve(0, 0.5, 0.0, 0.475, -2); // Opens from 7.0 to 7.5
+                var dc_widen = (shape_idx - 7.0).clip(0, 0.5).lincurve(0, 0.5, 0.0, 0.475, -2);
                 var duty_cycle = 0.5 - dc_narrow + dc_widen;
                 
                 var delay_time = (duty_cycle / safe_f).max(SampleDur.ir);
                 var pulse_raw = base_osc - (DelayC.ar(base_osc, 0.1, delay_time) * sub_mix);
                 var pulse_dc = LeakDC.ar(pulse_raw) * 0.5;
                 
-                // Stage 6-7.5: Pulse -> Skewed Tri (7.0) -> Pure Tri (7.5)
                 var int_mix = (shape_idx - 6.0).clip(0, 1);
                 var tri_raw = Clip.ar(Integrator.ar(pulse_dc, 0.99), -10.0, 10.0) * (4.0 * safe_f / SampleRate.ir);
                 var tri_dc = LeakDC.ar(tri_raw);
                 var osc_stage3 = (pulse_dc * (1.0 - int_mix)) + (tri_dc * int_mix);
                 
-                // Stage 7.5-8: Pure Tri -> Sine
                 var sine_mix = (shape_idx - 7.5).clip(0, 0.5) * 2.0;
                 
-                // Stage 8-10: Sine -> Buchla Folded -> Buchla Asym
                 var fold_drive_actual = (shape_idx - 8.0).clip(0, 1).linexp(0, 1, 1.0, 12.0);
                 var asym_offset = (shape_idx - 9.0).clip(0, 1).lincurve(0, 1, 0.0, 0.4, 2);
                 
                 var pure_sine = ((osc_stage3 + asym_offset) * 0.5pi).sin - asym_offset;
                 var folded_sine = (pure_sine * fold_drive_actual).fold2(1.0);
+                
                 var mitigated_folded = LPF.ar(folded_sine, (safe_f * 24.0).clip(20, 19000));
                 
                 var final_osc = (osc_stage3 * (1.0 - sine_mix)) + (mitigated_folded * sine_mix);
                 
-                // FIX: Psychoacoustic Gain Map (dB Interpolation)
                 var gain_db = SelectX.kr(shape_idx,[
                     9.5,   // 0.0 Dust
                     8.0,   // 1.0 Pink Noise
                     3.5,   // 2.0 Tuned Noise
                     0.0,   // 3.0 Tuned Noised Saw
                     0.0,   // 4.0 Pure Saw
-                    -2.0,  // 5.0 Square (Attenuated RMS)
-                    2.5,   // 6.0 Pulse 2.5% (Tamed piercing highs)
+                    -2.0,  // 5.0 Square
+                    2.5,   // 6.0 Pulse 2.5%
                     8.0,   // 7.0 Skewed Tri
-                    0.0,   // 8.0 Pure Sine (7.5 Pure Tri is interpolated to +4.0dB automatically)
+                    0.0,   // 8.0 Pure Sine
                     -9.0,  // 9.0 Buchla Folded
                     -10.4  // 10.0 Buchla Asym
                 ]);
@@ -248,9 +246,16 @@ Engine_Ltra : CroneEngine {
             mod3_lfo = SelectX.kr(m3_final_shape,[ LFPulse.kr(mod3_lfo_rate, 0, 0.5), (LFSaw.kr(mod3_lfo_rate, 0) + 1) * 0.5, (LFTri.kr(mod3_lfo_rate, 0) + 1) * 0.5, (SinOsc.kr(mod3_lfo_rate, 0) + 1) * 0.5 ]);
             mod3_sig = SelectX.kr(mod3_mix,[mod3_lfo, mod3_chaos]) * mod3_depth;
 
+            // FIX: LFO 4 (Outline Hybrid)
+            mod4_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod4_chaos_rate * 4)), mod4_chaos_slew * 10, mod4_chaos_slew * 10);
+            m4_shape_mod = (mod4_chaos * 2.0 - 1.0) * 0.25 * mod4_mix;
+            m4_final_shape = (mod4_lfo_shape + m4_shape_mod).wrap(0, 1) * 3.0;
+            mod4_lfo = SelectX.kr(m4_final_shape,[ LFPulse.kr(mod4_lfo_rate, 0, 0.5), (LFSaw.kr(mod4_lfo_rate, 0) + 1) * 0.5, (LFTri.kr(mod4_lfo_rate, 0) + 1) * 0.5, (SinOsc.kr(mod4_lfo_rate, 0) + 1) * 0.5 ]);
+            mod4_sig = SelectX.kr(mod4_mix,[mod4_lfo, mod4_chaos]) * mod4_depth;
+
             env_int = LagUD.kr(gates.sum.clip(0,1), 0.01, 0.5);
             env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); 
-            outline_sig = Select.kr(outline_source,[env_int, env_ext]) * outline_gain;
+            outline_sig = (Select.kr(outline_source,[env_int, env_ext]) * outline_gain) + mod4_sig;
 
             calc_mod = { |dest_idx, arp_val|
                 (mod1_sig * mod1_dest[dest_idx]) +
@@ -295,7 +300,10 @@ Engine_Ltra : CroneEngine {
                 
                 var m_pitch = calc_mod_pitch.(p_idx, arp_cvs[p_idx]);
                 var m_amp = calc_mod.(p_idx + 4, arp_cvs[p_idx]);
-                var m_shape = calc_mod.(p_idx + 8, arp_cvs[p_idx]);
+                
+                // FIX: Quadratic Curve for Shape Modulation (Micro-resolution)
+                var m_shape_raw = calc_mod.(p_idx + 8, arp_cvs[p_idx]);
+                var m_shape = m_shape_raw.sign * m_shape_raw.squared;
                 
                 var mpe_bend_off = ((mpe_bends[i] - 8192) / 8192.0) * mpe_bend_range / 12.0;
                 var midi_off = (midi_notes[i] - 60) / 12.0;
