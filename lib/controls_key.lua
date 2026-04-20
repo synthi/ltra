@@ -1,5 +1,5 @@
--- lib/controls_key.lua | v2.2.2
--- FIX: Matrix Quantization uses params:set for Snapshot compatibility
+-- lib/controls_key.lua | v2.4.0
+-- FIX: LFO 4 (Outline Hybrid) Pages
 
 local Keys = {}
 local Globals
@@ -66,6 +66,21 @@ function Keys.event(n, z)
                 Globals.arp_menu_page = (Globals.arp_menu_page == 1) and 2 or 1
             end
             
+        elseif Globals.menu_mode == Consts.MENU.OUTLINE then
+            -- FIX: Outline Follower Hybrid LFO 4 Pages
+            if n==2 then
+                if Globals.outline_menu_page == 2 then
+                    local curr = params:get("mod4_lfo_sync")
+                    params:set("mod4_lfo_sync", 1-curr)
+                elseif Globals.outline_menu_page == 3 then
+                    local curr = params:get("mod4_chaos_sync")
+                    params:set("mod4_chaos_sync", 1-curr)
+                end
+            elseif n==3 then
+                Globals.outline_menu_page = Globals.outline_menu_page + 1
+                if Globals.outline_menu_page > 3 then Globals.outline_menu_page = 1 end
+            end
+            
         elseif Globals.menu_mode == Consts.MENU.DELAY then
             if n==3 then
                 Globals.delay_menu_page = (Globals.delay_menu_page == 1) and 2 or 1
@@ -92,7 +107,6 @@ function Keys.event(n, z)
                     local dst_idx = Consts.DESTINATIONS[t.dest_name]
                     if src_idx and dst_idx then
                         if dst_idx <= 4 then
-                            -- FIX: Use params:set to ensure Snapshot compatibility
                             local q_id = "quant_"..t.src_name.."_"..t.dest_name
                             local current_q = params:get(q_id)
                             params:set(q_id, 1 - current_q)
