@@ -1,14 +1,16 @@
--- lib/midi_16n.lua | v2.1.5
--- FIX: Polynomial Curves for Faders 14 (Cubic) and 16 (Quadratic)
+-- lib/midi_16n.lua | v2.6.0
+-- FIX: 1:1 Grid Matrix Mapping (Faders 9-12 = Shape)
 
 local Midi16n = {}
 local Globals
 local Consts = require 'ltra/lib/consts'
 local UI_Ref = nil
 
-local FADER_FUNC = {[1]="pitch1",[2]="pitch2", [3]="pitch3",[4]="pitch4",[5]="amp1",  [6]="amp2",   [7]="amp3",  [8]="amp4",
-    [9]="mod1",  [10]="mod2",  [11]="mod3",[12]="filt1",
-    [13]="filt2",[14]="tape_time",[15]="tape_fb",[16]="delay_send"
+local FADER_FUNC = {
+    [1]="pitch1", [2]="pitch2", [3]="pitch3", [4]="pitch4",
+    [5]="amp1",   [6]="amp2",   [7]="amp3",   [8]="amp4",
+    [9]="shape1",[10]="shape2",[11]="shape3",[12]="shape4",
+    [13]="filt1", [14]="filt2", [15]="tape_time",[16]="tape_fb"
 }
 
 local function trigger_popup(text, val_str)
@@ -53,49 +55,22 @@ local function process_fader(id, val)
     elseif func == "amp2" then params:set("osc2_vol", norm); trigger_popup(name, string.format("%.2f", norm))
     elseif func == "amp3" then params:set("osc3_vol", norm); trigger_popup(name, string.format("%.2f", norm))
     elseif func == "amp4" then params:set("osc4_vol", norm); trigger_popup(name, string.format("%.2f", norm))
+    elseif func == "shape1" then params:set("osc1_shape", norm * 10.0); trigger_popup(name, string.format("%.2f", norm * 10.0))
+    elseif func == "shape2" then params:set("osc2_shape", norm * 10.0); trigger_popup(name, string.format("%.2f", norm * 10.0))
+    elseif func == "shape3" then params:set("osc3_shape", norm * 10.0); trigger_popup(name, string.format("%.2f", norm * 10.0))
+    elseif func == "shape4" then params:set("osc4_shape", norm * 10.0); trigger_popup(name, string.format("%.2f", norm * 10.0))
     elseif func == "filt1" then 
         local hz = util.linexp(0, 1, 20, 18000, norm)
         params:set("filt1_cutoff", hz); trigger_popup(name, string.format("%.0f Hz", hz))
     elseif func == "filt2" then 
         local hz = util.linexp(0, 1, 20, 18000, norm)
         params:set("filt2_cutoff", hz); trigger_popup(name, string.format("%.0f Hz", hz))
-    elseif func == "mod1" then 
-        if params:get("mod1_lfo_sync") == 1 then
-            local div = math.floor(norm * 20) + 1
-            params:set("mod1_lfo_div", div)
-            trigger_popup("MOD1 SYNC", Consts.SYNC_DIVS[div].name)
-        else
-            local hz = util.linexp(0, 1, 0.01, 20, norm)
-            params:set("mod1_lfo_rate", hz); trigger_popup("MOD1 RATE", string.format("%.2f Hz", hz))
-        end
-    elseif func == "mod2" then 
-        if params:get("mod2_lfo_sync") == 1 then
-            local div = math.floor(norm * 20) + 1
-            params:set("mod2_lfo_div", div)
-            trigger_popup("MOD2 SYNC", Consts.SYNC_DIVS[div].name)
-        else
-            local hz = util.linexp(0, 1, 0.01, 20, norm)
-            params:set("mod2_lfo_rate", hz); trigger_popup("MOD2 RATE", string.format("%.2f Hz", hz))
-        end
-    elseif func == "mod3" then 
-        if params:get("mod3_lfo_sync") == 1 then
-            local div = math.floor(norm * 20) + 1
-            params:set("mod3_lfo_div", div)
-            trigger_popup("MOD3 SYNC", Consts.SYNC_DIVS[div].name)
-        else
-            local hz = util.linexp(0, 1, 0.01, 20, norm)
-            params:set("mod3_lfo_rate", hz); trigger_popup("MOD3 RATE", string.format("%.2f Hz", hz))
-        end
     elseif func == "tape_time" then 
-        --local norm_cubed = norm^3 -- Cubic curve for extreme low-end resolution
         local t = util.linexp(0, 1, 0.01, 2.0, norm)
         params:set("tapecho_time", t); trigger_popup("TAPE TIME", string.format("%.2f s", t))
     elseif func == "tape_fb" then 
         local fb = util.linlin(0, 1, 0.0, 1.2, norm)
         params:set("tapecho_feedback", fb); trigger_popup("TAPE FB", string.format("%.2f", fb))
-    elseif func == "delay_send" then 
-        local norm_sq = norm^2 -- Quadratic curve for send resolution
-        params:set("delay_send", norm_sq); trigger_popup(name, string.format("%.2f", norm_sq))
     end
 end
 
@@ -157,27 +132,18 @@ function Midi16n.sync_faders()
                 norm = params:get("osc"..func:sub(-1).."_pitch")
             elseif func:match("^amp%d") then
                 norm = params:get("osc"..func:sub(-1).."_vol")
+            elseif func:match("^shape%d") then
+                local val = params:get("osc"..func:sub(-1).."_shape")
+                norm = util.linlin(0, 10.0, 0, 1, val)
             elseif func:match("^filt%d") then
                 local val = params:get("filt"..func:sub(-1).."_cutoff")
                 norm = util.explin(20, 18000, 0, 1, val)
-            elseif func:match("^mod%d") then
-                local i = func:sub(-1)
-                if params:get("mod"..i.."_lfo_sync") == 1 then
-                    local div = params:get("mod"..i.."_lfo_div")
-                    norm = (div - 1) / 20
-                else
-                    local val = params:get("mod"..i.."_lfo_rate")
-                    norm = util.explin(0.01, 20, 0, 1, val)
-                end
             elseif func == "tape_time" then
                 local val = params:get("tapecho_time")
                 norm = util.explin(0.01, 2.0, 0, 1, val)
             elseif func == "tape_fb" then
                 local val = params:get("tapecho_feedback")
                 norm = util.linlin(0.0, 1.2, 0, 1, val)
-            elseif func == "delay_send" then
-                local val = params:get("delay_send")
-                norm = math.sqrt(val)
             end
             Globals.fader_virtual[id] = util.clamp(norm, 0, 1)
         end
