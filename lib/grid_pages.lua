@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v2.2.2
--- FIX: CRITICAL RESTITUTION - Restored Matrix and Snapshot logic in Pages.key
+-- lib/grid_pages.lua | v2.5.0
+-- FIX: 3-Row Grid Layout for 47 Scales
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -194,13 +194,26 @@ function Pages.redraw()
     end
     
     if Globals.page == 2 then
+        local num_predefined = #Consts.SCALES_A + #Consts.SCALES_B
+        
+        -- Row 1: TET Scales (1-16)
         for x=1, 16 do 
             led_safe(x, 1, (Globals.scale.current_idx == x) and 11 or 2) 
-            local u_idx = x + 16
+        end
+        
+        -- Row 2: Remaining TET + JI Scales (17-31)
+        for x=1, 15 do 
+            local s_idx = x + 16
+            led_safe(x, 2, (Globals.scale.current_idx == s_idx) and 11 or 2) 
+        end
+        
+        -- Row 3: Custom Scales (32-47)
+        for x=1, 16 do
+            local s_idx = x + num_predefined
             local is_mod = Globals.scale.custom_slots[x] and Globals.scale.custom_slots[x].modified
             local b = is_mod and 6 or 1
-            if Globals.scale.current_idx == u_idx then b = 11 end
-            led_safe(x, 2, b)
+            if Globals.scale.current_idx == s_idx then b = 11 end
+            led_safe(x, 3, b)
         end
         
         local blacks = {false, true, false, true, false, false, true, false, true, false, true, false}
@@ -374,7 +387,6 @@ function Pages.key(x, y, z)
         end
     end
     
-    -- FIX: RESTORED BLOCK (Matrix Tapping and Snapshot Management)
     if Globals.page == 1 then
         if y <= 4 then 
             if z == 0 then
@@ -441,19 +453,23 @@ function Pages.key(x, y, z)
     end
     
     if Globals.page == 2 then
+        local num_predefined = #Consts.SCALES_A + #Consts.SCALES_B
         if y == 1 and z == 1 then 
             params:set("scale_idx", x)
         end
-        if y == 2 and z == 1 then 
+        if y == 2 and z == 1 and x <= 15 then 
             params:set("scale_idx", x + 16)
+        end
+        if y == 3 and z == 1 then
+            params:set("scale_idx", x + num_predefined)
         end
         if y == 6 and z == 1 and x>=3 and x<=14 then 
             params:set("scale_root", x - 2)
         end
         if z == 1 and (y == 4 or y == 5) and x >= 3 and x <= 14 then
             local note = x - 3 
-            if Globals.scale.current_idx <= 16 then
-                params:set("scale_idx", Globals.scale.current_idx + 16)
+            if Globals.scale.current_idx <= num_predefined then
+                params:set("scale_idx", num_predefined + 1)
             end
             Scales.toggle_custom_note(note)
             Scales.update_all_voices()
