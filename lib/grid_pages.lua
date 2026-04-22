@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v2.5.0
--- FIX: 3-Row Grid Layout for 47 Scales
+-- lib/grid_pages.lua | v2.6.0
+-- FIX: 3-Row Grid Layout for 48 Scales
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -201,13 +201,13 @@ function Pages.redraw()
             led_safe(x, 1, (Globals.scale.current_idx == x) and 11 or 2) 
         end
         
-        -- Row 2: Remaining TET + JI Scales (17-31)
-        for x=1, 15 do 
+        -- FIX: Row 2: Remaining TET + JI Scales (17-32)
+        for x=1, 16 do 
             local s_idx = x + 16
             led_safe(x, 2, (Globals.scale.current_idx == s_idx) and 11 or 2) 
         end
         
-        -- Row 3: Custom Scales (32-47)
+        -- Row 3: Custom Scales (33-48)
         for x=1, 16 do
             local s_idx = x + num_predefined
             local is_mod = Globals.scale.custom_slots[x] and Globals.scale.custom_slots[x].modified
@@ -457,7 +457,8 @@ function Pages.key(x, y, z)
         if y == 1 and z == 1 then 
             params:set("scale_idx", x)
         end
-        if y == 2 and z == 1 and x <= 15 then 
+        -- FIX: Row 2 now handles 16 scales (17-32)
+        if y == 2 and z == 1 then 
             params:set("scale_idx", x + 16)
         end
         if y == 3 and z == 1 then
