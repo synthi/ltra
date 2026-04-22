@@ -1,5 +1,5 @@
--- lib/consts.lua | v2.5.0
--- FIX: Microtonal Expansion (Just Intonation Bank)
+-- lib/consts.lua | v2.6.0
+-- FIX: Added Scale #32 (Carlos Harmonic)
 
 local Consts = {}
 
@@ -21,10 +21,10 @@ Consts.DESTINATIONS = {
 }
 
 Consts.COL_TO_DEST_NAMES = {
-    [1]="PITCH1", [2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
-    [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",
+    [1]="PITCH1", [2]="PITCH2", [3]="PITCH3",[4]="PITCH4",
+    [5]="AMP1",   [6]="AMP2",[7]="AMP3",   [8]="AMP4",
     [9]="MORPH1",[10]="MORPH2",[11]="MORPH3",[12]="MORPH4",
-    [13]="FILT1", [14]="FILT2",[15]="DELAY_T",[16]="DELAY_F"
+    [13]="FILT1",[14]="FILT2",[15]="DELAY_T",[16]="DELAY_F"
 }
 
 Consts.MENU = {
@@ -67,7 +67,7 @@ Consts.SCALES_A = {
     {name="Inosen", intervals={0,1,5,7,10}}
 }
 
--- 13 Just Intonation (JI) Scales
+-- 14 Just Intonation (JI) Scales
 Consts.SCALES_B = {
     {name="JI Ptolemy", type="JI", intervals={1/1, 16/15, 9/8, 6/5, 5/4, 4/3, 45/32, 3/2, 8/5, 5/3, 9/5, 15/8}},
     {name="JI 7-Limit", type="JI", intervals={1/1, 8/7, 9/7, 21/16, 4/3, 3/2, 32/21, 12/7, 7/4}},
@@ -81,7 +81,8 @@ Consts.SCALES_B = {
     {name="JI Pelog", type="JI", intervals={1/1, 16/15, 6/5, 3/2, 8/5}},
     {name="JI Slendro", type="JI", intervals={1/1, 8/7, 4/3, 3/2, 7/4}},
     {name="Maqam Rast", type="JI", intervals={1/1, 9/8, 11/9, 4/3, 3/2, 27/16, 16/9}},
-    {name="Ben Johnston", type="JI", intervals={1/1, 13/12, 9/8, 6/5, 5/4, 4/3, 17/12, 3/2, 8/5, 5/3, 7/4, 15/8}}
+    {name="Ben Johnston", type="JI", intervals={1/1, 13/12, 9/8, 6/5, 5/4, 4/3, 17/12, 3/2, 8/5, 5/3, 7/4, 15/8}},
+    {name="Carlos Harmonic", type="JI", intervals={1/1, 17/16, 9/8, 19/16, 5/4, 21/16, 11/8, 3/2, 13/8, 27/16, 7/4, 15/8}}
 }
 
 return Consts
