@@ -1,5 +1,5 @@
--- lib/parameters.lua | v2.5.0
--- FIX: Scale Index expanded to 47 (31 Predefined + 16 Custom)
+-- lib/parameters.lua | v2.6.0
+-- FIX: Scale Index expanded to 48 (32 Predefined + 16 Custom)
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,7 +9,7 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v2.5.0")
+    params:add_separator("LTRA v2.6.0")
     
     params:add_group("GLOBAL", 6)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0,1))
@@ -26,8 +26,8 @@ function Params.init(g_ref)
     params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
     
     params:add_group("SCALES & TUNING", 2)
-    -- FIX: 47 Total Scales (18 TET + 13 JI + 16 Custom)
-    params:add_number("scale_idx", "Scale", 1, 47, 1)
+    -- FIX: 48 Total Scales (18 TET + 14 JI + 16 Custom)
+    params:add_number("scale_idx", "Scale", 1, 48, 1)
     params:set_action("scale_idx", function(x) 
         if Globals then Globals.scale.current_idx = x; Globals.dirty=true; if Globals.loaded then Scales.update_all_voices() end end 
     end)
@@ -221,6 +221,7 @@ function Params.init(g_ref)
     params:add_control("blossomverb_mod_depth", "Rev Mod Depth", controlspec.new(0.0,0.002,"lin",0,0.002))
     params:set_action("blossomverb_mod_depth", function(x) Bridge.set_param("blossomverb_mod_depth", x) end)
 
+    -- RESTORED BLOCK: LOOPERS
     params:add_group("LOOPERS", 15)
     for i=1, 3 do
         params:add_control("looper"..i.."_vol", "L"..i.." Vol", controlspec.new(0,1,"lin",0,1.0))
@@ -234,6 +235,7 @@ function Params.init(g_ref)
         params:add_control("looper"..i.."_fade", "L"..i.." Fade", controlspec.new(0,16,"lin",0.1,0))
     end
 
+    -- APPENDED BLOCK: MOD MATRIX
     params:add_group("MOD MATRIX (HIDDEN)", 160)
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
