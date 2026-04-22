@@ -1,5 +1,5 @@
--- lib/ui.lua | v2.4.0
--- FIX: LFO 4 (Outline Hybrid) Pages, 0.001 Hz Display Resolution
+-- lib/ui.lua | v2.5.0
+-- FIX: Dynamic Scale Name Display
 
 local UI = {}
 local Globals
@@ -14,7 +14,7 @@ function UI.init(g_ref)
     Globals.reverb_menu_page = Globals.reverb_menu_page or 1
     Globals.env_menu_page = Globals.env_menu_page or 1 
     Globals.midi_menu_page = Globals.midi_menu_page or 1
-    Globals.outline_menu_page = Globals.outline_menu_page or 1 -- FIX: Outline Pagination
+    Globals.outline_menu_page = Globals.outline_menu_page or 1
 end
 
 local function draw_menu()
@@ -126,7 +126,6 @@ local function draw_menu()
         screen.move(5,58); screen.text("K3: PAGE")
         
     elseif mode == Consts.MENU.OUTLINE then
-        -- FIX: Outline Follower Hybrid LFO 4 Pages
         if Globals.outline_menu_page == 1 then
             screen.move(5,10); screen.text("OUTLINE FOLLOWER (1/3)")
             local src = params:get("outline_src") == 1 and "INT GATE" or "EXT AUDIO"
@@ -245,7 +244,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v2.4.0")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v2.5.0")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
@@ -255,10 +254,13 @@ function UI.redraw()
         local s_name = "Unknown"
         if Globals.scale and Globals.scale.current_idx then
             local idx = Globals.scale.current_idx
+            local num_predefined = #Consts.SCALES_A + #Consts.SCALES_B
             if idx <= #Consts.SCALES_A then
                 s_name = Consts.SCALES_A[idx].name
-            elseif idx <= #Consts.SCALES_A + #Consts.SCALES_B then
+            elseif idx <= num_predefined then
                 s_name = Consts.SCALES_B[idx-#Consts.SCALES_A].name
+            else
+                s_name = "Custom " .. (idx - num_predefined)
             end
         end
         
