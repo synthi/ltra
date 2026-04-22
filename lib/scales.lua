@@ -1,5 +1,5 @@
--- lib/scales.lua | v2.1.6
--- FIX: 8-Voice Frequency Update
+-- lib/scales.lua | v2.5.0
+-- FIX: Dynamic Boundary Logic for 47 Scales
 
 local Scales = {}
 local Consts = require 'ltra/lib/consts'
@@ -13,14 +13,7 @@ function Scales.init(g_ref)
     if not Globals.scale.custom_slots or #Globals.scale.custom_slots < 16 then
         Globals.scale.custom_slots = {}
         for i=1, 16 do
-            Globals.scale.custom_slots[i] = { modified = false, intervals = {} }
-            local preset = Consts.SCALES_A[i]
-            if not preset then preset = Consts.SCALES_B[i - #Consts.SCALES_A] end
-            if preset then
-                for _, v in ipairs(preset.intervals) do table.insert(Globals.scale.custom_slots[i].intervals, v) end
-            else
-                Globals.scale.custom_slots[i].intervals = {0, 2, 4, 5, 7, 9, 11}
-            end
+            Globals.scale.custom_slots[i] = { modified = false, intervals = {0, 2, 4, 5, 7, 9, 11} }
         end
     end
 end
@@ -37,13 +30,14 @@ function Scales.get_freq(degree, octave)
     
     local idx = Globals.scale.current_idx or 1
     local def = nil
+    local num_predefined = #Consts.SCALES_A + #Consts.SCALES_B
     
     if idx <= #Consts.SCALES_A then
         def = Consts.SCALES_A[idx]
-    elseif idx <= 16 then
+    elseif idx <= num_predefined then
         def = Consts.SCALES_B[idx - #Consts.SCALES_A]
     else
-        local custom_idx = idx - 16
+        local custom_idx = idx - num_predefined
         if Globals.scale.custom_slots and Globals.scale.custom_slots[custom_idx] then
             def = { type="TET", intervals=Globals.scale.custom_slots[custom_idx].intervals }
         end
@@ -100,16 +94,17 @@ function Scales.update_all_voices()
         local tune = params:get("osc"..i.."_tune") or 0
         hz = hz * (2 ^ (tune / 12))
         Bridge.set_freq(i, hz)
-        Bridge.set_freq(i+4, hz) -- FIX: Update Twin Voice Base Frequency
+        Bridge.set_freq(i+4, hz) 
     end
 end
 
 function Scales.toggle_custom_note(note_0_11)
     if not Globals or not Globals.scale then return end
     local idx = Globals.scale.current_idx
-    if idx <= 16 then return end 
+    local num_predefined = #Consts.SCALES_A + #Consts.SCALES_B
+    if idx <= num_predefined then return end 
     
-    local custom_idx = idx - 16
+    local custom_idx = idx - num_predefined
     local slot = Globals.scale.custom_slots[custom_idx]
     slot.modified = true
     
@@ -134,13 +129,14 @@ function Scales.is_note_active(note_0_11)
     if not Globals or not Globals.scale then return false end
     local idx = Globals.scale.current_idx
     local intervals = {}
+    local num_predefined = #Consts.SCALES_A + #Consts.SCALES_B
     
     if idx <= #Consts.SCALES_A then intervals = Consts.SCALES_A[idx].intervals
-    elseif idx <= 16 then 
+    elseif idx <= num_predefined then 
         local b_idx = idx - #Consts.SCALES_A
         if Consts.SCALES_B[b_idx] then intervals = Consts.SCALES_B[b_idx].intervals end
     else
-        local custom_idx = idx - 16
+        local custom_idx = idx - num_predefined
         if Globals.scale.custom_slots[custom_idx] then
             intervals = Globals.scale.custom_slots[custom_idx].intervals
         end
