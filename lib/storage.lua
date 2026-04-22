@@ -1,5 +1,5 @@
--- lib/storage.lua | v2.2.2
--- FIX: Safe Snapshot Loading (pcall) and Sidecar Param Sync
+-- lib/storage.lua | v2.5.0
+-- FIX: Safe Fallback for Custom Scales Initialization
 
 local Storage = {}
 local Globals
@@ -55,13 +55,7 @@ function Storage.load_sidecar(pset_number)
             else
                 Globals.scale.custom_slots = {}
                 for i=1, 16 do
-                    Globals.scale.custom_slots[i] = { modified = false, intervals = {} }
-                    local preset = Consts.SCALES_A[i] or Consts.SCALES_B[i - #Consts.SCALES_A]
-                    if preset then
-                        for _, v in ipairs(preset.intervals) do table.insert(Globals.scale.custom_slots[i].intervals, v) end
-                    else
-                        Globals.scale.custom_slots[i].intervals = {0, 2, 4, 5, 7, 9, 11}
-                    end
+                    Globals.scale.custom_slots[i] = { modified = false, intervals = {0, 2, 4, 5, 7, 9, 11} }
                 end
             end
             
@@ -69,7 +63,6 @@ function Storage.load_sidecar(pset_number)
             
             if data.matrix_quant then 
                 Globals.matrix_quant = data.matrix_quant 
-                -- FIX: Sync loaded sidecar data to the new hidden params
                 for s_name, s_idx in pairs(Consts.SOURCES) do
                     for d_name, d_idx in pairs(Consts.DESTINATIONS) do
                         local q_id = "quant_"..s_name.."_"..d_name
@@ -127,7 +120,6 @@ function Storage.load_snapshot(slot)
     local snap = Globals.snapshots[slot]
     if not snap then return end
     
-    -- FIX: Safe Parameter Loading (Ignores removed parameters without crashing)
     for id, val in pairs(snap.params) do
         if params.lookup[id] then
             local p = params.params[params.lookup[id]]
