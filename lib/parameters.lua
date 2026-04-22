@@ -1,5 +1,5 @@
--- lib/parameters.lua | v2.4.0
--- FIX: LFO 4 (Outline Hybrid), Ultra-Slow LFO Rates (0.001 Hz)
+-- lib/parameters.lua | v2.5.0
+-- FIX: Scale Index expanded to 47 (31 Predefined + 16 Custom)
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,7 +9,7 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v2.4.0")
+    params:add_separator("LTRA v2.5.0")
     
     params:add_group("GLOBAL", 6)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0,1))
@@ -26,7 +26,8 @@ function Params.init(g_ref)
     params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
     
     params:add_group("SCALES & TUNING", 2)
-    params:add_number("scale_idx", "Scale", 1, 32, 1)
+    -- FIX: 47 Total Scales (18 TET + 13 JI + 16 Custom)
+    params:add_number("scale_idx", "Scale", 1, 47, 1)
     params:set_action("scale_idx", function(x) 
         if Globals then Globals.scale.current_idx = x; Globals.dirty=true; if Globals.loaded then Scales.update_all_voices() end end 
     end)
@@ -166,7 +167,6 @@ function Params.init(g_ref)
     params:add_control("mw_filt2", "MW to Filt2", controlspec.new(-1,1,"lin",0,0))
     params:set_action("mw_filt2", function(x) Bridge.set_param("mw_filt2", x) end)
 
-    -- FIX: 4 LFOs (Outline Hybrid) and Ultra-Slow Rates (0.001 Hz)
     params:add_group("MODULATION", 40) 
     for i=1, 4 do
         params:add_binary("mod"..i.."_lfo_sync", "MOD"..i.." LFO Sync", "toggle", 0)
