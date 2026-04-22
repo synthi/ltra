@@ -1,5 +1,5 @@
--- lib/consts.lua | v2.1.0
--- FIX: Added MENU.MIDI
+-- lib/consts.lua | v2.5.0
+-- FIX: Microtonal Expansion (Just Intonation Bank)
 
 local Consts = {}
 
@@ -22,7 +22,8 @@ Consts.DESTINATIONS = {
 
 Consts.COL_TO_DEST_NAMES = {
     [1]="PITCH1", [2]="PITCH2", [3]="PITCH3", [4]="PITCH4",
-    [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",[9]="MORPH1",[10]="MORPH2",[11]="MORPH3",[12]="MORPH4",
+    [5]="AMP1",   [6]="AMP2",   [7]="AMP3",   [8]="AMP4",
+    [9]="MORPH1",[10]="MORPH2",[11]="MORPH3",[12]="MORPH4",
     [13]="FILT1", [14]="FILT2",[15]="DELAY_T",[16]="DELAY_F"
 }
 
@@ -44,6 +45,7 @@ Consts.POLY_MODES = {"Round Robin", "Reset", "Unison"}
 
 Consts.NOTE_NAMES = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
 
+-- 18 TET Scales (Western + Asian)
 Consts.SCALES_A = {
     {name="Major", intervals={0,2,4,5,7,9,11}},
     {name="Minor", intervals={0,2,3,5,7,8,10}},
@@ -56,19 +58,30 @@ Consts.SCALES_A = {
     {name="Pent Min", intervals={0,3,5,7,10}},
     {name="Blues", intervals={0,3,5,6,7,10}},
     {name="Whole Tone", intervals={0,2,4,6,8,10}},
-    {name="Chromatic", intervals={0,1,2,3,4,5,6,7,8,9,10,11}}
-}
-
-Consts.SCALES_B = {
-    {name="JI Ptolemy", type="JI", intervals={1/1, 16/15, 9/8, 6/5, 5/4, 4/3, 45/32, 3/2, 8/5, 5/3, 9/5, 15/8}},
-    {name="JI 7-Limit", type="JI", intervals={1/1, 8/7, 9/7, 21/16, 4/3, 3/2, 32/21, 12/7, 7/4}},
-    {name="Pyth Major", type="JI", intervals={1/1, 9/8, 81/64, 4/3, 3/2, 27/16, 243/128}},
+    {name="Chromatic", intervals={0,1,2,3,4,5,6,7,8,9,10,11}},
     {name="Pelog", intervals={0,1,3,7,8}},
     {name="Slendro", intervals={0,2,5,7,10}},
     {name="Hirajoshi", intervals={0,2,3,7,8}},
     {name="Kumoi", intervals={0,1,5,7,8}},
     {name="Iwato", intervals={0,1,5,6,10}},
     {name="Inosen", intervals={0,1,5,7,10}}
+}
+
+-- 13 Just Intonation (JI) Scales
+Consts.SCALES_B = {
+    {name="JI Ptolemy", type="JI", intervals={1/1, 16/15, 9/8, 6/5, 5/4, 4/3, 45/32, 3/2, 8/5, 5/3, 9/5, 15/8}},
+    {name="JI 7-Limit", type="JI", intervals={1/1, 8/7, 9/7, 21/16, 4/3, 3/2, 32/21, 12/7, 7/4}},
+    {name="Pyth Major", type="JI", intervals={1/1, 9/8, 81/64, 4/3, 3/2, 27/16, 243/128}},
+    {name="La Monte Young", type="JI", intervals={1/1, 567/512, 9/8, 147/128, 21/16, 1323/1024, 189/128, 3/2, 49/32, 7/4, 441/256, 63/32}},
+    {name="Terry Riley", type="JI", intervals={1/1, 16/15, 9/8, 6/5, 5/4, 4/3, 64/45, 3/2, 8/5, 5/3, 16/9, 15/8}},
+    {name="Partch 11-Lim", type="JI", intervals={1/1, 12/11, 9/8, 6/5, 5/4, 4/3, 3/2, 8/5, 5/3, 7/4, 11/6}},
+    {name="Overtone 8-16", type="JI", intervals={1/1, 9/8, 5/4, 11/8, 3/2, 13/8, 7/4, 15/8}},
+    {name="Undertone", type="JI", intervals={1/1, 16/15, 8/7, 16/13, 4/3, 16/11, 8/5, 16/9}},
+    {name="Super Just", type="JI", intervals={1/1, 17/16, 9/8, 6/5, 5/4, 4/3, 11/8, 3/2, 13/8, 5/3, 7/4, 15/8}},
+    {name="JI Pelog", type="JI", intervals={1/1, 16/15, 6/5, 3/2, 8/5}},
+    {name="JI Slendro", type="JI", intervals={1/1, 8/7, 4/3, 3/2, 7/4}},
+    {name="Maqam Rast", type="JI", intervals={1/1, 9/8, 11/9, 4/3, 3/2, 27/16, 16/9}},
+    {name="Ben Johnston", type="JI", intervals={1/1, 13/12, 9/8, 6/5, 5/4, 4/3, 17/12, 3/2, 8/5, 5/3, 7/4, 15/8}}
 }
 
 return Consts
