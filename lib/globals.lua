@@ -1,5 +1,5 @@
--- lib/globals.lua | v2.1.6
--- FIX: 8-Voice Array Expansion
+-- lib/globals.lua | v2.7.0
+-- FIX: Added Snapshot Masks and Gesture Loopers State
 
 local Globals = {}
 local Consts = require 'ltra/lib/consts'
@@ -43,7 +43,14 @@ function Globals.new()
         scale = {
             current_idx = 1, root_note = 1,
             custom_slots = {{0,2,4,5,7,9,11}, {0,2,3,5,7,8,10}, {0,1,5,7,8}, {0,2,4,6,8,10}}
-        }
+        },
+        
+        -- FIX: Snapshot Masks (13:Filt, 14:Shape/Vol, 15:Space/Tune, 16:All Else)
+        snap_masks = {false, false, false, false},
+        
+        -- FIX: Gesture Loopers State
+        gesture_loopers = {},
+        gesture_last_tap = {0, 0, 0, 0}
     }
 
     for x=1, 16 do
@@ -61,7 +68,6 @@ function Globals.new()
         end 
     end
     
-    -- FIX: 8 Voices for Polyphony
     for i=1, 8 do state.voices[i] = {shape=0, pan=0, tune=0, arp_enabled=false, to_looper=true, latched=false, mpe_channel=nil} end
 
     for i=1, 3 do
@@ -73,6 +79,8 @@ function Globals.new()
     end
     
     for i=1, 6 do state.snapshots[i] = nil end
+    
+    for i=1, 4 do state.gesture_loopers[i] = {state=0, data={}, start_time=0, duration=0, first_pass=false, clock=nil} end
 
     return state
 end
