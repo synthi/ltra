@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v2.4.0
-// FIX: LFO 4 (Outline Hybrid), Quadratic Curve for Shape Modulation
+// lib/Engine_Ltra.sc | v2.8.2
+// FIX: MIDI Note Quantization to Scale
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -49,7 +49,6 @@ Engine_Ltra : CroneEngine {
             var mod3_chaos_slew = \mod3_chaos_slew.kr(0.1);
             var mod3_mix = \mod3_mix.kr(0);
             
-            // FIX: LFO 4 Parameters
             var mod4_lfo_rate = \mod4_lfo_rate.kr(0.5);
             var mod4_lfo_shape = \mod4_lfo_shape.kr(0);
             var mod4_depth = \mod4_depth.kr(1);
@@ -116,6 +115,9 @@ Engine_Ltra : CroneEngine {
             var mw_shps = 4.collect { |i| NamedControl.kr("mw_shp" ++ (i+1), 0) };
             var twin_enables = 4.collect { |i| NamedControl.kr("twin_enable" ++ (i+1), 0) };
             var midi_gates = 4.collect { |i| NamedControl.kr("midi_gate" ++ (i+1), 0) };
+            
+            // FIX: MIDI Quantization Array
+            var quant_midi = \quant_midi.kr(0!4);
 
             var mod1_dest = \mod1_dest.kr(0!16);
             var mod2_dest = \mod2_dest.kr(0!16);
@@ -154,7 +156,7 @@ Engine_Ltra : CroneEngine {
             var ap_l, ap_r, rev_filt_l, rev_filt_r, rev_out_l, rev_out_r;
             var decay_kr, bloom_kr, damp_kr, predelay_kr, mod_rate_kr, mod_depth_kr;
             var effects_out, sig_post, osc_trig;
-            var scale_map, mk_osc, calc_mod, calc_mod_pitch;
+            var scale_map, mk_osc, calc_mod, calc_mod_pitch, quantize_fn;
             var voices_out;
             
             var prime_combs_l = #[0.031229, 0.037270, 0.043979, 0.050354, 0.057270, 0.064770];
@@ -163,6 +165,13 @@ Engine_Ltra : CroneEngine {
             var prime_ap_r = #[0.011604, 0.031895];
 
             scale_map = 12.collect { |i| NamedControl.kr("scale_map_" ++ i, i) };
+
+            quantize_fn = { |raw|
+                var rounded = raw.round;
+                var oct = (rounded / 12).floor;
+                var pc = rounded % 12;
+                (oct * 12) + Select.kr(pc, scale_map);
+            };
 
             mk_osc = { |f, s| 
                 var shape_idx = s.clip(0, 10);
@@ -238,7 +247,7 @@ Engine_Ltra : CroneEngine {
             m2_shape_mod = (mod2_chaos * 2.0 - 1.0) * 0.25 * mod2_mix;
             m2_final_shape = (mod2_lfo_shape + m2_shape_mod).wrap(0, 1) * 3.0;
             mod2_lfo = SelectX.kr(m2_final_shape,[ LFPulse.kr(mod2_lfo_rate, 0, 0.5), (LFSaw.kr(mod2_lfo_rate, 0) + 1) * 0.5, (LFTri.kr(mod2_lfo_rate, 0) + 1) * 0.5, (SinOsc.kr(mod2_lfo_rate, 0) + 1) * 0.5 ]);
-            mod2_sig = SelectX.kr(mod2_mix, [mod2_lfo, mod2_chaos]) * mod2_depth;
+            mod2_sig = SelectX.kr(mod2_mix,[mod2_lfo, mod2_chaos]) * mod2_depth;
 
             mod3_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod3_chaos_rate * 4)), mod3_chaos_slew * 10, mod3_chaos_slew * 10);
             m3_shape_mod = (mod3_chaos * 2.0 - 1.0) * 0.25 * mod3_mix;
@@ -246,7 +255,6 @@ Engine_Ltra : CroneEngine {
             mod3_lfo = SelectX.kr(m3_final_shape,[ LFPulse.kr(mod3_lfo_rate, 0, 0.5), (LFSaw.kr(mod3_lfo_rate, 0) + 1) * 0.5, (LFTri.kr(mod3_lfo_rate, 0) + 1) * 0.5, (SinOsc.kr(mod3_lfo_rate, 0) + 1) * 0.5 ]);
             mod3_sig = SelectX.kr(mod3_mix,[mod3_lfo, mod3_chaos]) * mod3_depth;
 
-            // FIX: LFO 4 (Outline Hybrid)
             mod4_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod4_chaos_rate * 4)), mod4_chaos_slew * 10, mod4_chaos_slew * 10);
             m4_shape_mod = (mod4_chaos * 2.0 - 1.0) * 0.25 * mod4_mix;
             m4_final_shape = (mod4_lfo_shape + m4_shape_mod).wrap(0, 1) * 3.0;
@@ -272,13 +280,6 @@ Engine_Ltra : CroneEngine {
                 var raw_outline = outline_sig * outline_dest[dest_idx] * 24.0;
                 var raw_arp = arp_val * arp_dest[dest_idx] * 24.0;
                 
-                var quantize_fn = { |raw|
-                    var rounded = raw.round;
-                    var oct = (rounded / 12).floor;
-                    var pc = rounded % 12;
-                    (oct * 12) + Select.kr(pc, scale_map);
-                };
-                
                 var q_mod1 = Select.kr(mod1_quant[dest_idx],[raw_mod1, quantize_fn.(raw_mod1)]);
                 var q_mod2 = Select.kr(mod2_quant[dest_idx],[raw_mod2, quantize_fn.(raw_mod2)]);
                 var q_mod3 = Select.kr(mod3_quant[dest_idx],[raw_mod3, quantize_fn.(raw_mod3)]);
@@ -301,12 +302,15 @@ Engine_Ltra : CroneEngine {
                 var m_pitch = calc_mod_pitch.(p_idx, arp_cvs[p_idx]);
                 var m_amp = calc_mod.(p_idx + 4, arp_cvs[p_idx]);
                 
-                // FIX: Quadratic Curve for Shape Modulation (Micro-resolution)
                 var m_shape_raw = calc_mod.(p_idx + 8, arp_cvs[p_idx]);
                 var m_shape = m_shape_raw.sign * m_shape_raw.squared;
                 
                 var mpe_bend_off = ((mpe_bends[i] - 8192) / 8192.0) * mpe_bend_range / 12.0;
-                var midi_off = (midi_notes[i] - 60) / 12.0;
+                
+                // FIX: MIDI Note Quantization
+                var raw_midi_off = midi_notes[i] - 60;
+                var q_midi_off = Select.kr(quant_midi[p_idx],[raw_midi_off, quantize_fn.(raw_midi_off)]);
+                var midi_off = q_midi_off / 12.0;
                 
                 var vel_bip = ((midi_vels[i] - 64) / 63.0).lincurve(-1.0, 1.0, -1.0, 1.0, vel_curve);
                 var slide_n = Lag.kr(slides[i] / 127.0, mpe_lag).lincurve(0.0, 1.0, 0.0, 1.0, slide_curve);
