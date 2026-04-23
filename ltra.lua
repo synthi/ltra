@@ -1,5 +1,5 @@
--- ltra.lua | v2.4.0
--- FIX: Sync Watcher loops 4 LFOs
+-- ltra.lua | v2.7.0
+-- FIX: Cleanup Gesture Looper Clocks
 
 engine.name = 'Ltra'
 
@@ -37,7 +37,7 @@ function osc.event(path, args, from)
 end
 
 function init()
-    print("LTRA: Initializing v2.4.0 (LFO 4 & Quadratic Matrix Update)...")
+    print("LTRA: Initializing v2.7.0 (Performance Generative Update)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
@@ -119,7 +119,6 @@ function init()
                 Bridge.set_param(name.."_rate", hz)
             end
         end
-        -- FIX: Loop 4 LFOs
         for i=1, 4 do
             update_sync("mod"..i.."_lfo")
             update_sync("mod"..i.."_chaos")
@@ -148,5 +147,15 @@ function cleanup()
     Arp.stop()
     Midi16n.stop()
     MidiIn.stop() 
+    
+    -- FIX: Cancel Gesture Looper Clocks
+    if g_state and g_state.gesture_loopers then
+        for i=1, 4 do
+            if g_state.gesture_loopers[i].clock then
+                clock.cancel(g_state.gesture_loopers[i].clock)
+            end
+        end
+    end
+    
     metro.free_all()
 end
