@@ -1,5 +1,5 @@
--- lib/ui.lua | v2.5.0
--- FIX: Dynamic Scale Name Display
+-- lib/ui.lua | v2.8.0
+-- FIX: Added BPM to ARP Page 2
 
 local UI = {}
 local Globals
@@ -120,6 +120,8 @@ local function draw_menu()
             screen.move(5,45); screen.text("E3 Chaos: "..string.format("%.2f", params:get("arp_chaos")))
         else
             screen.move(5,10); screen.text("ARP SETTINGS (2/2)")
+            -- FIX: Added BPM to E1
+            screen.move(5,25); screen.text("E1 BPM: "..string.format("%.1f", params:get("clock_tempo")))
             screen.move(5,35); screen.text("E2 Length: "..params:get("arp_length").." bits")
             screen.move(5,45); screen.text("E3 Octaves: "..params:get("arp_octaves"))
         end
@@ -244,7 +246,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v2.5.0")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v2.8.0")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
