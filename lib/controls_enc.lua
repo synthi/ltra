@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v2.4.0
--- FIX: Dynamic Acceleration (10x Resolution), LFO 4 Pages
+-- lib/controls_enc.lua | v2.8.0
+-- FIX: Added BPM Control to ARP Page 2
 
 local Enc = {}
 local Globals
@@ -100,12 +100,13 @@ function Enc.delta(n, d)
                     elseif n==2 then do_delta("arp_div", d)
                     elseif n==3 then do_delta("arp_chaos", d) end
                 else
-                    if n==2 then do_delta("arp_length", d)
+                    -- FIX: Added BPM Control
+                    if n==1 then params:delta("clock_tempo", d)
+                    elseif n==2 then do_delta("arp_length", d)
                     elseif n==3 then do_delta("arp_octaves", d) end
                 end
                 
             elseif m == Consts.MENU.OUTLINE then
-                -- FIX: Outline Follower Hybrid LFO 4 Pages
                 if Globals.outline_menu_page == 1 then
                     if n==2 then do_delta("outline_src", d)
                     elseif n==3 then do_delta("outline_gain", d) end
