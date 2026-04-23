@@ -1,5 +1,5 @@
--- lib/ui.lua | v2.8.0
--- FIX: Added BPM to ARP Page 2
+-- lib/ui.lua | v2.8.2
+-- FIX: Added MIDI Quantization to OSC Page 3
 
 local UI = {}
 local Globals
@@ -52,6 +52,9 @@ local function draw_menu()
             screen.move(5,45); screen.text("E3 Spread: "..string.format("%.2f", params:get("osc"..t.."_spread")))
         else
             screen.move(5,10); screen.text("OSC "..t_str.." EDIT (3/3)")
+            -- FIX: Added MIDI Quantization to E1
+            local q_str = params:get("osc"..t.."_quant_midi") == 1 and "ON" or "OFF"
+            screen.move(5,25); screen.text("E1 Quant MIDI: "..q_str)
             screen.move(5,35); screen.text("E2 Glide: "..string.format("%.3fs", params:get("osc"..t.."_glide")))
         end
         local arp_state = params:get("osc"..t.."_arp") == 1 and "ON" or "OFF"
@@ -120,7 +123,6 @@ local function draw_menu()
             screen.move(5,45); screen.text("E3 Chaos: "..string.format("%.2f", params:get("arp_chaos")))
         else
             screen.move(5,10); screen.text("ARP SETTINGS (2/2)")
-            -- FIX: Added BPM to E1
             screen.move(5,25); screen.text("E1 BPM: "..string.format("%.1f", params:get("clock_tempo")))
             screen.move(5,35); screen.text("E2 Length: "..params:get("arp_length").." bits")
             screen.move(5,45); screen.text("E3 Octaves: "..params:get("arp_octaves"))
@@ -246,7 +248,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v2.8.0")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v2.8.2")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
