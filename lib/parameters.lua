@@ -1,5 +1,5 @@
--- lib/parameters.lua | v2.6.0
--- FIX: Scale Index expanded to 48 (32 Predefined + 16 Custom)
+-- lib/parameters.lua | v2.8.2
+-- FIX: Added MIDI Quantization Toggle
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,7 +9,7 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v2.6.0")
+    params:add_separator("LTRA v2.8.2")
     
     params:add_group("GLOBAL", 6)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0,1))
@@ -26,7 +26,6 @@ function Params.init(g_ref)
     params:set_action("outline_gain", function(x) Bridge.set_param("outline_gain", x) end)
     
     params:add_group("SCALES & TUNING", 2)
-    -- FIX: 48 Total Scales (18 TET + 14 JI + 16 Custom)
     params:add_number("scale_idx", "Scale", 1, 48, 1)
     params:set_action("scale_idx", function(x) 
         if Globals then Globals.scale.current_idx = x; Globals.dirty=true; if Globals.loaded then Scales.update_all_voices() end end 
@@ -58,7 +57,7 @@ function Params.init(g_ref)
     local midi_ch_options = {"1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","OMNI","MPE"}
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 23) 
+        params:add_group("VOICE "..i, 24) -- FIX: Increased for quant_midi
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -109,6 +108,10 @@ function Params.init(g_ref)
         params:set_action("osc"..i.."_midi_note", function(x) if x == 0 then Bridge.set_midi_note(i, 60) end end)
         params:add_option("osc"..i.."_midi_ch", "MIDI Channel", midi_ch_options, 17)
         params:add_binary("osc"..i.."_twin_enable", "Voice x2 (Twin)", "toggle", 0)
+        
+        -- FIX: MIDI Quantization Toggle
+        params:add_binary("osc"..i.."_quant_midi", "Quantize MIDI", "toggle", 0)
+        params:set_action("osc"..i.."_quant_midi", function(x) engine.set_engine_param("quant_midi"..(i-1), x) end)
         
         params:add_control("osc"..i.."_vel_vol", "Vel to Vol", controlspec.new(0,1,"lin",0,0.0))
         params:set_action("osc"..i.."_vel_vol", function(x) Bridge.set_param("vel_amt"..i, x) end)
@@ -221,7 +224,6 @@ function Params.init(g_ref)
     params:add_control("blossomverb_mod_depth", "Rev Mod Depth", controlspec.new(0.0,0.002,"lin",0,0.002))
     params:set_action("blossomverb_mod_depth", function(x) Bridge.set_param("blossomverb_mod_depth", x) end)
 
-    -- RESTORED BLOCK: LOOPERS
     params:add_group("LOOPERS", 15)
     for i=1, 3 do
         params:add_control("looper"..i.."_vol", "L"..i.." Vol", controlspec.new(0,1,"lin",0,1.0))
@@ -235,7 +237,6 @@ function Params.init(g_ref)
         params:add_control("looper"..i.."_fade", "L"..i.." Fade", controlspec.new(0,16,"lin",0.1,0))
     end
 
-    -- APPENDED BLOCK: MOD MATRIX
     params:add_group("MOD MATRIX (HIDDEN)", 160)
     for s_name, s_idx in pairs(Consts.SOURCES) do
         for d_name, d_idx in pairs(Consts.DESTINATIONS) do
