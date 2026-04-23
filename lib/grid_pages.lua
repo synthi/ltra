@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v2.6.0
--- FIX: 3-Row Grid Layout for 48 Scales
+-- lib/grid_pages.lua | v2.7.1
+-- FIX: Gesture Looper Event Filter (Row 8 Triggers/Latch/Sustain) & Virtual Button State
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -138,9 +138,69 @@ local function draw_loopers()
     end
 end
 
+function Pages.start_gesture_clock(idx)
+    local l = Globals.gesture_loopers[idx]
+    if l.clock then clock.cancel(l.clock) end
+    l.clock = clock.run(function()
+        local last_time = util.time()
+        while true do
+            clock.sleep(0.01)
+            local now = util.time()
+            if l.state == 2 or l.state == 4 then
+                local t1 = (last_time - l.start_time) % l.duration
+                local t2 = (now - l.start_time) % l.duration
+                for _, ev in ipairs(l.data) do
+                    local triggered = false
+                    if t1 < t2 then
+                        triggered = (ev.dt >= t1 and ev.dt < t2)
+                    else
+                        triggered = (ev.dt >= t1 or ev.dt < t2)
+                    end
+                    if triggered then
+                        Pages.key(ev.x, ev.y, ev.z, ev.p)
+                    end
+                end
+            end
+            last_time = now
+        end
+    end)
+end
+
+-- FIX: Corrected Event Masking Filter
+local function record_event(x, y, z, p)
+    local is_valid = false
+    
+    -- Global Nav Bar (Row 8)
+    if y == 8 then
+        if x >= 1 and x <= 4 then is_valid = true end -- Triggers
+        if x == 5 then is_valid = true end -- Latch
+        if x == 16 then is_valid = true end -- Sustain (Shift)
+    end
+    
+    if p == 1 then
+        if y == 7 and x >= 6 and x <= 11 then is_valid = true end -- Snapshots
+        if y >= 1 and y <= 4 and x >= 1 and x <= 16 then is_valid = true end -- Matrix
+    elseif p == 2 then
+        if y >= 1 and y <= 3 and x >= 1 and x <= 16 then is_valid = true end -- Scales
+    end
+    
+    if is_valid then
+        local now = util.time()
+        for i=1, 4 do
+            local l = Globals.gesture_loopers[i]
+            if l.state == 1 or l.state == 4 then
+                local dt = (now - l.start_time) % (l.duration > 0 and l.duration or 9999)
+                table.insert(l.data, {dt=dt, x=x, y=y, z=z, p=p})
+            end
+        end
+    end
+end
+
 function Pages.redraw()
     if not HW then return end
     check_hold_single()
+    
+    local now = util.time()
     
     if Globals.page == 1 then
         Matrix.draw(HW, led_safe)
@@ -191,23 +251,18 @@ function Pages.redraw()
         
         draw_snapshots() 
         draw_loopers()
+        
+        for i=1, 4 do
+            local x = i + 12
+            local b = Globals.snap_masks[i] and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
+            led_safe(x, 7, b)
+        end
     end
     
     if Globals.page == 2 then
         local num_predefined = #Consts.SCALES_A + #Consts.SCALES_B
-        
-        -- Row 1: TET Scales (1-16)
-        for x=1, 16 do 
-            led_safe(x, 1, (Globals.scale.current_idx == x) and 11 or 2) 
-        end
-        
-        -- FIX: Row 2: Remaining TET + JI Scales (17-32)
-        for x=1, 16 do 
-            local s_idx = x + 16
-            led_safe(x, 2, (Globals.scale.current_idx == s_idx) and 11 or 2) 
-        end
-        
-        -- Row 3: Custom Scales (33-48)
+        for x=1, 16 do led_safe(x, 1, (Globals.scale.current_idx == x) and 11 or 2) end
+        for x=1, 16 do local s_idx = x + 16; led_safe(x, 2, (Globals.scale.current_idx == s_idx) and 11 or 2) end
         for x=1, 16 do
             local s_idx = x + num_predefined
             local is_mod = Globals.scale.custom_slots[x] and Globals.scale.custom_slots[x].modified
@@ -233,14 +288,82 @@ function Pages.redraw()
         led_safe(Globals.scale.root_note + 2, 6, 11)
     end
     
+    if Globals.page == 1 or Globals.page == 2 then
+        local pulse_rec = math.floor(util.linlin(-1, 1, 4, 11, math.sin(now * 8)))
+        local pulse_dub = math.floor(util.linlin(-1, 1, 2, 8, math.sin(now * 4)))
+        for i=1, 4 do
+            local x = i + 12
+            local l = Globals.gesture_loopers[i]
+            local b = Consts.BRIGHT.BG_NAV
+            if l.state == 1 then b = pulse_rec
+            elseif l.state == 2 then b = Consts.BRIGHT.VAL_HIGH
+            elseif l.state == 3 then b = Consts.BRIGHT.VAL_MED
+            elseif l.state == 4 then b = pulse_dub end
+            led_safe(x, 5, b)
+        end
+    end
+    
     draw_nav_bar()
 end
 
-function Pages.key(x, y, z)
-    if z==1 then Globals.grid_timers[x][y] = util.time() end
+function Pages.key(x, y, z, simulated_page)
+    local p = simulated_page or Globals.page
+    local is_physical = (simulated_page == nil)
+    
+    if is_physical then
+        if z==1 then Globals.grid_timers[x][y] = util.time() end
+        record_event(x, y, z, p)
+    else
+        -- FIX: Update virtual button state for ghost playback
+        Globals.button_state[x][y] = (z==1)
+    end
+    
     local shift = Globals.button_state[16] and Globals.button_state[16][8]
     
-    if Globals.page == 1 and y >= 5 and y <= 7 and x >= 1 and x <= 4 then
+    if (p == 1 or p == 2) and y == 5 and x >= 13 and x <= 16 then
+        if not is_physical then return end 
+        local idx = x - 12
+        local l = Globals.gesture_loopers[idx]
+        
+        if z == 1 then
+            Globals.grid_timers[x][y] = util.time()
+        elseif z == 0 then
+            local hold_time = util.time() - Globals.grid_timers[x][y]
+            if shift or hold_time > 1.0 then
+                l.state = 0; l.data = {}; l.duration = 0
+                if l.clock then clock.cancel(l.clock); l.clock = nil end
+            else
+                local now = util.time()
+                local is_double = (now - (Globals.gesture_last_tap[idx] or 0)) < 0.3
+                Globals.gesture_last_tap[idx] = now
+                
+                if l.state == 0 then
+                    l.state = 1; l.start_time = now; l.data = {}
+                elseif l.state == 1 then
+                    l.duration = now - l.start_time; l.state = 2; Pages.start_gesture_clock(idx)
+                elseif l.state == 2 then
+                    if is_double then l.state = 4 else l.state = 3 end
+                elseif l.state == 3 then
+                    if is_double then l.state = 4 else l.state = 2 end
+                elseif l.state == 4 then
+                    l.state = 2
+                end
+            end
+            Globals.dirty = true
+        end
+        return
+    end
+    
+    if p == 1 and y == 7 and x >= 13 and x <= 16 then
+        if z == 1 and is_physical then
+            local idx = x - 12
+            Globals.snap_masks[idx] = not Globals.snap_masks[idx]
+            Globals.dirty = true
+        end
+        return
+    end
+    
+    if p == 1 and y >= 5 and y <= 7 and x >= 1 and x <= 4 then
         if z == 1 then
             if not Globals.multi_sel.active then
                 Globals.multi_sel.active = true
@@ -387,7 +510,7 @@ function Pages.key(x, y, z)
         end
     end
     
-    if Globals.page == 1 then
+    if p == 1 then
         if y <= 4 then 
             if z == 0 then
                 local press_time = Globals.grid_timers[x][y] or 0
@@ -452,13 +575,12 @@ function Pages.key(x, y, z)
         end
     end
     
-    if Globals.page == 2 then
+    if p == 2 then
         local num_predefined = #Consts.SCALES_A + #Consts.SCALES_B
         if y == 1 and z == 1 then 
             params:set("scale_idx", x)
         end
-        -- FIX: Row 2 now handles 16 scales (17-32)
-        if y == 2 and z == 1 then 
+        if y == 2 and z == 1 and x <= 16 then 
             params:set("scale_idx", x + 16)
         end
         if y == 3 and z == 1 then
