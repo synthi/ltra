@@ -1,5 +1,5 @@
--- ltra.lua | v2.7.0
--- FIX: Cleanup Gesture Looper Clocks
+-- ltra.lua | v2.8.1
+-- FIX: Scale Initialization Bug (State Bleed on Boot)
 
 engine.name = 'Ltra'
 
@@ -26,9 +26,10 @@ function osc.event(path, args, from)
     if path == "/ltra/ready" then
         if not g_state.engine_ready then
             g_state.engine_ready = true
+            g_state.loaded = true -- FIX: Set loaded BEFORE bang so actions execute
             params:bang()
-            g_state.loaded = true
             Midi16n.sync_faders() 
+            Scales.update_all_voices() -- FIX: Force scale map to SC on init
             g_state.dirty = true
             print("LTRA: Engine Ready. Handshake complete.")
         end
@@ -37,7 +38,7 @@ function osc.event(path, args, from)
 end
 
 function init()
-    print("LTRA: Initializing v2.7.0 (Performance Generative Update)...")
+    print("LTRA: Initializing v2.8.1 (Phase Wave Elite Update)...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
@@ -148,7 +149,6 @@ function cleanup()
     Midi16n.stop()
     MidiIn.stop() 
     
-    -- FIX: Cancel Gesture Looper Clocks
     if g_state and g_state.gesture_loopers then
         for i=1, 4 do
             if g_state.gesture_loopers[i].clock then
