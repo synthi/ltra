@@ -1,5 +1,5 @@
--- lib/storage.lua | v2.7.0
--- FIX: Snapshot Parameter Locks (Masking Logic)
+-- lib/storage.lua | v2.8.0
+-- FIX: Zero-Waste Asynchronous I/O, Gesture Looper Serialization
 
 local Storage = {}
 local Globals
@@ -21,26 +21,46 @@ end
 function Storage.save_sidecar(pset_number)
     print("LTRA: Saving Sidecar Data for PSET " .. pset_number)
     
+    -- FIX: Extract pure data from Gesture Loopers (No Coroutines)
+    local safe_gestures = {}
+    for i=1, 4 do
+        local l = Globals.gesture_loopers[i]
+        safe_gestures[i] = { data = l.data, duration = l.duration }
+    end
+    
     local data = {
         custom_scales = Globals.scale.custom_slots,
         snapshots = Globals.snapshots,
-        matrix_quant = Globals.matrix_quant
+        matrix_quant = Globals.matrix_quant,
+        gesture_loopers = safe_gestures
     }
     
     local data_path = _path.data .. "ltra/pset_" .. pset_number .. ".data"
     tab.save(data, data_path)
     
-    local timestamp = os.date("%Y%m%d_%H%M%S")
-    for i=1, 3 do
-        local audio_path_L = _path.audio .. "ltra/snapshots/pset_" .. pset_number .. "_trk_" .. i .. "_L_" .. timestamp .. ".wav"
-        local audio_path_R = _path.audio .. "ltra/snapshots/pset_" .. pset_number .. "_trk_" .. i .. "_R_" .. timestamp .. ".wav"
-        local start_pos = (i-1) * 115
-        
-        softcut.buffer_write_mono(audio_path_L, start_pos, 110, 1)
-        softcut.buffer_write_mono(audio_path_R, start_pos, 110, 2)
-    end
-    
-    print("LTRA: Save Complete.")
+    -- FIX: Asynchronous Zero-Waste Audio Saving
+    clock.run(function()
+        local timestamp = os.date("%Y%m%d_%H%M%S")
+        for i=1, 3 do
+            local l_state = Globals.loopers[i].state
+            if l_state ~= 0 then -- Only save if looper has audio
+                local start_pos = Globals.loopers[i].start_pos
+                local end_pos = Globals.loopers[i].end_pos
+                local duration = end_pos - start_pos
+                
+                if duration > 0.1 then
+                    local audio_path_L = _path.audio .. "ltra/snapshots/pset_" .. pset_number .. "_trk_" .. i .. "_L_" .. timestamp .. ".wav"
+                    local audio_path_R = _path.audio .. "ltra/snapshots/pset_" .. pset_number .. "_trk_" .. i .. "_R_" .. timestamp .. ".wav"
+                    
+                    softcut.buffer_write_mono(audio_path_L, start_pos, duration, 1)
+                    clock.sleep(0.1) -- I/O Bus Breathing Room
+                    softcut.buffer_write_mono(audio_path_R, start_pos, duration, 2)
+                    clock.sleep(0.1)
+                end
+            end
+        end
+        print("LTRA: Asynchronous Audio Save Complete.")
+    end)
 end
 
 function Storage.load_sidecar(pset_number)
@@ -77,6 +97,23 @@ function Storage.load_sidecar(pset_number)
                     for d=1, 16 do 
                         Globals.matrix_quant[s][d] = 1 
                     end 
+                end
+            end
+            
+            -- FIX: Restore Gesture Loopers in STOP state
+            if data.gesture_loopers then
+                for i=1, 4 do
+                    local saved_l = data.gesture_loopers[i]
+                    local l = Globals.gesture_loopers[i]
+                    if saved_l and saved_l.data and #saved_l.data > 0 then
+                        l.data = saved_l.data
+                        l.duration = saved_l.duration
+                        l.state = 3 -- Force STOP state
+                        if l.clock then clock.cancel(l.clock); l.clock = nil end
+                    else
+                        l.state = 0; l.data = {}; l.duration = 0
+                        if l.clock then clock.cancel(l.clock); l.clock = nil end
+                    end
                 end
             end
         end
@@ -116,11 +153,9 @@ function Storage.save_snapshot(slot)
     print("LTRA: Snapshot "..slot.." saved to RAM.")
 end
 
--- FIX: Snapshot Masking Logic
 local function should_ignore(id)
     local m = Globals.snap_masks
     
-    -- The Sacred Core: Always load Pitch and Matrix
     if id:match("^osc%d_pitch$") or id:match("^osc%d_octave$") or id:match("^mat_") or id:match("^quant_") then 
         return false 
     end
@@ -133,7 +168,6 @@ local function should_ignore(id)
     if m[2] and is_shape_vol then return true end
     if m[3] and is_space_tune then return true end
     
-    -- Mask 16: Everything Else
     if m[4] and not is_filter and not is_shape_vol and not is_space_tune then 
         return true 
     end
