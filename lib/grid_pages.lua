@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v2.7.1
--- FIX: Gesture Looper Event Filter (Row 8 Triggers/Latch/Sustain) & Virtual Button State
+-- lib/grid_pages.lua | v2.8.0
+-- FIX: Dynamic ARP Button Brightness
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -40,7 +40,14 @@ local function draw_nav_bar()
     end
     local latch_b = Globals.latch_mode and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
     led_safe(5, y, latch_b)
-    led_safe(12, y, Consts.BRIGHT.BG_NAV)
+    
+    -- FIX: Dynamic ARP Button Brightness
+    local arp_b = Consts.BRIGHT.BG_NAV
+    if Globals.menu_mode == Consts.MENU.ARP then
+        if Globals.arp_menu_page == 1 then arp_b = Consts.BRIGHT.VAL_MED
+        elseif Globals.arp_menu_page == 2 then arp_b = Consts.BRIGHT.VAL_HIGH end
+    end
+    led_safe(12, y, arp_b)
     
     local page_map = {[13]=1,[14]=2}
     for x=13, 14 do
@@ -166,22 +173,20 @@ function Pages.start_gesture_clock(idx)
     end)
 end
 
--- FIX: Corrected Event Masking Filter
 local function record_event(x, y, z, p)
     local is_valid = false
     
-    -- Global Nav Bar (Row 8)
     if y == 8 then
-        if x >= 1 and x <= 4 then is_valid = true end -- Triggers
-        if x == 5 then is_valid = true end -- Latch
-        if x == 16 then is_valid = true end -- Sustain (Shift)
+        if x >= 1 and x <= 4 then is_valid = true end 
+        if x == 5 then is_valid = true end 
+        if x == 16 then is_valid = true end 
     end
     
     if p == 1 then
-        if y == 7 and x >= 6 and x <= 11 then is_valid = true end -- Snapshots
-        if y >= 1 and y <= 4 and x >= 1 and x <= 16 then is_valid = true end -- Matrix
+        if y == 7 and x >= 6 and x <= 11 then is_valid = true end 
+        if y >= 1 and y <= 4 and x >= 1 and x <= 16 then is_valid = true end 
     elseif p == 2 then
-        if y >= 1 and y <= 3 and x >= 1 and x <= 16 then is_valid = true end -- Scales
+        if y >= 1 and y <= 3 and x >= 1 and x <= 16 then is_valid = true end 
     end
     
     if is_valid then
@@ -314,7 +319,6 @@ function Pages.key(x, y, z, simulated_page)
         if z==1 then Globals.grid_timers[x][y] = util.time() end
         record_event(x, y, z, p)
     else
-        -- FIX: Update virtual button state for ghost playback
         Globals.button_state[x][y] = (z==1)
     end
     
