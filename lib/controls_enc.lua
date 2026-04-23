@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v2.8.0
--- FIX: Added BPM Control to ARP Page 2
+-- lib/controls_enc.lua | v2.8.2
+-- FIX: Bifurcated Routing (Global vs Targeted) to prevent Ghost Multipliers
 
 local Enc = {}
 local Globals
@@ -34,6 +34,74 @@ function Enc.delta(n, d)
     end
     
     if Globals.menu_mode ~= Consts.MENU.NONE then
+        local m = Globals.menu_mode
+        
+        -- FIX: GLOBAL MENUS (No loop, prevents Ghost Multiplier)
+        if m == Consts.MENU.ARP then
+            if Globals.arp_menu_page == 1 then
+                if n==1 then do_delta("arp_gate_len", d)
+                elseif n==2 then do_delta("arp_div", d)
+                elseif n==3 then do_delta("arp_chaos", d) end
+            else
+                if n==1 then params:delta("clock_tempo", d)
+                elseif n==2 then do_delta("arp_length", d)
+                elseif n==3 then do_delta("arp_octaves", d) end
+            end
+            return
+            
+        elseif m == Consts.MENU.OUTLINE then
+            if Globals.outline_menu_page == 1 then
+                if n==2 then do_delta("outline_src", d)
+                elseif n==3 then do_delta("outline_gain", d) end
+            elseif Globals.outline_menu_page == 2 then
+                if n==1 then do_delta("mod4_lfo_shape", d)
+                elseif n==2 then 
+                    if params:get("mod4_lfo_sync") == 1 then do_delta("mod4_lfo_div", d)
+                    else do_delta("mod4_lfo_rate", d) end
+                elseif n==3 then do_delta("mod4_depth", d) end
+            else
+                if n==1 then do_delta("mod4_chaos_slew", d)
+                elseif n==2 then 
+                    if params:get("mod4_chaos_sync") == 1 then do_delta("mod4_chaos_div", d)
+                    else do_delta("mod4_chaos_rate", d) end
+                elseif n==3 then do_delta("mod4_mix", d) end
+            end
+            return
+            
+        elseif m == Consts.MENU.DELAY then
+            if Globals.delay_menu_page == 1 then
+                if n==1 then do_delta("delay_send", d)
+                elseif n==2 then do_delta("tapecho_time", d)
+                elseif n==3 then do_delta("tapecho_feedback", d) end
+            else
+                if n==1 then do_delta("tapecho_drive", d)
+                elseif n==2 then do_delta("tapecho_erosion", d)
+                elseif n==3 then do_delta("tapecho_wow_flutter", d) end
+            end
+            return
+            
+        elseif m == Consts.MENU.REVERB then
+            if Globals.reverb_menu_page == 1 then
+                if n==1 then do_delta("reverb_mix", d)
+                elseif n==2 then do_delta("blossomverb_bloom", d)
+                elseif n==3 then do_delta("blossomverb_decay", d) end
+            elseif Globals.reverb_menu_page == 2 then
+                if n==2 then do_delta("blossomverb_predelay", d)
+                elseif n==3 then do_delta("blossomverb_damp", d) end
+            else
+                if n==2 then do_delta("blossomverb_mod_rate", d)
+                elseif n==3 then do_delta("blossomverb_mod_depth", d) end
+            end
+            return
+            
+        elseif m == Consts.MENU.LOOPER then 
+            if n==1 then do_delta("system_dirt", d)
+            elseif n==2 then do_delta("monitor_vol", d)
+            elseif n==3 then do_delta("master_vol", d) end
+            return
+        end
+        
+        -- FIX: TARGETED MENUS (Loop over selected voices)
         local targets = {Globals.menu_target}
         if type(Globals.menu_target) == "table" then
             if Globals.menu_target.src_name then
@@ -42,8 +110,6 @@ function Enc.delta(n, d)
                 targets = Globals.menu_target
             end
         end
-        
-        local m = Globals.menu_mode
         
         for _, t in ipairs(targets) do
             if m == Consts.MENU.OSC then
@@ -56,7 +122,11 @@ function Enc.delta(n, d)
                     elseif n==2 then do_delta("osc"..t.."_drift", d)
                     elseif n==3 then do_delta("osc"..t.."_spread", d) end
                 else
-                    if n==2 then do_delta("osc"..t.."_glide", d) end
+                    -- FIX: Added MIDI Quantization to E1
+                    if n==1 then 
+                        local curr = params:get("osc"..t.."_quant_midi")
+                        params:set("osc"..t.."_quant_midi", 1-curr)
+                    elseif n==2 then do_delta("osc"..t.."_glide", d) end
                 end
                 
             elseif m == Consts.MENU.ENV then
@@ -94,69 +164,10 @@ function Enc.delta(n, d)
                     elseif n==3 then do_delta("mod"..t.."_mix", d) end
                 end
                 
-            elseif m == Consts.MENU.ARP then
-                if Globals.arp_menu_page == 1 then
-                    if n==1 then do_delta("arp_gate_len", d)
-                    elseif n==2 then do_delta("arp_div", d)
-                    elseif n==3 then do_delta("arp_chaos", d) end
-                else
-                    -- FIX: Added BPM Control
-                    if n==1 then params:delta("clock_tempo", d)
-                    elseif n==2 then do_delta("arp_length", d)
-                    elseif n==3 then do_delta("arp_octaves", d) end
-                end
-                
-            elseif m == Consts.MENU.OUTLINE then
-                if Globals.outline_menu_page == 1 then
-                    if n==2 then do_delta("outline_src", d)
-                    elseif n==3 then do_delta("outline_gain", d) end
-                elseif Globals.outline_menu_page == 2 then
-                    if n==1 then do_delta("mod4_lfo_shape", d)
-                    elseif n==2 then 
-                        if params:get("mod4_lfo_sync") == 1 then do_delta("mod4_lfo_div", d)
-                        else do_delta("mod4_lfo_rate", d) end
-                    elseif n==3 then do_delta("mod4_depth", d) end
-                else
-                    if n==1 then do_delta("mod4_chaos_slew", d)
-                    elseif n==2 then 
-                        if params:get("mod4_chaos_sync") == 1 then do_delta("mod4_chaos_div", d)
-                        else do_delta("mod4_chaos_rate", d) end
-                    elseif n==3 then do_delta("mod4_mix", d) end
-                end
-                
             elseif m == Consts.MENU.FILTER then
                 if n==1 then do_delta("filt"..t.."_drive", d)
                 elseif n==2 then do_delta("filt"..t.."_cutoff", d)
                 elseif n==3 then do_delta("filt"..t.."_res", d) end
-                
-            elseif m == Consts.MENU.DELAY then
-                if Globals.delay_menu_page == 1 then
-                    if n==1 then do_delta("delay_send", d)
-                    elseif n==2 then do_delta("tapecho_time", d)
-                    elseif n==3 then do_delta("tapecho_feedback", d) end
-                else
-                    if n==1 then do_delta("tapecho_drive", d)
-                    elseif n==2 then do_delta("tapecho_erosion", d)
-                    elseif n==3 then do_delta("tapecho_wow_flutter", d) end
-                end
-                
-            elseif m == Consts.MENU.REVERB then
-                if Globals.reverb_menu_page == 1 then
-                    if n==1 then do_delta("reverb_mix", d)
-                    elseif n==2 then do_delta("blossomverb_bloom", d)
-                    elseif n==3 then do_delta("blossomverb_decay", d) end
-                elseif Globals.reverb_menu_page == 2 then
-                    if n==2 then do_delta("blossomverb_predelay", d)
-                    elseif n==3 then do_delta("blossomverb_damp", d) end
-                else
-                    if n==2 then do_delta("blossomverb_mod_rate", d)
-                    elseif n==3 then do_delta("blossomverb_mod_depth", d) end
-                end
-                
-            elseif m == Consts.MENU.LOOPER then 
-                if n==1 then do_delta("system_dirt", d)
-                elseif n==2 then do_delta("monitor_vol", d)
-                elseif n==3 then do_delta("master_vol", d) end
                 
             elseif m == Consts.MENU.MATRIX then
                 local src_idx = Consts.SOURCES[t.src_name]
