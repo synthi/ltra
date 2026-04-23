@@ -1,5 +1,5 @@
--- lib/grid_pages.lua
--- FIX: Coordinate Conflict, Zero-Latency Audio Loopers, Ghost Timer Bug
+-- lib/grid_pages.lua | v2.8.1
+-- FIX: Snapshots available on Page 2
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -181,8 +181,12 @@ local function record_event(x, y, z, p)
         if x == 16 then is_valid = true end 
     end
     
-    if p == 1 then
+    -- FIX: Snapshots are now valid on both Page 1 and Page 2
+    if p == 1 or p == 2 then
         if y == 7 and x >= 6 and x <= 11 then is_valid = true end 
+    end
+    
+    if p == 1 then
         if y >= 1 and y <= 4 and x >= 1 and x <= 16 then is_valid = true end 
     elseif p == 2 then
         if y >= 1 and y <= 3 and x >= 1 and x <= 16 then is_valid = true end 
@@ -253,10 +257,8 @@ function Pages.redraw()
             led_safe(i, 7, b) 
         end
         
-        draw_snapshots() 
         draw_loopers()
         
-        -- FIX: Snapshot Masks moved to Row 5
         for i=1, 4 do
             local x = i + 12
             local b = Globals.snap_masks[i] and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
@@ -293,8 +295,10 @@ function Pages.redraw()
         led_safe(Globals.scale.root_note + 2, 6, 11)
     end
     
-    -- FIX: Gesture Loopers moved to Row 7
+    -- FIX: Snapshots and Gesture Loopers visible on both pages
     if Globals.page == 1 or Globals.page == 2 then
+        draw_snapshots()
+        
         local pulse_rec = math.floor(util.linlin(-1, 1, 4, 11, math.sin(now * 8)))
         local pulse_dub = math.floor(util.linlin(-1, 1, 2, 8, math.sin(now * 4)))
         for i=1, 4 do
@@ -321,13 +325,11 @@ function Pages.key(x, y, z, simulated_page)
         record_event(x, y, z, p)
     else
         Globals.button_state[x][y] = (z==1)
-        -- FIX: Update timer for ghost events to prevent destructive snapshot overwrites
         if z==1 then Globals.grid_timers[x][y] = util.time() end
     end
     
     local shift = Globals.button_state[16] and Globals.button_state[16][8]
     
-    -- FIX: Gesture Loopers moved to Row 7
     if (p == 1 or p == 2) and y == 7 and x >= 13 and x <= 16 then
         if not is_physical then return end 
         local idx = x - 12
@@ -362,7 +364,37 @@ function Pages.key(x, y, z, simulated_page)
         return
     end
     
-    -- FIX: Snapshot Masks moved to Row 5
+    -- FIX: Snapshots logic moved to shared block (Page 1 & 2)
+    if (p == 1 or p == 2) and y == 7 and x >= 6 and x <= 11 then
+        if z == 0 then
+            local snap_idx = x - 5
+            if shift then
+                Storage.delete_snapshot(snap_idx)
+                Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "DELETED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+            else
+                local press_time = Globals.grid_timers[x][y]
+                local duration = util.time() - press_time
+                local is_filled = (Globals.snapshots[snap_idx] ~= nil)
+
+                if duration >= 0.8 then
+                    if is_filled then
+                        Storage.save_snapshot(snap_idx)
+                        Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "UPDATED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+                    end
+                else
+                    if not is_filled then
+                        Storage.save_snapshot(snap_idx)
+                        Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "SAVED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+                    else
+                        Storage.load_snapshot(snap_idx)
+                        Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "LOADED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
+                    end
+                end
+            end
+        end
+        return
+    end
+    
     if p == 1 and y == 5 and x >= 13 and x <= 16 then
         if z == 1 and is_physical then
             local idx = x - 12
@@ -481,7 +513,6 @@ function Pages.key(x, y, z, simulated_page)
             return
         end
         
-        -- FIX: Zero-Latency Audio Loopers
         if x >= 8 and x <= 10 then
             local idx = x - 7
             if z == 1 then
@@ -539,34 +570,6 @@ function Pages.key(x, y, z, simulated_page)
                         Globals.ui_popup.val = string.format("%.2f %s", val, q_str)
                         Globals.ui_popup.deadline = util.time() + 1.5
                         Globals.dirty = true
-                    end
-                end
-            end
-        end
-        if y == 7 and x >= 6 and x <= 11 then
-            if z == 0 then
-                local snap_idx = x - 5
-                if shift then
-                    Storage.delete_snapshot(snap_idx)
-                    Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "DELETED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
-                else
-                    local press_time = Globals.grid_timers[x][y]
-                    local duration = util.time() - press_time
-                    local is_filled = (Globals.snapshots[snap_idx] ~= nil)
-
-                    if duration >= 0.8 then
-                        if is_filled then
-                            Storage.save_snapshot(snap_idx)
-                            Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "UPDATED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
-                        end
-                    else
-                        if not is_filled then
-                            Storage.save_snapshot(snap_idx)
-                            Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "SAVED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
-                        else
-                            Storage.load_snapshot(snap_idx)
-                            Globals.ui_popup.active = true; Globals.ui_popup.text = "SNAP "..snap_idx; Globals.ui_popup.val = "LOADED"; Globals.ui_popup.deadline = util.time() + 1.5; Globals.dirty = true
-                        end
                     end
                 end
             end
