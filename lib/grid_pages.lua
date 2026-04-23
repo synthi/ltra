@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v2.8.0
--- FIX: Dynamic ARP Button Brightness
+-- lib/grid_pages.lua
+-- FIX: Coordinate Conflict, Zero-Latency Audio Loopers, Ghost Timer Bug
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -41,7 +41,6 @@ local function draw_nav_bar()
     local latch_b = Globals.latch_mode and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
     led_safe(5, y, latch_b)
     
-    -- FIX: Dynamic ARP Button Brightness
     local arp_b = Consts.BRIGHT.BG_NAV
     if Globals.menu_mode == Consts.MENU.ARP then
         if Globals.arp_menu_page == 1 then arp_b = Consts.BRIGHT.VAL_MED
@@ -257,10 +256,11 @@ function Pages.redraw()
         draw_snapshots() 
         draw_loopers()
         
+        -- FIX: Snapshot Masks moved to Row 5
         for i=1, 4 do
             local x = i + 12
             local b = Globals.snap_masks[i] and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
-            led_safe(x, 7, b)
+            led_safe(x, 5, b)
         end
     end
     
@@ -293,6 +293,7 @@ function Pages.redraw()
         led_safe(Globals.scale.root_note + 2, 6, 11)
     end
     
+    -- FIX: Gesture Loopers moved to Row 7
     if Globals.page == 1 or Globals.page == 2 then
         local pulse_rec = math.floor(util.linlin(-1, 1, 4, 11, math.sin(now * 8)))
         local pulse_dub = math.floor(util.linlin(-1, 1, 2, 8, math.sin(now * 4)))
@@ -304,7 +305,7 @@ function Pages.redraw()
             elseif l.state == 2 then b = Consts.BRIGHT.VAL_HIGH
             elseif l.state == 3 then b = Consts.BRIGHT.VAL_MED
             elseif l.state == 4 then b = pulse_dub end
-            led_safe(x, 5, b)
+            led_safe(x, 7, b)
         end
     end
     
@@ -320,11 +321,14 @@ function Pages.key(x, y, z, simulated_page)
         record_event(x, y, z, p)
     else
         Globals.button_state[x][y] = (z==1)
+        -- FIX: Update timer for ghost events to prevent destructive snapshot overwrites
+        if z==1 then Globals.grid_timers[x][y] = util.time() end
     end
     
     local shift = Globals.button_state[16] and Globals.button_state[16][8]
     
-    if (p == 1 or p == 2) and y == 5 and x >= 13 and x <= 16 then
+    -- FIX: Gesture Loopers moved to Row 7
+    if (p == 1 or p == 2) and y == 7 and x >= 13 and x <= 16 then
         if not is_physical then return end 
         local idx = x - 12
         local l = Globals.gesture_loopers[idx]
@@ -358,7 +362,8 @@ function Pages.key(x, y, z, simulated_page)
         return
     end
     
-    if p == 1 and y == 7 and x >= 13 and x <= 16 then
+    -- FIX: Snapshot Masks moved to Row 5
+    if p == 1 and y == 5 and x >= 13 and x <= 16 then
         if z == 1 and is_physical then
             local idx = x - 12
             Globals.snap_masks[idx] = not Globals.snap_masks[idx]
@@ -476,6 +481,7 @@ function Pages.key(x, y, z, simulated_page)
             return
         end
         
+        -- FIX: Zero-Latency Audio Loopers
         if x >= 8 and x <= 10 then
             local idx = x - 7
             if z == 1 then
@@ -485,22 +491,10 @@ function Pages.key(x, y, z, simulated_page)
                 if duration > 0.6 then
                     Loopers.stop_looper(idx)
                 else
-                    local now = util.time()
-                    local last = Globals.looper_state.last_click_time[idx] or 0
-                    Globals.looper_state.last_click_time[idx] = now
-                    
-                    if (now - last) < 0.4 then
-                        if Globals.looper_state.defer_id[idx] then clock.cancel(Globals.looper_state.defer_id[idx]) end
+                    if shift then
                         Loopers.clear(idx)
                     else
-                        Globals.looper_state.defer_id[idx] = clock.run(function()
-                            clock.sleep(0.4)
-                            if shift then
-                                Loopers.clear(idx)
-                            else
-                                Loopers.handle_button(idx)
-                            end
-                        end)
+                        Loopers.handle_button(idx)
                     end
                 end
             end
