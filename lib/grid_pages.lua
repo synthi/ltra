@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v2.8.1
--- FIX: Snapshots available on Page 2
+-- lib/grid_pages.lua | v2.8.2
+-- FIX: Audio Loopers (Row 8) unified across Page 1 and Page 2
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -181,7 +181,6 @@ local function record_event(x, y, z, p)
         if x == 16 then is_valid = true end 
     end
     
-    -- FIX: Snapshots are now valid on both Page 1 and Page 2
     if p == 1 or p == 2 then
         if y == 7 and x >= 6 and x <= 11 then is_valid = true end 
     end
@@ -257,8 +256,6 @@ function Pages.redraw()
             led_safe(i, 7, b) 
         end
         
-        draw_loopers()
-        
         for i=1, 4 do
             local x = i + 12
             local b = Globals.snap_masks[i] and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
@@ -295,9 +292,10 @@ function Pages.redraw()
         led_safe(Globals.scale.root_note + 2, 6, 11)
     end
     
-    -- FIX: Snapshots and Gesture Loopers visible on both pages
+    -- FIX: Audio Loopers and Gesture Loopers visible on both pages
     if Globals.page == 1 or Globals.page == 2 then
         draw_snapshots()
+        draw_loopers()
         
         local pulse_rec = math.floor(util.linlin(-1, 1, 4, 11, math.sin(now * 8)))
         local pulse_dub = math.floor(util.linlin(-1, 1, 2, 8, math.sin(now * 4)))
@@ -364,7 +362,6 @@ function Pages.key(x, y, z, simulated_page)
         return
     end
     
-    -- FIX: Snapshots logic moved to shared block (Page 1 & 2)
     if (p == 1 or p == 2) and y == 7 and x >= 6 and x <= 11 then
         if z == 0 then
             local snap_idx = x - 5
@@ -513,6 +510,7 @@ function Pages.key(x, y, z, simulated_page)
             return
         end
         
+        -- FIX: Audio Loopers logic moved to shared block (Page 1 & 2)
         if x >= 8 and x <= 10 then
             local idx = x - 7
             if z == 1 then
