@@ -1,5 +1,5 @@
--- lib/storage.lua | v2.5.0
--- FIX: Safe Fallback for Custom Scales Initialization
+-- lib/storage.lua | v2.7.0
+-- FIX: Snapshot Parameter Locks (Masking Logic)
 
 local Storage = {}
 local Globals
@@ -116,6 +116,31 @@ function Storage.save_snapshot(slot)
     print("LTRA: Snapshot "..slot.." saved to RAM.")
 end
 
+-- FIX: Snapshot Masking Logic
+local function should_ignore(id)
+    local m = Globals.snap_masks
+    
+    -- The Sacred Core: Always load Pitch and Matrix
+    if id:match("^osc%d_pitch$") or id:match("^osc%d_octave$") or id:match("^mat_") or id:match("^quant_") then 
+        return false 
+    end
+    
+    local is_filter = id:match("^filt%d_")
+    local is_shape_vol = id:match("^osc%d_shape$") or id:match("^osc%d_vol$")
+    local is_space_tune = id:match("^scale_") or id:match("^tapecho_") or id:match("^blossomverb_") or id:match("^osc%d_tune$") or id == "delay_send" or id == "reverb_mix"
+    
+    if m[1] and is_filter then return true end
+    if m[2] and is_shape_vol then return true end
+    if m[3] and is_space_tune then return true end
+    
+    -- Mask 16: Everything Else
+    if m[4] and not is_filter and not is_shape_vol and not is_space_tune then 
+        return true 
+    end
+    
+    return false
+end
+
 function Storage.load_snapshot(slot)
     local snap = Globals.snapshots[slot]
     if not snap then return end
@@ -124,12 +149,14 @@ function Storage.load_snapshot(slot)
         if params.lookup[id] then
             local p = params.params[params.lookup[id]]
             if p.t ~= 4 then 
-                pcall(function() params:set(id, val) end)
+                if not should_ignore(id) then
+                    pcall(function() params:set(id, val) end)
+                end
             end
         end
     end
     
-    if snap.volatile then
+    if snap.volatile and not Globals.snap_masks[4] then
         Globals.latch_mode = snap.volatile.latch_mode
         for i=1, 4 do 
             Globals.voices[i].latched = snap.volatile.voices_latched[i]
