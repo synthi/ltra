@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v2.8.2
-// FIX: MIDI Note Quantization to Scale
+// lib/Engine_Ltra.sc | v2.8.3
+// FIX: MIDI Quantization Parameter Mismatch
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -116,8 +116,8 @@ Engine_Ltra : CroneEngine {
             var twin_enables = 4.collect { |i| NamedControl.kr("twin_enable" ++ (i+1), 0) };
             var midi_gates = 4.collect { |i| NamedControl.kr("midi_gate" ++ (i+1), 0) };
             
-            // FIX: MIDI Quantization Array
-            var quant_midi = \quant_midi.kr(0!4);
+            // FIX: Explicit NamedControls for MIDI Quantization
+            var quant_midi = 4.collect { |i| NamedControl.kr("quant_midi" ++ (i+1), 0) };
 
             var mod1_dest = \mod1_dest.kr(0!16);
             var mod2_dest = \mod2_dest.kr(0!16);
