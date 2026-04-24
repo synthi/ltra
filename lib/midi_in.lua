@@ -1,11 +1,12 @@
--- lib/midi_in.lua | v2.8.5
--- FIX: Lua-side Ratio Tracking for JI Scale Quantization
+-- lib/midi_in.lua | v2.9.0
+-- FIX: Absolute Frequency Distance Quantization (Fixes Wrap-Around and JI Bugs)
 
 local MidiIn = {}
 local Globals
 local Bridge = require 'ltra/lib/engine_bridge'
 local Scales = require 'ltra/lib/scales'
 local Consts = require 'ltra/lib/consts'
+local musicutil = require 'musicutil'
 
 function MidiIn.init(g_ref)
     Globals = g_ref
@@ -179,15 +180,15 @@ end
 function MidiIn.trigger_voice(v, note, vel, ch)
     local p_idx = ((v-1) % 4) + 1
     
-    -- FIX: Ratio Tracking for JI Scales
     local is_quantized = params:get("osc"..p_idx.."_quant_midi") == 1
     local base_note = 60
     local degree = note - base_note
     local ratio = 1.0
     
     if is_quantized then
-        local pc = degree % 12
-        local oct = math.floor(degree / 12)
+        -- FIX: Absolute Frequency Distance Quantization
+        local target_hz = musicutil.note_num_to_freq(note)
+        local base_hz = Scales.get_freq(0, 0)
         
         local idx = Globals.scale.current_idx
         local intervals = {}
@@ -197,23 +198,26 @@ function MidiIn.trigger_voice(v, note, vel, ch)
         else intervals = Globals.scale.custom_slots[idx - num_predefined].intervals end
         
         if not intervals or #intervals == 0 then intervals = {0} end
+        local len = #intervals
         
-        local nearest_val = intervals[1]
-        local min_d = 100
-        local degree_idx = 0
+        -- Generate a map of exact frequencies for 3 octaves below and above the played note
+        local oct_guess = math.floor(degree / 12)
+        local min_d = math.huge
+        local best_hz = base_hz
         
-        for i, n in ipairs(intervals) do
-            if math.abs(pc - n) < min_d then min_d = math.abs(pc - n); nearest_val = n; degree_idx = i - 1 end
-            if math.abs(pc - (n+12)) < min_d then min_d = math.abs(pc - (n+12)); nearest_val = n+12; degree_idx = i - 1 end
-            if math.abs(pc - (n-12)) < min_d then min_d = math.abs(pc - (n-12)); nearest_val = n-12; degree_idx = i - 1 end
+        for o = oct_guess - 3, oct_guess + 3 do
+            for i = 0, len - 1 do
+                local test_degree = (o * len) + i
+                local test_hz = Scales.get_freq(test_degree, 0)
+                local dist = math.abs(test_hz - target_hz)
+                if dist < min_d then
+                    min_d = dist
+                    best_hz = test_hz
+                end
+            end
         end
         
-        local len = #intervals
-        local final_degree = (oct * len) + degree_idx
-        
-        local hz = Scales.get_freq(final_degree, 0)
-        local base_hz = Scales.get_freq(0, 0)
-        ratio = hz / base_hz
+        ratio = best_hz / base_hz
     else
         ratio = 2 ^ (degree / 12.0)
     end
