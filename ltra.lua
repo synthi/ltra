@@ -1,4 +1,4 @@
--- ltra.lua | v2.8.1
+-- ltra.lua | v2.9.0
 -- FIX: Scale Initialization Bug (State Bleed on Boot)
 
 engine.name = 'Ltra'
