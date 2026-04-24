@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v2.8.2
--- FIX: Audio Loopers (Row 8) unified across Page 1 and Page 2
+-- lib/grid_pages.lua
+-- FIX: Added Scale Root (Page 2, Row 6) to Gesture Looper Event Mask
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -189,6 +189,8 @@ local function record_event(x, y, z, p)
         if y >= 1 and y <= 4 and x >= 1 and x <= 16 then is_valid = true end 
     elseif p == 2 then
         if y >= 1 and y <= 3 and x >= 1 and x <= 16 then is_valid = true end 
+        -- FIX: Added Scale Root to Event Mask
+        if y == 6 and x >= 3 and x <= 14 then is_valid = true end
     end
     
     if is_valid then
@@ -292,7 +294,6 @@ function Pages.redraw()
         led_safe(Globals.scale.root_note + 2, 6, 11)
     end
     
-    -- FIX: Audio Loopers and Gesture Loopers visible on both pages
     if Globals.page == 1 or Globals.page == 2 then
         draw_snapshots()
         draw_loopers()
@@ -510,7 +511,6 @@ function Pages.key(x, y, z, simulated_page)
             return
         end
         
-        -- FIX: Audio Loopers logic moved to shared block (Page 1 & 2)
         if x >= 8 and x <= 10 then
             local idx = x - 7
             if z == 1 then
