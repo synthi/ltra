@@ -1,4 +1,4 @@
--- lib/parameters.lua | v2.8.2
+-- lib/parameters.lua | v2.8.3
 -- FIX: Added MIDI Quantization Toggle
 
 local Params = {}
@@ -9,7 +9,7 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v2.8.2")
+    params:add_separator("LTRA v2.8.3")
     
     params:add_group("GLOBAL", 6)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0,1))
@@ -57,7 +57,7 @@ function Params.init(g_ref)
     local midi_ch_options = {"1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","OMNI","MPE"}
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 24) -- FIX: Increased for quant_midi
+        params:add_group("VOICE "..i, 24) 
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -109,9 +109,9 @@ function Params.init(g_ref)
         params:add_option("osc"..i.."_midi_ch", "MIDI Channel", midi_ch_options, 17)
         params:add_binary("osc"..i.."_twin_enable", "Voice x2 (Twin)", "toggle", 0)
         
-        -- FIX: MIDI Quantization Toggle
+        -- FIX: MIDI Quantization Toggle (Corrected Bridge Call)
         params:add_binary("osc"..i.."_quant_midi", "Quantize MIDI", "toggle", 0)
-        params:set_action("osc"..i.."_quant_midi", function(x) engine.set_engine_param("quant_midi"..(i-1), x) end)
+        params:set_action("osc"..i.."_quant_midi", function(x) Bridge.set_param("quant_midi"..i, x) end)
         
         params:add_control("osc"..i.."_vel_vol", "Vel to Vol", controlspec.new(0,1,"lin",0,0.0))
         params:set_action("osc"..i.."_vel_vol", function(x) Bridge.set_param("vel_amt"..i, x) end)
