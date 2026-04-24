@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v2.8.3
-// FIX: MIDI Quantization Parameter Mismatch
+// lib/Engine_Ltra.sc | v2.8.5
+// FIX: Reverted dangerous Out.ar(0) routing. Restored safe Norns bus routing.
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -90,7 +90,6 @@ Engine_Ltra : CroneEngine {
             
             var freqs = 8.collect { |i| NamedControl.kr("freq" ++ (i+1), 110) };
             var gates = 8.collect { |i| NamedControl.kr("gate" ++ (i+1), 0) };
-            var midi_notes = 8.collect { |i| NamedControl.kr("midi_note" ++ (i+1), 60) };
             var midi_vels = 8.collect { |i| NamedControl.kr("midi_vel" ++ (i+1), 64) };
             var mpe_bends = 8.collect { |i| NamedControl.kr("mpe_bend" ++ (i+1), 8192) };
             var slides = 8.collect { |i| NamedControl.kr("slide" ++ (i+1), 0) };
@@ -115,9 +114,6 @@ Engine_Ltra : CroneEngine {
             var mw_shps = 4.collect { |i| NamedControl.kr("mw_shp" ++ (i+1), 0) };
             var twin_enables = 4.collect { |i| NamedControl.kr("twin_enable" ++ (i+1), 0) };
             var midi_gates = 4.collect { |i| NamedControl.kr("midi_gate" ++ (i+1), 0) };
-            
-            // FIX: Explicit NamedControls for MIDI Quantization
-            var quant_midi = 4.collect { |i| NamedControl.kr("quant_midi" ++ (i+1), 0) };
 
             var mod1_dest = \mod1_dest.kr(0!16);
             var mod2_dest = \mod2_dest.kr(0!16);
@@ -156,7 +152,7 @@ Engine_Ltra : CroneEngine {
             var ap_l, ap_r, rev_filt_l, rev_filt_r, rev_out_l, rev_out_r;
             var decay_kr, bloom_kr, damp_kr, predelay_kr, mod_rate_kr, mod_depth_kr;
             var effects_out, sig_post, osc_trig;
-            var scale_map, mk_osc, calc_mod, calc_mod_pitch, quantize_fn;
+            var scale_map, mk_osc, calc_mod, calc_mod_pitch;
             var voices_out;
             
             var prime_combs_l = #[0.031229, 0.037270, 0.043979, 0.050354, 0.057270, 0.064770];
@@ -165,13 +161,6 @@ Engine_Ltra : CroneEngine {
             var prime_ap_r = #[0.011604, 0.031895];
 
             scale_map = 12.collect { |i| NamedControl.kr("scale_map_" ++ i, i) };
-
-            quantize_fn = { |raw|
-                var rounded = raw.round;
-                var oct = (rounded / 12).floor;
-                var pc = rounded % 12;
-                (oct * 12) + Select.kr(pc, scale_map);
-            };
 
             mk_osc = { |f, s| 
                 var shape_idx = s.clip(0, 10);
@@ -280,11 +269,11 @@ Engine_Ltra : CroneEngine {
                 var raw_outline = outline_sig * outline_dest[dest_idx] * 24.0;
                 var raw_arp = arp_val * arp_dest[dest_idx] * 24.0;
                 
-                var q_mod1 = Select.kr(mod1_quant[dest_idx],[raw_mod1, quantize_fn.(raw_mod1)]);
-                var q_mod2 = Select.kr(mod2_quant[dest_idx],[raw_mod2, quantize_fn.(raw_mod2)]);
-                var q_mod3 = Select.kr(mod3_quant[dest_idx],[raw_mod3, quantize_fn.(raw_mod3)]);
-                var q_outline = Select.kr(outline_quant[dest_idx],[raw_outline, quantize_fn.(raw_outline)]);
-                var q_arp = Select.kr(arp_quant[dest_idx],[raw_arp, quantize_fn.(raw_arp)]);
+                var q_mod1 = Select.kr(mod1_quant[dest_idx],[raw_mod1, raw_mod1.round]);
+                var q_mod2 = Select.kr(mod2_quant[dest_idx],[raw_mod2, raw_mod2.round]);
+                var q_mod3 = Select.kr(mod3_quant[dest_idx],[raw_mod3, raw_mod3.round]);
+                var q_outline = Select.kr(outline_quant[dest_idx],[raw_outline, raw_outline.round]);
+                var q_arp = Select.kr(arp_quant[dest_idx],[raw_arp, raw_arp.round]);
                 
                 (q_mod1 + q_mod2 + q_mod3 + q_outline + q_arp) / 12.0;
             };
@@ -307,11 +296,6 @@ Engine_Ltra : CroneEngine {
                 
                 var mpe_bend_off = ((mpe_bends[i] - 8192) / 8192.0) * mpe_bend_range / 12.0;
                 
-                // FIX: MIDI Note Quantization
-                var raw_midi_off = midi_notes[i] - 60;
-                var q_midi_off = Select.kr(quant_midi[p_idx],[raw_midi_off, quantize_fn.(raw_midi_off)]);
-                var midi_off = q_midi_off / 12.0;
-                
                 var vel_bip = ((midi_vels[i] - 64) / 63.0).lincurve(-1.0, 1.0, -1.0, 1.0, vel_curve);
                 var slide_n = Lag.kr(slides[i] / 127.0, mpe_lag).lincurve(0.0, 1.0, 0.0, 1.0, slide_curve);
                 var press_n = Lag.kr(presses[i] / 127.0, mpe_lag).lincurve(0.0, 1.0, 0.0, 1.0, press_curve);
@@ -320,10 +304,10 @@ Engine_Ltra : CroneEngine {
                 
                 var final_shape = (shapes[p_idx] + (m_shape*10) + (vel_bip * vel_shps[p_idx] * 10) + (slide_n * slide_shps[p_idx] * 10) + (press_n * press_shps[p_idx] * 10) + (mw_norm * mw_shps[p_idx] * 10)).clip(0, 10);
                 
-                var final_atk = (env_atks[p_idx] + (vel_bip * vel_atks[p_idx] * 5.0)).clip(0.001, 10.0);
+                var final_atk = (env_atks[p_idx] + (vel_bip * vel_atks[p_idx] * 5.0)).clip(0.001, 11.0);
                 
                 var env = EnvGen.kr(Env.asr(final_atk, 1.0, env_rels[p_idx]), gates[i]);
-                var osc = mk_osc.(s_freq * (2.pow(m_pitch + d_sig + bend_offset + mpe_bend_off + midi_off)), final_shape) * vca * env;
+                var osc = mk_osc.(s_freq * (2.pow(m_pitch + d_sig + bend_offset + mpe_bend_off)), final_shape) * vca * env;
                 
                 var pan_val = pans[p_idx] * (i >= 4).if(-1.0, 1.0);
                 Pan2.ar(osc, pan_val.clip(-1,1));
@@ -436,6 +420,7 @@ Engine_Ltra : CroneEngine {
             
             sig_post = Limiter.ar(effects_out, 0.98);
 
+            // FIX: Safe Norns Bus Routing
             Out.ar(out, sig_post);
 
             osc_trig = Impulse.kr(15);
