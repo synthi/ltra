@@ -1,5 +1,5 @@
--- lib/controls_key.lua | v2.4.0
--- FIX: LFO 4 (Outline Hybrid) Pages
+-- lib/controls_key.lua | v2.9.0
+-- FIX: MIDI ON/OFF to K2, Quantize to K3 in ENV Menu
 
 local Keys = {}
 local Globals
@@ -35,13 +35,22 @@ function Keys.event(n, z)
                 if Globals.osc_menu_page > 3 then Globals.osc_menu_page = 1 end
             end
             
-        elseif Globals.menu_mode == Consts.MENU.MIDI then
+        elseif Globals.menu_mode == Consts.MENU.ENV then
+            -- FIX: K2 = MIDI ON/OFF, K3 = MIDI QUANTIZE
             if n==2 then
                 for _, t in ipairs(targets) do
                     local curr = params:get("osc"..t.."_midi_note")
                     params:set("osc"..t.."_midi_note", 1-curr)
                 end
             elseif n==3 then
+                for _, t in ipairs(targets) do
+                    local curr = params:get("osc"..t.."_quant_midi")
+                    params:set("osc"..t.."_quant_midi", 1-curr)
+                end
+            end
+            
+        elseif Globals.menu_mode == Consts.MENU.MIDI then
+            if n==3 then
                 Globals.midi_menu_page = Globals.midi_menu_page + 1
                 if Globals.midi_menu_page > 3 then Globals.midi_menu_page = 1 end
             end
@@ -67,7 +76,6 @@ function Keys.event(n, z)
             end
             
         elseif Globals.menu_mode == Consts.MENU.OUTLINE then
-            -- FIX: Outline Follower Hybrid LFO 4 Pages
             if n==2 then
                 if Globals.outline_menu_page == 2 then
                     local curr = params:get("mod4_lfo_sync")
