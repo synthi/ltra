@@ -1,10 +1,11 @@
--- lib/midi_in.lua | v2.8.4
--- FIX: Lua-side MIDI Quantization for JI Scale Compatibility
+-- lib/midi_in.lua | v2.8.5
+-- FIX: Lua-side Ratio Tracking for JI Scale Quantization
 
 local MidiIn = {}
 local Globals
 local Bridge = require 'ltra/lib/engine_bridge'
 local Scales = require 'ltra/lib/scales'
+local Consts = require 'ltra/lib/consts'
 
 function MidiIn.init(g_ref)
     Globals = g_ref
@@ -178,36 +179,46 @@ end
 function MidiIn.trigger_voice(v, note, vel, ch)
     local p_idx = ((v-1) % 4) + 1
     
-    -- FIX: Lua-side MIDI Quantization (Supports JI Scales)
+    -- FIX: Ratio Tracking for JI Scales
     local is_quantized = params:get("osc"..p_idx.."_quant_midi") == 1
+    local base_note = 60
+    local degree = note - base_note
+    local ratio = 1.0
+    
     if is_quantized then
-        local oct = math.floor(note / 12)
-        local pc = note % 12
+        local pc = degree % 12
+        local oct = math.floor(degree / 12)
         
-        local active_notes = {}
-        for i=0, 11 do
-            if Scales.is_note_active(i) then table.insert(active_notes, i) end
-        end
-        if #active_notes == 0 then active_notes = {0} end
+        local idx = Globals.scale.current_idx
+        local intervals = {}
+        local num_predefined = #Consts.SCALES_A + #Consts.SCALES_B
+        if idx <= #Consts.SCALES_A then intervals = Consts.SCALES_A[idx].intervals
+        elseif idx <= num_predefined then intervals = Consts.SCALES_B[idx - #Consts.SCALES_A].intervals
+        else intervals = Globals.scale.custom_slots[idx - num_predefined].intervals end
         
-        local nearest_val = active_notes[1]
+        if not intervals or #intervals == 0 then intervals = {0} end
+        
+        local nearest_val = intervals[1]
         local min_d = 100
-        for _, n in ipairs(active_notes) do
-            if math.abs(pc - n) < min_d then min_d = math.abs(pc - n); nearest_val = n end
-            if math.abs(pc - (n+12)) < min_d then min_d = math.abs(pc - (n+12)); nearest_val = n+12 end
-            if math.abs(pc - (n-12)) < min_d then min_d = math.abs(pc - (n-12)); nearest_val = n-12 end
+        local degree_idx = 0
+        
+        for i, n in ipairs(intervals) do
+            if math.abs(pc - n) < min_d then min_d = math.abs(pc - n); nearest_val = n; degree_idx = i - 1 end
+            if math.abs(pc - (n+12)) < min_d then min_d = math.abs(pc - (n+12)); nearest_val = n+12; degree_idx = i - 1 end
+            if math.abs(pc - (n-12)) < min_d then min_d = math.abs(pc - (n-12)); nearest_val = n-12; degree_idx = i - 1 end
         end
         
-        local q_note = (oct * 12) + nearest_val
+        local len = #intervals
+        local final_degree = (oct * len) + degree_idx
         
-        -- Calculate exact Hz using Scales library (JI or TET)
-        local hz = Scales.get_freq(q_note, 0)
-        Bridge.set_freq(v, hz)
+        local hz = Scales.get_freq(final_degree, 0)
+        local base_hz = Scales.get_freq(0, 0)
+        ratio = hz / base_hz
     else
-        -- Unquantized: Send raw MIDI note offset to SC
-        Bridge.set_midi_note(v, note)
+        ratio = 2 ^ (degree / 12.0)
     end
     
+    Bridge.set_midi_ratio(v, ratio)
     Bridge.set_midi_vel(v, vel)
     Globals.midi_voice_vel[v] = vel 
     Globals.voices[v].mpe_channel = ch
