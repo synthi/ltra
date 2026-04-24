@@ -1,5 +1,5 @@
--- lib/ui.lua | v2.8.2
--- FIX: Added MIDI Quantization to OSC Page 3
+-- lib/ui.lua | v2.9.0
+-- FIX: ENV Menu (Row 7) unified across Page 1 & 2, MIDI ON/OFF to K2, Quantize to K3
 
 local UI = {}
 local Globals
@@ -52,9 +52,6 @@ local function draw_menu()
             screen.move(5,45); screen.text("E3 Spread: "..string.format("%.2f", params:get("osc"..t.."_spread")))
         else
             screen.move(5,10); screen.text("OSC "..t_str.." EDIT (3/3)")
-            -- FIX: Added MIDI Quantization to E1
-            local q_str = params:get("osc"..t.."_quant_midi") == 1 and "ON" or "OFF"
-            screen.move(5,25); screen.text("E1 Quant MIDI: "..q_str)
             screen.move(5,35); screen.text("E2 Glide: "..string.format("%.3fs", params:get("osc"..t.."_glide")))
         end
         local arp_state = params:get("osc"..t.."_arp") == 1 and "ON" or "OFF"
@@ -65,6 +62,11 @@ local function draw_menu()
         screen.move(5,25); screen.text("E1 Pan: "..string.format("%.2f", params:get("osc"..t.."_pan")))
         screen.move(5,35); screen.text("E2 Attack: "..string.format("%.3fs", params:get("env_atk"..t)))
         screen.move(5,45); screen.text("E3 Release: "..string.format("%.3fs", params:get("env_rel"..t)))
+        
+        -- FIX: MIDI ON/OFF and Quantize moved to ENV Menu
+        local midi_state = params:get("osc"..t.."_midi_note") == 1 and "ON" or "OFF"
+        local q_str = params:get("osc"..t.."_quant_midi") == 1 and "ON" or "OFF"
+        screen.move(5,58); screen.text("K2: MIDI["..midi_state.."] K3: QUANT["..q_str.."]")
         
     elseif mode == Consts.MENU.MIDI then
         if Globals.midi_menu_page == 1 then
@@ -83,8 +85,7 @@ local function draw_menu()
             screen.move(5,35); screen.text("E2 Prs>Vol: "..string.format("%+.0f%%", params:get("osc"..t.."_press_vol") * 100))
             screen.move(5,45); screen.text("E3 Prs>Shp: "..string.format("%+.0f%%", params:get("osc"..t.."_press_shp") * 100))
         end
-        local midi_state = params:get("osc"..t.."_midi_note") == 1 and "ON" or "OFF"
-        screen.move(5,58); screen.text("K2: MIDI["..midi_state.."]  K3: PAGE")
+        screen.move(5,58); screen.text("K3: PAGE")
         
     elseif mode == Consts.MENU.MOD then
         if Globals.mod_menu_page == 1 then
@@ -248,7 +249,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v2.8.2")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v2.9.0")
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 
