@@ -1,5 +1,5 @@
--- lib/engine_bridge.lua | v2.1.5
--- FIX: Added set_midi_gate for Voice Doubling
+-- lib/engine_bridge.lua | v2.8.5
+-- FIX: Added set_midi_ratio
 
 local Bridge = {}
 local Globals
@@ -50,7 +50,6 @@ function Bridge.set_gate(idx, val) engine.set_engine_param("gate"..idx, val) end
 function Bridge.set_midi_gate(idx, val) engine.set_engine_param("midi_gate"..idx, val) end
 function Bridge.reset_lfo() engine.set_engine_param("t_reset", 1) end
 
-function Bridge.set_midi_note(idx, note) engine.set_engine_param("midi_note"..idx, note) end
 function Bridge.set_midi_vel(idx, vel) engine.set_engine_param("midi_vel"..idx, vel) end
 function Bridge.set_mod_wheel(val) engine.set_engine_param("mod_wheel", val) end
 function Bridge.set_pitch_bend(val) engine.set_engine_param("pitch_bend", val) end
@@ -58,6 +57,9 @@ function Bridge.set_pitch_bend(val) engine.set_engine_param("pitch_bend", val) e
 function Bridge.set_mpe_bend(idx, val) engine.set_engine_param("mpe_bend"..idx, val) end
 function Bridge.set_mpe_slide(idx, val) engine.set_engine_param("slide"..idx, val) end
 function Bridge.set_mpe_press(idx, val) engine.set_engine_param("press"..idx, val) end
+
+-- FIX: Ratio Tracking for JI Scales
+function Bridge.set_midi_ratio(idx, ratio) engine.set_engine_param("midi_ratio"..idx, ratio) end
 
 function Bridge.set_matrix(src_idx, dest_idx, val)
     engine.set_matrix(src_idx, dest_idx, val)
