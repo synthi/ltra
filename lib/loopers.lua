@@ -1,5 +1,5 @@
--- lib/loopers.lua | v2.0.0
--- FIX: 3 Stereo Loopers, 110s Buffer Allocation, Bidirectional Fades
+-- lib/loopers.lua | v2.8.4
+-- FIX: Softcut Input Routing (Post-FX Synth Signal)
 
 local Loopers = {}
 local Globals
@@ -8,24 +8,23 @@ function Loopers.init(g_ref)
     Globals = g_ref
     audio.level_eng_cut(1)
     
-    -- 3 Loopers (6 voices total)
     for i=1, 3 do
         local v_l = (i*2)-1
         local v_r = i*2
         
-        -- Left Channel (Buffer 1)
         softcut.enable(v_l, 1)
         softcut.buffer(v_l, 1)
         softcut.level(v_l, 1.0)
         softcut.loop(v_l, 1)
         softcut.rate(v_l, 1.0)
-        softcut.fade_time(v_l, 0.005) -- 5ms fade to preserve transients
+        softcut.fade_time(v_l, 0.005) 
         softcut.post_filter_fc(v_l, 18000)
+        
+        -- FIX: Route Norns Audio Bus 1 (L) to Softcut
         softcut.level_input_cut(1, v_l, 1.0)
         softcut.level_input_cut(2, v_l, 0.0)
         softcut.pan(v_l, -1.0)
         
-        -- Right Channel (Buffer 2)
         softcut.enable(v_r, 1)
         softcut.buffer(v_r, 2)
         softcut.level(v_r, 1.0)
@@ -33,11 +32,12 @@ function Loopers.init(g_ref)
         softcut.rate(v_r, 1.0)
         softcut.fade_time(v_r, 0.005)
         softcut.post_filter_fc(v_r, 18000)
+        
+        -- FIX: Route Norns Audio Bus 2 (R) to Softcut
         softcut.level_input_cut(1, v_r, 0.0)
         softcut.level_input_cut(2, v_r, 1.0)
         softcut.pan(v_r, 1.0)
         
-        -- 110 seconds per looper (349s total memory / 3 = 116s. 110s is safe margin)
         local start_pos = (i-1) * 115
         softcut.loop_start(v_l, start_pos)
         softcut.loop_end(v_l, start_pos + 110)
@@ -73,7 +73,6 @@ function Loopers.set_res(idx, val)
 end
 
 function Loopers.set_pan(idx, val) 
-    -- Stereo Balance
     local v1_pan = val - 1
     local v2_pan = val + 1
     softcut.pan((idx*2)-1, util.clamp(v1_pan, -1, 1)) 
