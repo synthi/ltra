@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v2.8.3
--- FIX: Added Scale Root (Page 2, Row 6) to Gesture Looper Event Mask
+-- lib/grid_pages.lua | v2.9.0
+-- FIX: Unified Row 7 across Page 1 & 2
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -189,7 +189,6 @@ local function record_event(x, y, z, p)
         if y >= 1 and y <= 4 and x >= 1 and x <= 16 then is_valid = true end 
     elseif p == 2 then
         if y >= 1 and y <= 3 and x >= 1 and x <= 16 then is_valid = true end 
-        -- FIX: Added Scale Root to Event Mask
         if y == 6 and x >= 3 and x <= 14 then is_valid = true end
     end
     
@@ -233,31 +232,6 @@ function Pages.redraw()
         led_safe(14, 6, Consts.BRIGHT.BG_DASHBOARD)
         led_safe(16, 6, Consts.BRIGHT.BG_DASHBOARD) 
         
-        for i=1, 4 do 
-            local b = Consts.BRIGHT.BG_DASHBOARD
-            if params:get("osc"..i.."_midi_note") == 1 then
-                local vel_main = Globals.midi_voice_vel and Globals.midi_voice_vel[i] or 0
-                local vel_twin = Globals.midi_voice_vel and Globals.midi_voice_vel[i+4] or 0
-                
-                if vel_main > 0 or vel_twin > 0 then
-                    local vel_vol = params:get("osc"..i.."_vel_vol") or 0
-                    local added_b = 5
-                    
-                    local active_vel = vel_main > 0 and vel_main or vel_twin
-                    if vel_vol > 0 then
-                        added_b = math.floor(util.linlin(1, 127, 2, 9, active_vel))
-                    end
-                    
-                    if vel_main > 0 then
-                        added_b = added_b + 3
-                    end
-                    
-                    b = util.clamp(b + added_b, 0, 15)
-                end
-            end
-            led_safe(i, 7, b) 
-        end
-        
         for i=1, 4 do
             local x = i + 12
             local b = Globals.snap_masks[i] and Consts.BRIGHT.VAL_HIGH or Consts.BRIGHT.BG_NAV
@@ -294,7 +268,33 @@ function Pages.redraw()
         led_safe(Globals.scale.root_note + 2, 6, 11)
     end
     
+    -- FIX: Row 7 (ENV/Snapshots/Loopers) unified across Page 1 & 2
     if Globals.page == 1 or Globals.page == 2 then
+        for i=1, 4 do 
+            local b = Consts.BRIGHT.BG_DASHBOARD
+            if params:get("osc"..i.."_midi_note") == 1 then
+                local vel_main = Globals.midi_voice_vel and Globals.midi_voice_vel[i] or 0
+                local vel_twin = Globals.midi_voice_vel and Globals.midi_voice_vel[i+4] or 0
+                
+                if vel_main > 0 or vel_twin > 0 then
+                    local vel_vol = params:get("osc"..i.."_vel_vol") or 0
+                    local added_b = 5
+                    
+                    local active_vel = vel_main > 0 and vel_main or vel_twin
+                    if vel_vol > 0 then
+                        added_b = math.floor(util.linlin(1, 127, 2, 9, active_vel))
+                    end
+                    
+                    if vel_main > 0 then
+                        added_b = added_b + 3
+                    end
+                    
+                    b = util.clamp(b + added_b, 0, 15)
+                end
+            end
+            led_safe(i, 7, b) 
+        end
+        
         draw_snapshots()
         draw_loopers()
         
@@ -402,15 +402,47 @@ function Pages.key(x, y, z, simulated_page)
         return
     end
     
-    if p == 1 and y >= 5 and y <= 7 and x >= 1 and x <= 4 then
+    -- FIX: ENV Menu unified across Page 1 & 2
+    if (p == 1 or p == 2) and y == 7 and x >= 1 and x <= 4 then
+        if z == 1 then
+            if not Globals.multi_sel.active then
+                Globals.multi_sel.active = true
+                Globals.multi_sel.row = y
+                Globals.multi_sel.targets = {[x] = true}
+                Globals.menu_mode = Consts.MENU.ENV
+            elseif Globals.multi_sel.row == y then
+                Globals.multi_sel.targets[x] = not Globals.multi_sel.targets[x]
+            end
+        else
+            local any_held = false
+            for i=1, 4 do
+                if Globals.button_state[i][y] then any_held = true; break end
+            end
+            if not any_held and Globals.multi_sel.row == y then
+                Globals.multi_sel.active = false
+                Globals.multi_sel.row = nil
+                Globals.multi_sel.targets = {}
+                Globals.menu_mode = Consts.MENU.NONE
+            end
+        end
+        
+        if Globals.multi_sel.active then
+            local t = {}
+            for i=1, 4 do if Globals.multi_sel.targets[i] then table.insert(t, i) end end
+            if #t > 0 then Globals.menu_target = t else Globals.menu_target = {x} end
+        end
+        Globals.dirty = true
+        return
+    end
+    
+    if p == 1 and y >= 5 and y <= 6 and x >= 1 and x <= 4 then
         if z == 1 then
             if not Globals.multi_sel.active then
                 Globals.multi_sel.active = true
                 Globals.multi_sel.row = y
                 Globals.multi_sel.targets = {[x] = true}
                 if y == 5 then Globals.menu_mode = Consts.MENU.MIDI
-                elseif y == 6 then Globals.menu_mode = Consts.MENU.OSC
-                elseif y == 7 then Globals.menu_mode = Consts.MENU.ENV end
+                elseif y == 6 then Globals.menu_mode = Consts.MENU.OSC end
             elseif Globals.multi_sel.row == y then
                 Globals.multi_sel.targets[x] = not Globals.multi_sel.targets[x]
             end
