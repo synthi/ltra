@@ -1,5 +1,5 @@
--- lib/parameters.lua | v2.8.4
--- FIX: Expanded Attack Time to 11.0s
+-- lib/parameters.lua | v2.8.5
+-- FIX: Replaced midi_note with midi_ratio initialization
 
 local Params = {}
 local Bridge = require 'ltra/lib/engine_bridge'
@@ -9,7 +9,7 @@ local Loopers = require 'ltra/lib/loopers'
 
 function Params.init(g_ref)
     local Globals = g_ref
-    params:add_separator("LTRA v2.8.4")
+    params:add_separator("LTRA v2.8.5")
     
     params:add_group("GLOBAL", 6)
     params:add_control("master_vol", "Master Vol", controlspec.new(0,1,"lin",0,1))
@@ -100,18 +100,22 @@ function Params.init(g_ref)
                 if action then action(p) end
             end
         end)
-        
-        -- FIX: Expanded Attack Time to 11.0s
         params:add_control("env_atk"..i, "Attack", controlspec.new(0.001, 11.0, "exp", 0, 0.01))
         params:set_action("env_atk"..i, function(x) Bridge.set_param("env_atk"..i, x) end)
         params:add_control("env_rel"..i, "Release", controlspec.new(0.001, 11.0, "exp", 0, 0.2))
         params:set_action("env_rel"..i, function(x) Bridge.set_param("env_rel"..i, x) end)
         
+        -- FIX: Reset MIDI Ratio instead of MIDI Note
         params:add_binary("osc"..i.."_midi_note", "MIDI Note", "toggle", 0)
-        params:set_action("osc"..i.."_midi_note", function(x) if x == 0 then Bridge.set_midi_note(i, 60) end end)
+        params:set_action("osc"..i.."_midi_note", function(x) 
+            if x == 0 then 
+                Bridge.set_midi_ratio(i, 1.0)
+                Bridge.set_midi_ratio(i+4, 1.0)
+            end 
+        end)
+        
         params:add_option("osc"..i.."_midi_ch", "MIDI Channel", midi_ch_options, 17)
         params:add_binary("osc"..i.."_twin_enable", "Voice x2 (Twin)", "toggle", 0)
-        
         params:add_binary("osc"..i.."_quant_midi", "Quantize MIDI", "toggle", 0)
         
         params:add_control("osc"..i.."_vel_vol", "Vel to Vol", controlspec.new(0,1,"lin",0,0.0))
