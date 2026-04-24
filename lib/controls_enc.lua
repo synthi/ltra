@@ -1,5 +1,5 @@
--- lib/controls_enc.lua | v2.8.2
--- FIX: Bifurcated Routing (Global vs Targeted) to prevent Ghost Multipliers
+-- lib/controls_enc.lua | v2.8.3
+-- FIX: MIDI Quantization Toggle uses params:delta
 
 local Enc = {}
 local Globals
@@ -36,7 +36,6 @@ function Enc.delta(n, d)
     if Globals.menu_mode ~= Consts.MENU.NONE then
         local m = Globals.menu_mode
         
-        -- FIX: GLOBAL MENUS (No loop, prevents Ghost Multiplier)
         if m == Consts.MENU.ARP then
             if Globals.arp_menu_page == 1 then
                 if n==1 then do_delta("arp_gate_len", d)
@@ -101,7 +100,6 @@ function Enc.delta(n, d)
             return
         end
         
-        -- FIX: TARGETED MENUS (Loop over selected voices)
         local targets = {Globals.menu_target}
         if type(Globals.menu_target) == "table" then
             if Globals.menu_target.src_name then
@@ -122,10 +120,8 @@ function Enc.delta(n, d)
                     elseif n==2 then do_delta("osc"..t.."_drift", d)
                     elseif n==3 then do_delta("osc"..t.."_spread", d) end
                 else
-                    -- FIX: Added MIDI Quantization to E1
-                    if n==1 then 
-                        local curr = params:get("osc"..t.."_quant_midi")
-                        params:set("osc"..t.."_quant_midi", 1-curr)
+                    -- FIX: Use params:delta for toggle to prevent glitching
+                    if n==1 then params:delta("osc"..t.."_quant_midi", d)
                     elseif n==2 then do_delta("osc"..t.."_glide", d) end
                 end
                 
