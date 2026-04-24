@@ -1,4 +1,4 @@
--- lib/grid_pages.lua
+-- lib/grid_pages.lua | v2.8.3
 -- FIX: Added Scale Root (Page 2, Row 6) to Gesture Looper Event Mask
 
 local Pages = {}
