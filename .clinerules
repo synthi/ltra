@@ -1,0 +1,969 @@
+.clinerules — Reglas Permanentes para Cline (Norns/LTRA)
+================================================================================
+
+> **REGLA #1: NUNCA supongas. Siempre verifica contra este documento y el código existente.**
+> **REGLA #2: La programación Norns es NICHE. Cada detalle importa. Antes de cada cambio, revisa las particularidades.**
+> **REGLA #3: Lee el código existente del proyecto antes de modificar. Los patrones de LTRA son la fuente de verdad.**
+
+================================================================================
+1. PLATAFORMA NORNS — VISIÓN GENERAL
+================================================================================
+
+## Hardware
+- **Monome Norns**: Computadora musical empotrada (ARM, Raspberry Pi CM3/4)
+- **Pantalla**: 128×64 pixeles, monocromática (1-bit), NO touchscreen
+- **Controles físicos**: 3 encoders (E1/E2/E3) + 3 keys (K1/K2/K3)
+  - K1 = menú del sistema (NO usar en scripts normalmente)
+  - K2/K3 = interacción del script
+- **Audio**: Entrada estéreo (ADC), Salida estéreo (DAC), altavoz mono
+- **USB**: Para Grid, MIDI, almacenamiento
+
+## Software Stack
+- **OS**: Raspbian (Debian personalizado)
+- **Lua**: **Lua 5.3** (NO 5.1, NO Luajit)
+  - Entero y flotante son tipos DIFERENTES: `3` ≠ `3.0`
+  - Bitops: usamos `math.floor()`, NO `bit` library (esa es Lua 5.2)
+- **SuperCollider**: Versión custom de SC ("Crone") 
+  - NO es SC estándar de escritorio
+  - Engine class hereda de `CroneEngine` (NO `Synth`)
+  - SynthDef se compila dentro del método `alloc`
+- **Audio Server**: `crone` (wrapper de scsynth), se comunica con `matron` (Lua VM)
+- **Comunicación Lua ↔ SC**:
+  - Lua → SC: `engine.nombre_comando(args)` → definido con `addCommand` en `.sc`
+  - SC → Lua: `SendReply.kr()` → capturado con `osc.event()` en Lua
+  - También: `NetAddr("127.0.0.1", 10111).sendMsg()` para OSC directo
+
+## Sistema de Archivos
+- Scripts van en: `~/dust/code/<nombre_script>/`
+- `_path.data` → `~/dust/data/<nombre_script>/` (datos guardados)
+- `_path.audio` → `~/dust/audio/` (audio files)
+- Los requires usan el nombre de la carpeta: `require('ltra/lib/xxx')`
+
+================================================================================
+2. LUA EN NORNS — PARTICULARIDADES CRÍTICAS
+================================================================================
+
+## 2.1 Funciones Globales Obligatorias (archivo principal)
+```lua
+-- El archivo principal (ej: ltra.lua) DEBE definir estas funciones:
+
+engine.name = 'NombreEngine'  -- SIEMPRE al inicio, referencia al .sc
+
+function init()
+    -- Se ejecuta al cargar el script
+    -- Inicializar módulos, metros, clocks, etc.
+end
+
+function key(n, z)
+    -- n: 1, 2 o 3 (número de key)
+    -- z: 0 (release) o 1 (press)
+end
+
+function enc(n, d)
+    -- n: 1, 2 o 3 (número de encoder)
+    -- d: -1 o +1 (dirección del giro), puede ser >1 con acceleración
+end
+
+function redraw()
+    -- Dibujar en pantalla. Se llama manualmente o via metro.
+end
+
+function cleanup()
+    -- Se ejecuta al DESCARGAR el script
+    -- CRUCIAL: cancelar todos los clocks, metros, MIDI listeners
+    -- Liberar recursos para evitar memory leaks
+end
+
+function osc.event(path, args, from)
+    -- Recibir mensajes OSC de SC u otras fuentes
+end
+```
+
+## 2.2 Sistema de Módulos
+```lua
+-- Convención LTRA: cada módulo es una tabla local con init(g_ref)
+
+local MyModule = {}
+local Globals  -- Referencia al estado global, se guarda en init
+
+function MyModule.init(g_ref)
+    Globals = g_ref  -- Guardar referencia, NO copia
+end
+
+function MyModule.hacer_algo()
+    if not Globals then return end  -- Siempre verificar
+    -- usar Globals...
+end
+
+return MyModule
+```
+
+**Patrón de require en LTRA:**
+```lua
+-- En el archivo principal:
+local Bridge = require('ltra/lib/engine_bridge')  -- SIEMPRE con prefijo 'ltra/'
+
+-- Dentro de lib/, las rutas también incluyen 'ltra/':
+local Consts = require('ltra/lib/consts')
+```
+
+## 2.3 State Sharing — La Tabla Globals
+```lua
+-- LTRA usa una tabla compartida (globals.lua) como "estado central"
+-- Todos los módulos reciben una REFERENCIA a la misma tabla
+-- Modificar Globals en un módulo afecta a todos
+
+local Globals = require('ltra/lib/globals')
+g_state = Globals.new()  -- Crear estado
+
+-- Pasar a todos los módulos:
+Bridge.init(g_state)
+Scales.init(g_state)
+-- etc.
+```
+
+** Campos importantes de Globals (estado compartido):**
+- `dirty` (bool): Flag para redibujar pantalla. Setear a `true` para trigger redraw
+- `loaded` (bool): Engine listo. Siempre verificar antes de enviar comandos
+- `engine_ready` (bool): Handshake SC completo
+- `page` (number): Página actual del grid
+- `menu_mode`, `menu_target`: Sistema de menús contextual
+- `voices[i]`: Estado de cada voz (shape, pan, tune, latched, etc.)
+- `matrix[s][d]`: Matriz de modulación (5 sources × 16 destinos)
+- `led_cache[x][y]`: Cache de LEDs del grid
+- `button_state[x][y]`: Estado físico de botones del grid
+- `grid_timers[x][y]`: Timestamps para hold detection
+- `fader_values[id]`, `fader_virtual[id]`, `fader_ghost[id]`: Soft-takeout del 16n
+- `visuals`: Datos de amplitud, LFOs, etc. para visualización
+
+## 2.4 Clocks (Corrutinas)
+```lua
+-- clock.run() crea una corrutina (NO es un thread del OS)
+-- clock.sleep() cede ejecución (cooperativo)
+
+-- Patrón: loop infinito con sleep
+local id = clock.run(function()
+    while true do
+        clock.sleep(0.5)
+        -- hacer algo cada 500ms
+    end
+end)
+
+-- Cancelar:
+clock.cancel(id)
+
+-- Patrón: ejecución única con delay
+clock.run(function()
+    clock.sleep(0.1)
+    -- hacer algo después de 100ms
+end)
+
+-- ⚠️ IMPORTANTE: Cancelar TODOS los clocks en cleanup()
+-- LTRA guarda los IDs en variables del módulo o en Globals
+```
+
+## 2.5 Metros (Timers Periódicos)
+```lua
+-- metro.init() para timers no-corutina (ej: redraw loop)
+
+local m = metro.init()
+m.time = 1/15  -- 15 FPS
+m.event = function()
+    if g_state.dirty then
+        redraw()
+        g_state.dirty = false
+    end
+end
+m:start()
+
+-- También: metro.free_all() en cleanup() para liberar todos
+```
+
+## 2.6 Funciones Util Norns
+```lua
+util.time()          -- Segundos desde epoch (float, alta resolución)
+util.linlin(a, b, c, d, x)    -- Mapeo lineal-lineal
+util.linexp(a, b, c, d, x)    -- Mapeo lineal-exponencial
+util.explin(a, b, c, d, x)    -- Mapeo exponencial-lineal
+util.clamp(x, min, max)       -- Clamp
+util.make_dir(path)            -- Crear directorio
+util.file_exists(path)         -- Verificar si archivo existe
+```
+
+## 2.7 Sistema de Parámetros
+```lua
+-- params es global, NO requiere require
+
+-- Tipos de parámetros:
+params:add_control(id, name, controlspec)  -- Continuo
+params:add_option(id, name, options, default)  -- Lista
+params:add_number(id, name, min, max, default)  -- Entero
+params:add_binary(id, name, "toggle"|"trigger", default)  -- On/Off o trigger
+params:add_separator("TÍTULO")
+params:add_group("NOMBRE", count)  -- Grupo con count parámetros
+params:hide(id)  -- Ocultar del menú de params
+
+-- controlspec:
+controlspec.new(min, max, "lin"|"exp", step, default, units, wrap)
+-- step=0 para continuo
+
+-- Acciones:
+params:set_action(id, function(val) ... end)
+-- Se ejecuta cuando cambia el valor
+
+-- Lectura/Escritura:
+params:get(id)        -- Obtener valor actual
+params:set(id, val)   -- Establecer valor (trigger action)
+params:delta(id, d)   -- Incrementar (respeta step, wrap, etc.)
+params:lookup_param(id)  -- Obtener objeto param completo
+params:bang()         -- Disparar todas las acciones (útil al cargar)
+
+-- Callbacks de PSET:
+params.action_write = function(filename, name, number) ... end
+params.action_read = function(filename, silent, number) ... end
+
+-- ⚠️ IMPORTANTE: El count en add_group DEBE ser exacto
+-- Si dices 6, debes agregar exactamente 6 params en ese grupo
+```
+
+## 2.8 Sistema de Pantalla
+```lua
+-- 128×64 pixeles, monocromática
+-- Nivel: 0 (negro) a 15 (blanco)
+
+screen.clear()
+screen.aa(0)           -- Anti-aliasing (0=off para texto nítido)
+screen.level(15)       -- Brillo (0-15)
+screen.move(x, y)      -- Mover cursor
+screen.text("hola")    -- Texto desde cursor (y = baseline)
+screen.text_center("hola")  -- Texto centrado en x
+screen.text_right("hola")   -- Texto alineado derecha
+screen.rect(x, y, w, h)     -- Definir rectángulo
+screen.fill()          -- Rellenar (usa level actual)
+screen.stroke()        -- Dibujar borde
+screen.line()          -- Dibujar línea
+screen.line_width(w)   -- Grosor de línea
+screen.circle(x, y, r) -- Definir círculo
+screen.close()         -- Cerrar path
+screen.update()        -- ⚠️ SIEMPRE al final de redraw()
+
+-- Flujo típico de redraw:
+function redraw()
+    screen.clear()
+    screen.aa(0)
+    screen.level(15)
+    screen.move(5, 10)
+    screen.text("LTRA v2.9.0")
+    -- ...
+    screen.update()
+end
+```
+
+## 2.9 Polls (Monitoreo de Audio)
+```lua
+-- Crear poll para medir amplitud, etc.
+local amp_l = poll.set("amp_out_l")  -- Nombre del poll de SC
+amp_l.time = 1/15  -- Frecuencia de muestreo
+amp_l.callback = function(v) 
+    g_state.visuals.amp_l = v 
+end
+amp_l:start()
+-- ⚠️ NO olvidar :start()
+```
+
+## 2.10 Manejo de Errores
+```lua
+-- LTRA usa pcall() para proteger callbacks críticos:
+pcall(Keys.event, n, z)   -- En key()
+pcall(Enc.delta, n, d)    -- En enc()
+pcall(UI.redraw)          -- En redraw()
+
+-- Esto evita que el script crashee por errores en callbacks
+```
+
+## 2.11 Librerías Disponibles (sin require)
+```lua
+-- Globales de Norns (NO necesitan require):
+engine      -- Comunicación con SC
+params      -- Sistema de parámetros
+grid        -- Grid de monome
+midi        -- MIDI
+osc         -- OSC
+clock       -- Corrutinas
+metro       -- Timers
+poll        -- Monitoreo de audio
+screen      -- Pantalla
+audio       -- Control de audio routing
+softcut     -- Grabación/manipulación de audio
+util        -- Utilidades matemáticas
+
+-- Librerías Lua estándar disponibles:
+math, string, table, os, io, coroutine
+
+-- Librerías Norns (REQUIEREN require):
+musicutil   -- require 'musicutil' (notas, escalas, frecuencias)
+tab         -- require 'tab' (tab.save, tab.load para serialización)
+```
+
+================================================================================
+3. SUPERCOLLIDER EN NORNS — REGLAS ESTRICTAS
+================================================================================
+
+## 3.1 Estructura del Engine (Archivo .sc)
+```supercollider
+// Hereda de CroneEngine (NO Synth)
+Engine_Ltra : CroneEngine {
+    var <synth;
+    var <osc_bridge;
+    var <matrix_amts;
+
+    // Constructor (usualmente solo llama a super)
+    *new { arg context, doneCallback; 
+        ^super.new(context, doneCallback); 
+    }
+
+    alloc {
+        // ⚠️ TODAS las variables deben declararse ANTES de usarlas
+        // SC en Norns ejecuta SECUENCIALMENTE de arriba a abajo
+        
+        matrix_amts = Array.fill(5, { Array.fill(16, 0.0) });
+        
+        SynthDef(\ltra_core, {
+            // ⚠️ Dentro de SynthDef: TODAS las variables al inicio
+            var out = \out.kr(0);
+            var freq = \freq.kr(110);
+            var sig, filtered, output;  // Declarar ANTES de asignar
+            
+            // NamedControl para parámetros dinámicos:
+            var gates = 8.collect { |i| NamedControl.kr("gate" ++ (i+1), 0) };
+            var freqs = 8.collect { |i| NamedControl.kr("freq" ++ (i+1), 110) };
+            
+            // Arrays con .collect:
+            var shapes = 4.collect { |i| NamedControl.kr("shape" ++ (i+1), 2) };
+            
+            // ⚠️ Array literal de constantes usa #:
+            var prime_combs = #[0.031, 0.037, 0.044, 0.050];
+            
+            // Procesamiento de audio:
+            sig = SawDPW.ar(freq);
+            filtered = LPF.ar(sig, 1000);
+            output = Out.ar(out, filtered);
+            
+            // Enviar datos a Lua via OSC:
+            SendReply.kr(Impulse.kr(15), '/ltra/visuals', [sig, filtered]);
+            
+        }).add;
+        
+        // ⚠️ Sincronizar antes de crear el Synth:
+        context.server.sync;
+        synth = Synth.new(\ltra_core, [\out, context.out_b], context.xg);
+        
+        // Bridge OSC: SC→SC→Lua
+        osc_bridge = OSCFunc({ |msg| 
+            NetAddr("127.0.0.1", 10111).sendMsg("/ltra/visuals", *msg.drop(3)); 
+        }, '/ltra/visuals', context.server.addr).fix;
+        
+        // Comandos custom (Lua→SC):
+        this.addCommand("set_engine_param", "sf", { arg msg; 
+            synth.set(msg[1].asSymbol, msg[2]); 
+        });
+        
+        // Formato addCommand: nombre, formato_args, función
+        // Formatos: "" = sin args, "s" = string, "f" = float, "i" = int, "sf" = string+float
+    }
+    
+    free { synth.free; osc_bridge.free; }
+}
+```
+
+## 3.2 Reglas CRÍTICAS de SC en Norns
+
+1. **VARIABLES AL INICIO**: Toda variable (`var`) debe declararse antes de usarse.
+   - Dentro de `alloc{}`: declarar al inicio del método
+   - Dentro de `SynthDef{}`: declarar TODAS antes de cualquier cálculo
+   - SC lee de arriba a abajo, no hay hoisting
+
+2. **Ejecución secuencial**: El código se ejecuta estrictamente de arriba a abajo.
+   - No se puede referenciar una variable antes de su declaración
+   - No se puede usar un Synth antes de `context.server.sync`
+
+3. **NamedControl vs argumentos**: Usar `\nombre.kr(default)` o `NamedControl.kr`
+   - Más flexible que argumentos de SynthDef
+   - Permite arrays de controles con `.collect`
+   - Se setean desde Lua con `synth.set(\nombre, valor)`
+
+4. **Comunicación Lua→SC**:
+   ```lua
+   -- En Lua (via Bridge):
+   engine.set_engine_param("filt_cutoff", 1000)
+   -- Llama a: this.addCommand("set_engine_param", "sf", {...})
+   -- Que ejecuta: synth.set(\filt_cutoff, 1000)
+   ```
+
+5. **Comunicación SC→Lua**:
+   ```supercollider
+   // En SC:
+   SendReply.kr(Impulse.kr(15), '/ltra/visuals', [val1, val2]);
+   
+   // En Lua:
+   function osc.event(path, args, from)
+       if path == "/ltra/visuals" then
+           local val1 = args[1]
+           local val2 = args[2]
+       end
+   end
+   ```
+
+6. **Control Rate vs Audio Rate**:
+   - `.kr` = control rate (para parámetros, envolventes, LFOs)
+   - `.ar` = audio rate (para señales de audio)
+   - Parámetros de SynthDef siempre `.kr`
+   - Filtros, osciladores de audio siempre `.ar`
+
+7. **Lag para suavizar**: Usar `Lag.kr(signal, time)` para suavizar clicks
+   ```supercollider
+   var smooth_cutoff = Lag.kr(cutoff_param, 0.05);
+   ```
+
+================================================================================
+4. GRID (MONOME) — API COMPLETA
+================================================================================
+
+## 4.1 Inicialización y Conexión
+```lua
+local g = grid.connect(device_number)  -- Normalmente 1
+
+-- Grid dimensions:
+-- 128 = 16×8 (estándar en LTRA)
+-- 64 = 8×8
+-- Coordenas: x = 1-16 (columnas), y = 1-8 (filas)
+```
+
+## 4.2 API Básica
+```lua
+-- Encender LED:
+g:led(x, y, brightness)  -- brightness: 0 (off) a 15 (máximo)
+
+-- Actualizar grid (enviar buffer a hardware):
+g:refresh()  -- ⚠️ SIEMPRE después de cambiar LEDs
+
+-- Callback de input:
+g.key = function(x, y, z)
+    -- x: columna (1-16)
+    -- y: fila (1-8)
+    -- z: 0 (release) o 1 (press)
+end
+```
+
+## 4.3 Patrón de Redraw con Cache (LTRA)
+```lua
+-- LTRA usa un sistema de cache para optimizar:
+
+-- 1. Durante redraw: escribir a led_cache (NO directamente al grid)
+function GridHW.led(x, y, v)
+    Globals.led_cache[x][y] = math.floor(v)
+end
+
+-- 2. Al final de redraw: comparar con cache anterior y solo enviar cambios
+function GridHW.redraw()
+    Pages.redraw()  -- Cada página dibuja a led_cache
+    for x=1,16 do for y=1,8 do
+        local new_val = Globals.led_cache[x][y]
+        if cache[x][y] ~= new_val then
+            g:led(x, y, new_val)
+            cache[x][y] = new_val
+        end
+        Globals.led_cache[x][y] = 0  -- Reset para siguiente frame
+    end end
+    g:refresh()
+end
+```
+
+## 4.4 Niveles de Brillo (Convención LTRA)
+```lua
+-- Definidos en consts.lua:
+Consts.BRIGHT = {
+    OFF = 0,            -- Apagado
+    BG_MATRIX_A = 1,    -- Fondo sutil (zona A)
+    BG_MATRIX_B = 3,    -- Fondo sutil (zona B)
+    BG_NAV = 2,         -- Fondo navegación
+    BG_DASHBOARD = 4,   -- Fondo dashboard
+    BG_TRIGGERS = 5,    -- Fondo triggers
+    VAL_LOW = 5,        -- Valor bajo
+    VAL_MED = 8,        -- Valor medio
+    VAL_HIGH = 11,      -- Valor alto
+    VAL_PEAK = 13,      -- Valor pico
+    TOUCH = 15          -- Botón presionado (máximo)
+}
+```
+
+## 4.5 Debounce (Hardware)
+```lua
+-- LTRA implementa debounce de 20ms para Norns Shield:
+local debounce_time = 0.02  -- 20ms
+
+function GridHW.handle_key(x, y, z)
+    local now = util.time()
+    if z == last_z[x][y] then return end
+    if (now - last_t[x][y]) < debounce_time then return end
+    last_z[x][y] = z
+    last_t[x][y] = now
+    -- ... procesar evento
+end
+```
+
+## 4.6 Sistema de Páginas (Grid)
+```lua
+-- LTRA usa sistema de páginas:
+-- Página 1: MAIN (matriz de modulación + dashboard)
+-- Página 2: SCALES (selección de escala musical)
+
+-- Navegación via botones del grid (Fila 8):
+-- x=13: Página 1, x=14: Página 2
+
+-- Cada página tiene su propio redraw y handler de keys
+-- Pages.redraw() despacha según Globals.page
+-- Pages.key(x, y, z) despacha según Globals.page
+```
+
+================================================================================
+5. SOFTCUT — API COMPLETA
+================================================================================
+
+## 5.1 Conceptos
+- Softcut es el sistema de grabación/manipulación de audio de Norns
+- Usa **voices** (1-6 en Norns, 1-8 en Norns Shield)
+- Cada voice tiene: playback, grabación, loop, rate, filtro, paneo
+- **Buffers**: 2 buffers de audio estéreo (buffer 1 = L, buffer 2 = R)
+- Tiempo total: ~5 minutos por buffer (44.1kHz, 32-bit float)
+
+## 5.2 API Esencial
+```lua
+-- Routing (CRUCIAL: configurar ANTES de usar softcut)
+audio.level_eng_cut(1)   -- Enrutar engine → softcut (0-1)
+audio.level_adc_cut(1)   -- Enrutar input → softcut (0-1)
+
+-- Voice setup
+softcut.enable(voice, 1)            -- Activar voice (1-6)
+softcut.buffer(voice, buf_num)      -- Asignar buffer (1 o 2)
+softcut.level(voice, vol)           -- Volumen de salida (0-1)
+softcut.pan(voice, pan)             -- Paneo (-1 a 1)
+softcut.play(voice, 1_or_0)        -- Play/Stop
+softcut.rate(voice, rate)           -- Velocidad (1.0 = normal, -1.0 = reverse)
+
+-- Loop
+softcut.loop(voice, 1_or_0)        -- Activar loop
+softcut.loop_start(voice, seconds)  -- Inicio del loop (en segundos)
+softcut.loop_end(voice, seconds)    -- Fin del loop (en segundos)
+softcut.position(voice, seconds)    -- Posicionar cabezal
+
+-- Grabación
+softcut.rec(voice, 1_or_0)          -- Activar grabación
+softcut.rec_level(voice, 0_to_1)    -- Nivel de grabación
+softcut.pre_level(voice, 0_to_1)    -- Nivel de pre-roll (0=overwrite, 1=overdub)
+
+-- Input routing por voice
+softcut.level_input_cut(input_ch, voice, level)  
+-- input_ch: 1=L, 2=R
+-- level: 0-1
+
+-- Filtros
+softcut.post_filter_fc(voice, hz)    -- Frecuencia de corte
+softcut.post_filter_rq(voice, rq)    -- Resonancia (Q inverso)
+softcut.post_filter_lp(voice, val)   -- Lowpass enable
+softcut.post_filter_hp(voice, val)   -- Highpass enable
+
+-- Fade
+softcut.fade_time(voice, seconds)    -- Tiempo de crossfade
+
+-- Buffer operations
+softcut.buffer_clear_region(start, duration)  -- Borrar región
+softcut.buffer_read_mono(file, start_src, start_dst, dur, ch_src, ch_dst, rate)
+softcut.buffer_write_mono(file, start, duration, buffer_num)
+```
+
+## 5.3 Patrón de Looper en LTRA
+```lua
+-- 3 loopers estéreo, cada uno usa 2 voices:
+-- Looper 1: voices 1 (L/buffer1) + 2 (R/buffer2)
+-- Looper 2: voices 3 (L) + 4 (R)
+-- Looper 3: voices 5 (L) + 6 (R)
+
+-- Layout de buffers (115 segundos por looper):
+-- Looper 1: 0s - 110s
+-- Looper 2: 115s - 225s
+-- Looper 3: 230s - 340s
+
+-- Estados:
+-- 0: Vacío (idle)
+-- 1: Grabando
+-- 2: Reproduciendo (loop)
+-- 3: Overdubbing
+-- 4: Detenido (pausa)
+-- 5: Fade out
+-- 6: Fade in
+```
+
+================================================================================
+6. MIDI — API COMPLETA
+================================================================================
+
+## 6.1 MIDI Básico
+```lua
+-- Conectar a dispositivo:
+local m = midi.connect(port_number)  -- 1-4 (virtual ports)
+
+-- Callback:
+m.event = function(data)
+    local msg = midi.to_msg(data)
+    -- msg.type: "note_on", "note_off", "cc", "pitchbend", 
+    --           "channel_pressure", "key_pressure", "program_change"
+    -- msg.note, msg.vel, msg.cc, msg.val, msg.ch
+end
+
+-- Enviar:
+m:note_on(note, vel, ch)
+m:note_off(note, vel, ch)
+m:cc(cc, val, ch)
+
+-- Escanear dispositivos:
+for _, dev in pairs(midi.devices) do
+    -- dev.name, dev.port
+end
+
+-- Virtual ports:
+midi.vports[port]  -- Info del port virtual
+```
+
+## 6.2 16n Faderbank — Convención LTRA
+```lua
+-- El 16n envía 16 faders como CCs
+-- LTRA espera CC 32-47 (estándar 16n) o CC 1-16 (alternativo)
+-- Canal 1 (por defecto)
+
+-- Detección automática por nombre:
+-- Busca "16n" o "fade" en el nombre del dispositivo MIDI
+
+-- Soft-Takeout (Evitar saltos):
+-- fader_ghost[id] = true: Fader físico no sincronizado
+-- fader_virtual[id]: Valor virtual actual
+-- Solo se "engancha" cuando el valor físico se acerca al virtual
+
+-- Mapping de Faders:
+-- 1-4: Pitch (osc 1-4)
+-- 5-8: Amp (osc 1-4)
+-- 9-12: Shape (osc 1-4)
+-- 13-14: Filter 1-2 Cutoff
+-- 15: Tape Delay Time
+-- 16: Tape Delay Feedback
+```
+
+================================================================================
+7. PATRONES DE CÓDIGO LTRA — CONVENCIONES DEL PROYECTO
+================================================================================
+
+## 7.1 Header de Versión
+```lua
+-- Cada archivo comienza con:
+-- lib/nombre.lua | vX.Y.Z
+-- FIX: Descripción del último cambio
+```
+
+## 7.2 Nomenclatura
+- **Archivos**: `snake_case.lua` (ej: `engine_bridge.lua`)
+- **Módulos**: `PascalCase` (ej: `Bridge`, `GridHW`, `Midi16n`)
+- **Funciones**: `snake_case` (ej: `set_param`, `handle_key`)
+- **Constantes**: `UPPER_SNAKE` (ej: `BRIGHT`, `SYNC_DIVS`)
+- **Variables locales**: `snake_case` (ej: `g_state`, `last_z`)
+- **IDs de params**: Formato `categoria_subcategoria_propiedad`
+  - Ej: `"osc1_pitch"`, `"filt2_cutoff"`, `"mod3_lfo_rate"`
+
+## 7.3 Patrón Bridge (Lua→SC)
+```lua
+-- Bridge es la ÚNICA interfaz entre Lua y SuperCollider
+-- NUNCA llamar engine.xxx() directamente (excepto en Bridge)
+
+-- bridge.lua expone funciones tipo:
+function Bridge.set_param(name, value)
+    engine.set_engine_param(name, value)
+end
+
+-- Los demás módulos usan Bridge:
+Bridge.set_param("filt1_cutoff", 1000)
+Bridge.set_freq(1, 440)
+Bridge.set_gate(1, 1)
+Bridge.set_matrix(src, dst, val)
+```
+
+## 7.4 Patrón de Inicialización
+```lua
+-- Orden estricto en init():
+function init()
+    -- 1. Crear directorios
+    util.make_dir(_path.data .. "ltra")
+    
+    -- 2. Crear estado global
+    g_state = Globals.new()
+    
+    -- 3. Inicializar módulos (orden importa!)
+    Bridge.init(g_state)
+    Scales.init(g_state)
+    Matrix.init(g_state)
+    Params.init(g_state)   -- params ANTES de UI (refs params)
+    UI.init(g_state)
+    -- ... otros módulos
+    
+    -- 4. Grid (después de módulos)
+    GridPages.init(g_state, nil)
+    GridHW.init(g_state, 1, GridPages)
+    GridPages.set_hw(GridHW)
+    
+    -- 5. Polls
+    local amp = poll.set("amp_out_l")
+    amp.callback = function(v) ... end
+    amp:start()
+    
+    -- 6. Inicialización diferida (esperar engine)
+    clock.run(function()
+        clock.sleep(0.5)
+        Midi16n.init(g_state, UI)
+        engine.ping()  -- Trigger handshake
+    end)
+    
+    -- 7. Metros de redraw
+    local fps = metro.init()
+    fps.time = 1/15
+    fps.event = function() ... end
+    fps:start()
+end
+```
+
+## 7.5 Patrón Cleanup
+```lua
+function cleanup()
+    -- 1. Detener sistemas activos
+    Arp.stop()
+    Midi16n.stop()
+    MidiIn.stop()
+    
+    -- 2. Cancelar clocks de gesture loopers
+    for i=1, 4 do
+        if g_state.gesture_loopers[i].clock then
+            clock.cancel(g_state.gesture_loopers[i].clock)
+        end
+    end
+    
+    -- 3. Liberar TODOS los metros
+    metro.free_all()
+end
+```
+
+## 7.6 Patrón de Handshake Engine
+```lua
+-- Lua→SC: engine.ping() 
+-- SC→Lua: OSC "/ltra/ready"
+-- Lua marca engine_ready=true, ejecuta params:bang()
+
+function osc.event(path, args, from)
+    if path == "/ltra/ready" then
+        if not g_state.engine_ready then
+            g_state.engine_ready = true
+            g_state.loaded = true  -- ANTES de bang!
+            params:bang()          -- Dispara todas las acciones
+            Scales.update_all_voices()
+            Midi16n.sync_faders()
+        end
+    end
+end
+```
+
+## 7.7 Popup System
+```lua
+-- LTRA usa popups para feedback visual temporal:
+Globals.ui_popup.active = true
+Globals.ui_popup.text = "SNAP 1"
+Globals.ui_popup.val = "SAVED"
+Globals.ui_popup.deadline = util.time() + 1.5  -- 1.5 segundos
+Globals.dirty = true
+
+-- El metro de redraw verifica y desactiva automáticamente:
+if g_state.ui_popup.active and util.time() > g_state.ui_popup.deadline then
+    g_state.ui_popup.active = false
+end
+```
+
+================================================================================
+8. ANTI-PATRONES Y TRAMPAS COMUNES
+================================================================================
+
+## ❌ NUNCA hacer:
+
+1. **NO llamar `engine.xxx()` fuera de Bridge**
+   - Toda comunicación Lua→SC pasa por `engine_bridge.lua`
+   
+2. **NO declarar variables SC después de código ejecutable**
+   ```supercollider
+   // ❌ MAL:
+   var sig = SinOsc.ar(440);
+   var freq = 220;  // ERROR: debe estar antes de sig
+   
+   // ✅ BIEN:
+   var freq = 220;
+   var sig = SinOsc.ar(freq);
+   ```
+
+3. **NO usar 0-based indexing** (Lua es 1-based)
+   ```lua
+   -- ❌ MAL:
+   for i=0, 15 do array[i] = 0 end
+   
+   -- ✅ BIEN:
+   for i=1, 16 do array[i] = 0 end
+   ```
+
+4. **NO olvidar `g:refresh()`** después de escribir LEDs del grid
+
+5. **NO olvidar `screen.update()`** al final de `redraw()`
+
+6. **NO olvidar cancelar clocks** en `cleanup()`
+
+7. **NO usar `math.pow()`** — usar el operador `^` (Lua 5.3)
+   ```lua
+   local val = 2 ^ 3  -- 8.0
+   ```
+
+8. **NO usar integer donde se espera float** (Lua 5.3)
+   ```lua
+   -- ⚠️ En Lua 5.3:
+   local x = 3 / 2    -- 1.5 (float)
+   local y = 3 // 2   -- 1 (integer)
+   ```
+
+9. **NO asumir que `params:get()` retorna el tipo correcto**
+   - Siempre puede retornar nil si el param no existe
+   - Usar `or default` como salvaguarda
+
+10. **NO crear Synths sin `context.server.sync`**
+    ```supercollider
+    SynthDef(\algo, { ... }).add;
+    context.server.sync;  // ⚠️ OBLIGATORIO antes de Synth.new
+    synth = Synth.new(\algo, [...], context.xg);
+    ```
+
+11. **NO modificar `button_state` en callbacks simulados**
+    - `Pages.key(x, y, z, simulated_page)` solo modifica `button_state` si es físico
+    
+12. **NO usar coroutines directamente** — usar `clock.run()`/`clock.sleep()`
+
+13. **NO hacer I/O bloqueante en el hilo principal** — usar `clock.run()`
+
+14. **NO serializar coroutines** — LTRA extrae `data` pura antes de guardar:
+    ```lua
+    -- ❌ MAL: serializar gesture_loopers directamente (contiene coroutines)
+    -- ✅ BIEN: extraer solo data pura
+    local safe_gestures = {}
+    for i=1, 4 do
+        local l = Globals.gesture_loopers[i]
+        safe_gestures[i] = { data = l.data, duration = l.duration }
+    end
+    ```
+
+================================================================================
+9. LIBRERÍAS NORNS — REFERENCIA RÁPIDA
+================================================================================
+
+## musicutil
+```lua
+local musicutil = require 'musicutil'
+
+musicutil.note_num_to_freq(midi_note)  -- MIDI note → Hz
+musicutil.freq_to_note_num(freq)       -- Hz → MIDI note
+musicutil.generate_scale(root, type)   -- Generar escala
+-- Tipos: "major", "minor", "dorian", "phrygian", etc.
+```
+
+## tab (serialización)
+```lua
+local tab = require 'tab'
+
+tab.save(data_table, filepath)  -- Guardar tabla a archivo
+tab.load(filepath)              -- Cargar tabla desde archivo
+```
+
+## controlspec
+```lua
+controlspec.new(min, max, warp, step, default, units, wrap)
+-- warp: "lin" (lineal), "exp" (exponencial)
+-- step: 0 para continuo, >0 para cuantizado
+-- wrap: true/false (wraparound)
+
+controlspec.UNITY   -- 0 a 1, lineal
+controlspec.FREQ    -- 20 a 20000, exponencial
+controlspec.AMP     -- 0 a 1, lineal
+controlspec.PAN     -- -1 a 1, lineal
+```
+
+## audio routing
+```lua
+audio.level_dac(level)       -- Volumen salida DAC (0-1)
+audio.level_adc(level)       -- Volumen entrada ADC (0-1)
+audio.level_eng_cut(level)   -- Engine → Softcut (0-1)
+audio.level_adc_cut(level)   -- Input → Softcut (0-1)
+audio.level_cut(level)       -- Softcut → DAC (0-1)
+audio.level_monitor(level)   -- Monitor input (0-1)
+```
+
+================================================================================
+10. ESTRUCTURA DE ARCHIVOS LTRA
+================================================================================
+
+```
+ltra/
+├── ltra.lua                  -- Script principal (entry point)
+├── lib/
+│   ├── Engine_Ltra.sc        -- SuperCollider engine
+│   ├── globals.lua           -- Estado central compartido
+│   ├── consts.lua            -- Constantes (escalas, brightness, mappings)
+│   ├── engine_bridge.lua     -- Puente Lua↔SC (ÚNICA interfaz)
+│   ├── parameters.lua        -- Definición de todos los params
+│   ├── scales.lua            -- Escalas (TET + JI + custom)
+│   ├── ui.lua                -- Dibujo en pantalla (Norns display)
+│   ├── grid_hw.lua           -- Driver hardware del grid
+│   ├── grid_pages.lua        -- Lógica de páginas del grid
+│   ├── mod_matrix.lua        -- Matriz de modulación
+│   ├── controls_enc.lua      -- Handlers de encoders
+│   ├── controls_key.lua      -- Handlers de keys
+│   ├── midi_16n.lua          -- 16n Faderbank driver
+│   ├── midi_in.lua           -- MIDI input (notas, MPE, etc.)
+│   ├── arp.lua               -- Arpeggiador
+│   ├── loopers.lua           -- Softcut loopers (grabación)
+│   └── storage.lua           -- Snapshots, PSETs, serialización
+├── README.md                 -- Guía rápida
+├── Manual_quick.MD           -- Manual rápido
+├── Manual_avanzado.MD        -- Manual avanzado
+├── Manual_usuario.MD         -- Manual de usuario
+└── .clinerules                -- Reglas permanentes para Cline
+```
+
+================================================================================
+11. CHECKLIST ANTES DE CADA CAMBIO
+================================================================================
+
+- [ ] ¿El cambio afecta Lua, SC, o ambos?
+- [ ] ¿Se han declarado TODAS las variables al inicio en SC?
+- [ ] ¿Se usa Bridge para comunicar Lua→SC? (NO engine.xxx() directo)
+- [ ] ¿El require usa prefijo 'ltra/lib/'?
+- [ ] ¿Se verifica `Globals.loaded` antes de enviar comandos al engine?
+- [ ] ¿Se usa `pcall()` en callbacks expuestos (key, enc, redraw)?
+- [ ] ¿Se cancelan clocks en cleanup() si se crean nuevos?
+- [ ] ¿Se setea `Globals.dirty = true` cuando cambia el estado visual?
+- [ ] ¿Los params:hidden() se cuentan en el grupo count?
+- [ ] ¿El count de `add_group` es EXACTO?
+- [ ] ¿Se usa 1-based indexing en arrays?
+- [ ] ¿Las coordenadas del grid están en rango (x:1-16, y:1-8)?
+- [ ] ¿Se llama `screen.update()` al final de redraw?
+- [ ] ¿Se llama `g:refresh()` después de actualizar LEDs?
+
+================================================================================
+FIN DEL DOCUMENTO
+================================================================================
