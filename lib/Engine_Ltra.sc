@@ -1,5 +1,6 @@
-// lib/Engine_Ltra.sc | v3.0.1
+// lib/Engine_Ltra.sc | v3.0.2
 // FIX: Reverted Pulse Anti-Aliasing (caused silence on shapes 0-3)
+// FIX: Redesigned mk_osc zone map for smooth morphing
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -175,67 +176,120 @@ Engine_Ltra : CroneEngine {
                 (oct * 12) + Select.kr(pc, scale_map);
             };
 
-            mk_osc = { |f, s| 
+            // mk_osc — redesigned morph map for smooth expressive transitions
+            // Zone layout (10 units):
+            // 0.0-0.5: Dust → Pink Noise  (0.5u, compressed — both noise)
+            // 0.5-1.5: Pink → Tuned Noise (1.0u)
+            // 1.5-2.5: Tuned → Saw+PM      (1.0u)
+            // 2.5-3.0: Saw+PM → Pure Saw   (0.5u, compressed)
+            // 3.0-3.5: Pure Saw plateau    (0.5u, hold)
+            // 3.5-6.0: PWM ZONE            (2.5u) ★ Saw→Square→Pulse→Tri
+            // 6.0-6.5: Pure Sine plateau   (0.5u, hold)
+            // 6.5-7.0: Tri → Sine          (0.5u)
+            // 7.0-9.5: WAVEFOLD ZONE       (2.5u) ★ Sine→Folded→Asym
+            // 9.5-10.0: Asym plateau       (0.5u, hold)
+            mk_osc = { |f, s|
                 var shape_idx = s.clip(0, 10);
                 var safe_f = f.clip(20, 20000);
                 var core_saw = SawDPW.ar(safe_f);
-                
-                var density = shape_idx.clip(0, 1).linexp(0, 1, 4, 20000);
-                var lpf_freq = shape_idx.clip(0, 1).linexp(0, 1, 400, 20000);
+
+                // ── STAGE 0-2: Noise → Tuned Noise ──
+                // Dust density: full at 0.0 → off by 0.5
+                var dust_alive = (0.5 - shape_idx).clip(0, 0.5) * 2.0;
+                var density = dust_alive.linexp(0, 1, 4, 20000, 0.0001);
+                var lpf_freq = dust_alive.linexp(0, 1, 400, 20000, 0.0001);
                 var dust_env = Clip.ar(Decay.ar(Dust.ar(density), 0.05) * 10.0, 0.0, 1.0);
                 var noise_src = LPF.ar(PinkNoise.ar * dust_env, lpf_freq);
-                
-                var tuned_rq = shape_idx.clip(1, 2).linexp(1, 2, 0.02, 0.007);
+
+                // Tuned noise: enters at 0.5, fully tuned by 1.5
+                var tuned_pos = (shape_idx - 0.5).clip(0, 1);
+                var tuned_rq = tuned_pos.linexp(0, 1, 0.02, 0.007);
                 var tuned_noise = Resonz.ar(noise_src, safe_f, tuned_rq) * (tuned_rq ** -0.5) * 0.5;
-                var stage1_osc = XFade2.ar(noise_src, tuned_noise, (shape_idx - 1.0).clip(0, 1) * 2.0 - 1.0);
-                
-                var pm_index = (4.0 - shape_idx).clip(0, 1).lincurve(0, 1, 0.0, 0.05, 2);
+                var stage1_osc = XFade2.ar(noise_src, tuned_noise, tuned_pos * 2.0 - 1.0);
+
+                // ── STAGE 1.5-3.0: Saw+PM → Pure Saw ──
+                // PM index: peaks in middle, decays on both sides
+                var pm_zone = (shape_idx - 1.5).clip(0, 1.5);
+                var pm_index = pm_zone.lincurve(0, 1.5, 0.0, 0.05, 3) * ((1.0 - (pm_zone / 1.5)).min(pm_zone / 1.5) * 2.0);
                 var pm_mod = LPF.ar(tuned_noise, 10000) * pm_index;
                 var saw_pm = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
-                
-                var carrier_mix = (shape_idx - 2.0).clip(0, 1);
+
+                // Core carrier mix: noise → saw happens from 1.5 to 2.5
+                var carrier_mix = (shape_idx - 1.5).clip(0, 1);
                 var base_osc = (stage1_osc * (1.0 - carrier_mix)) + (saw_pm * carrier_mix);
-                
-                var sub_mix = (shape_idx - 4.0).clip(0, 1);
-                var dc_narrow = (shape_idx - 5.0).clip(0, 1).lincurve(0, 1, 0.0, 0.475, 4);
-                var dc_widen = (shape_idx - 7.0).clip(0, 0.5).lincurve(0, 0.5, 0.0, 0.475, -2);
+
+                // ── STAGE 3.0-3.5: Pure Saw Plateau ──
+                var saw_hold_pct = ((shape_idx - 3.0) * 2.0).clip(0, 1);
+
+                // ── STAGE 3.5-6.0: PWM ZONE (2.5 units) ──
+                // sub_mix goes 0→1 over the zone, fades saw out as PWM comes in
+                var pwm_pos = (shape_idx - 3.5) / 2.5;
+                var sub_mix = pwm_pos.clip(0, 1);
+
+                // duty_cycle: 0.5 (square) → narrows to 0.025 (pulse 2.5%) → widens back
+                var dc_narrow = pwm_pos.clip(0, 0.5).lincurve(0, 0.5, 0.0, 0.475, 4);
+                var dc_widen = (pwm_pos - 0.5).clip(0, 0.5).lincurve(0, 0.5, 0.0, 0.475, -2);
                 var duty_cycle = 0.5 - dc_narrow + dc_widen;
-                
+
                 var delay_time = (duty_cycle / safe_f).max(SampleDur.ir);
                 var pulse_raw = base_osc - (DelayC.ar(base_osc, 0.1, delay_time) * sub_mix);
-                var pulse_dc = LeakDC.ar(pulse_raw) * 0.5;
-                
-                var int_mix = (shape_idx - 6.0).clip(0, 1);
+
+                // Conditional anti-aliasing: LPF only when sub_mix > 0
+                var pulse_aa = LPF.ar(pulse_raw, (safe_f * 8.0).clip(20, 18000));
+                var pulse_for_dc = SelectX.ar(sub_mix, [pulse_raw, pulse_aa]);
+                var pulse_dc = LeakDC.ar(pulse_for_dc) * 0.5;
+
+                // Integrator → triangle from PWM signal
+                var int_mix = (pwm_pos - 0.5).clip(0, 0.5) * 2.0;
                 var tri_raw = Clip.ar(Integrator.ar(pulse_dc, 0.99), -10.0, 10.0) * (4.0 * safe_f / SampleRate.ir);
                 var tri_dc = LeakDC.ar(tri_raw);
-                var osc_stage3 = (pulse_dc * (1.0 - int_mix)) + (tri_dc * int_mix);
-                
-                var sine_mix = (shape_idx - 7.5).clip(0, 0.5) * 2.0;
-                
-                var fold_drive_actual = (shape_idx - 8.0).clip(0, 1).linexp(0, 1, 1.0, 12.0);
-                var asym_offset = (shape_idx - 9.0).clip(0, 1).lincurve(0, 1, 0.0, 0.4, 2);
-                
+
+                // Mix saw into PWM at the plateau, fade PWM out toward tri
+                var saw_back = (1.0 - sub_mix) * base_osc;
+                var pwm_sig = (pulse_dc * (1.0 - int_mix)) + (tri_dc * int_mix);
+                var osc_stage3 = saw_back * saw_hold_pct + (pwm_sig * (1.0 - saw_hold_pct));
+
+                // After PWM zone handle the pwm_pos > 1 case (zone over)
+                var past_pwm = (shape_idx - 6.0).clip(0, 1);
+                osc_stage3 = SelectX.ar(past_pwm, [osc_stage3, tri_dc]);
+
+                // ── STAGE 6.0-6.5: Sine Plateau ──
+                var sine_hold_pct = ((shape_idx - 6.0) * 2.0).clip(0, 1);
+
+                // ── STAGE 6.5-7.0: Tri → Sine ──
+                var sine_mix = (shape_idx - 6.5).clip(0, 0.5) * 2.0;
+
+                // ── STAGE 7.0-9.5: WAVEFOLD ZONE (2.5 units) ──
+                var wf_pos = ((shape_idx - 7.0) / 2.5).clip(0, 1);
+                var fold_drive_actual = wf_pos.linexp(0, 1, 1.0, 12.0);
+
+                // Asym offset kicks in at the last third
+                var asym_pct = ((wf_pos - 0.66) / 0.34).clip(0, 1);
+                var asym_offset = asym_pct.lincurve(0, 1, 0.0, 0.4, 2);
+
                 var pure_sine = ((osc_stage3 + asym_offset) * 0.5pi).sin - asym_offset;
                 var folded_sine = (pure_sine * fold_drive_actual).fold2(1.0);
-                
                 var mitigated_folded = LPF.ar(folded_sine, (safe_f * 24.0).clip(20, 19000));
-                
-                var final_osc = (osc_stage3 * (1.0 - sine_mix)) + (mitigated_folded * sine_mix);
-                
-                var gain_db = SelectX.kr(shape_idx,[
+
+                // Crossfade from tri → sine, then sine → folded
+                var post_tri_to_sine = (tri_dc * (1.0 - sine_mix)) + (mitigated_folded * sine_mix);
+                var final_osc = SelectX.ar(sine_hold_pct, [post_tri_to_sine, mitigated_folded]);
+
+                // gain_db: per-zone gain compensation for smooth volume
+                var gain_db = SelectX.kr(shape_idx, [
                     9.5,   // 0.0 Dust
+                    9.5,   // 0.5 Dust→Pink
                     8.0,   // 1.0 Pink Noise
-                    3.5,   // 2.0 Tuned Noise
-                    0.0,   // 3.0 Tuned Noised Saw
-                    0.0,   // 4.0 Pure Saw
-                    -2.0,  // 5.0 Square
-                    2.5,   // 6.0 Pulse 2.5%
-                    8.0,   // 7.0 Skewed Tri
-                    0.0,   // 8.0 Pure Sine
+                    3.5,   // 1.5 Tuned Noise
+                    0.0,   // 2.5 Saw+PM
+                    0.0,   // 3.0 Pure Saw
+                    -2.0,  // 5.0 Square (center of PWM)
+                    2.5,   // 6.0 Pulse→Tri edge
+                    0.0,   // 7.0 Pure Sine
                     -9.0,  // 9.0 Buchla Folded
                     -10.4  // 10.0 Buchla Asym
                 ]);
-                
+
                 final_osc * gain_db.dbamp;
             };
 
@@ -331,8 +385,11 @@ Engine_Ltra : CroneEngine {
                 
                 var env = EnvGen.kr(Env.asr(final_atk, 1.0, env_rels[p_idx]), gates[i]);
                 
+                // FIX: Lag on shape for smooth morphing
+                var smooth_shape = Lag.kr(final_shape, 0.04);
+                
                 // FIX: Oscillator frequency uses m_ratio
-                var osc = mk_osc.(s_freq * m_ratio * (2.pow(m_pitch + d_sig + bend_offset + mpe_bend_off)), final_shape) * vca * env;
+                var osc = mk_osc.(s_freq * m_ratio * (2.pow(m_pitch + d_sig + bend_offset + mpe_bend_off)), smooth_shape) * vca * env;
                 
                 var pan_val = pans[p_idx] * (i >= 4).if(-1.0, 1.0);
                 Pan2.ar(osc, pan_val.clip(-1,1));
