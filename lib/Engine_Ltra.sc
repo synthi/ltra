@@ -205,7 +205,7 @@ Engine_Ltra : CroneEngine {
                 var final_osc, gain_db;
 
                 // ── NOISE STAGE 0.0-0.5: Dust → Pink Noise ──
-                density = shape_idx.clip(0, 0.5).linexp(0, 0.5, 4, 20000, 0.0001);
+                density = shape_idx.clip(0, 0.5).linexp(0, 0.5, 16, 20000, 0.0001);
                 lpf_freq = shape_idx.clip(0, 0.5).linexp(0, 0.5, 400, 20000, 0.0001);
                 dust_env = Clip.ar(Decay.ar(Dust.ar(density), 0.05) * 10.0, 0.0, 1.0);
                 noise_src = LPF.ar(PinkNoise.ar * dust_env, lpf_freq);
@@ -270,13 +270,13 @@ Engine_Ltra : CroneEngine {
                 // Gain at each stop (original values, SelectX interpolates between them)
                 gain_db = SelectX.kr(shape_idx, [
                     9.5,   // 0.0 Dust
-                    8.0,   // 1.0 Pink Noise
-                    3.5,   // 2.0 Tuned Noise
+                    3.5,   // 1.0 Pink Noise  (-4.5dB)
+                    9.5,   // 2.0 Tuned Noise (+6dB)
                     0.0,   // 3.0 Saw+PM
                     0.0,   // 4.0 Pure Saw
                     -2.0,  // 5.0 Square
                     2.5,   // 6.0 Pulse 2.5%
-                    8.0,   // 7.0 Skewed Tri
+                    5.5,   // 7.0 Skewed Tri  (-2.5dB)
                     0.0,   // 8.0 Pure Sine
                     -9.0,  // 9.0 Buchla Folded
                     -10.4  // 10.0 Buchla Asym
