@@ -313,7 +313,7 @@ Auto-detected by name. Default mapping:
 When no menu is active, the screen shows:
 
 ```
- LTRA v3.0.0              P1    L
+ LTRA v3.0.0       P1    L
  E1 Vol: 0.85
  E2 Scl: Minor
  E3 Root: A          ██ ██
