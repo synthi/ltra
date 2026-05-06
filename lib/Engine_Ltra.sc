@@ -1,9 +1,7 @@
-// lib/Engine_Ltra.sc | v3.1.1
-// FIX: mk_osc signal pipeline — sig chains through all stages via SelectX
-//      - noise_src → tuned_sig → saw+PM → PWM → tri → sine → folded
-//      - PM index inverted: max at 2.5, zero at 3.5 (was reversed)
-//      - PM source: 50% noise + 50% tuned (was 100% tuned)
-//      - 3.5+: everything derived from pure saw (no tuned contamination)
+// lib/Engine_Ltra.sc | v3.1.2
+// FIX: mk_osc fully reverted to v2.9.0 original — only conditional anti-aliasing added
+//      All original zones, gains, and morph architecture preserved
+//      Anti-aliasing: LPF applied to delay line only (SelectX via sub_mix)
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -179,104 +177,61 @@ Engine_Ltra : CroneEngine {
                 (oct * 12) + Select.kr(pc, scale_map);
             };
 
-            // mk_osc — parametric morph oscillator with full signal pipeline
-            // sig chains: noise → tuned → saw+PM → PWM → tri → sine → folded
-            // Each stage transforms the same sig variable via SelectX crossfade
-            // Zone layout (units on shape_idx):
-            // 0.0-0.5: Dust → Pink Noise      (0.5u, parametric density+LPF)
-            // 0.5-1.5: Pink → Tuned Noise      (1.0u, parametric Resonz Q)
-            // 1.5-2.5: Tuned plateau           (1.0u)
-            // 2.5-3.5: Tuned→Saw+PM→Saw       (1.0u, PM: 50% noise+50% tuned)
-            // 3.5-5.0: PWM Saw→Square→Pulse    (1.5u, parametric duty cycle)
-            // 5.0-6.0: Pulse→Triangle          (1.0u, parametric integrator)
-            // 6.0-7.0: Tri→Sine                (1.0u, sin())
-            // 7.0-9.5: WAVEFOLD ZONE            (2.5u, fold_drive 3→15)
-            // 9.5-10.0: Asym                   (0.5u, DC offset into folder)
             mk_osc = { |f, s|
                 var shape_idx = s.clip(0, 10);
                 var safe_f = f.clip(20, 20000);
-                var sig;
-                
-                // All vars declared before executable code (SC rule)
-                var density, dust_env, noise_src;
-                var tuned_pos, tuned_rq, tuned_sig;
-                var pm_zone, pm_index, pm_src, pm_mod, saw_pm, pm_drive;
-                var pwm_zone, dc_narrow, duty_cycle;
-                var delay_time, delay_component, delay_aa, delay_clean;
-                var pulse_raw, pulse_dc;
-                var tri_zone, tri_raw, tri_dc;
-                var sine_zone, tri_norm, sine_base;
-                var wf_zone, fold_drive, asym_zone, asym_off;
-                var to_fold, folded, clean_folded;
-                var gain_db;
+                var core_saw = SawDPW.ar(safe_f);
 
-                // ── STAGE 0.0-0.5: Dust → Pink Noise ──
-                density = shape_idx.clip(0, 0.5).linexp(0, 0.5, 16, 20000, 0.0001);
-                dust_env = Decay2.ar(Dust.ar(density), 0.001, 0.015);
-                noise_src = LPF.ar(PinkNoise.ar * dust_env, shape_idx.clip(0, 0.5).linexp(0, 0.5, 400, 20000, 0.0001));
-                sig = noise_src;
+                var density = shape_idx.clip(0, 1).linexp(0, 1, 4, 20000);
+                var lpf_freq = shape_idx.clip(0, 1).linexp(0, 1, 400, 20000);
+                var dust_env = Clip.ar(Decay.ar(Dust.ar(density), 0.05) * 10.0, 0.0, 1.0);
+                var noise_src = LPF.ar(PinkNoise.ar * dust_env, lpf_freq);
 
-                // ── STAGE 0.5-1.5: Pink → Tuned Noise ──
-                tuned_pos = ((shape_idx - 0.5) / 1.0).clip(0, 1);
-                tuned_rq = tuned_pos.linexp(0, 1, 0.5, 0.001);
-                tuned_sig = Resonz.ar(noise_src, safe_f, tuned_rq) * (tuned_rq ** -0.5);
-                sig = SelectX.ar(tuned_pos, [sig, tuned_sig]);
+                var tuned_rq = shape_idx.clip(1, 2).linexp(1, 2, 0.02, 0.007);
+                var tuned_noise = Resonz.ar(noise_src, safe_f, tuned_rq) * (tuned_rq ** -0.5) * 0.5;
+                var stage1_osc = XFade2.ar(noise_src, tuned_noise, (shape_idx - 1.0).clip(0, 1) * 2.0 - 1.0);
 
-                // ── STAGE 1.5-2.5: Tuned plateau (sig stays tuned_sig) ──
+                var pm_index = (4.0 - shape_idx).clip(0, 1).lincurve(0, 1, 0.0, 0.05, 2);
+                var pm_mod = LPF.ar(tuned_noise, 10000) * pm_index;
+                var saw_pm = DelayC.ar(core_saw, 0.04, 0.02 + pm_mod);
 
-                // ── STAGE 2.5-3.5: Tuned → Saw+PM → Saw ──
-                pm_zone = ((shape_idx - 2.5) / 1.0).clip(0, 1);
-                // PM index: max at 2.5 (pm_zone=0), zero at 3.5 (pm_zone=1)
-                pm_index = (1.0 - pm_zone).linexp(0.001, 1.0, 0.08, 0.001);
-                // PM source: 50% noise + 50% tuned
-                pm_src = (noise_src * 0.5) + (tuned_sig * 0.5);
-                pm_mod = LPF.ar(pm_src, 10000) * pm_index;
-                saw_pm = DelayC.ar(SawDPW.ar(safe_f), 0.04, 0.02 + pm_mod);
-                pm_drive = pm_index.lincurve(0.001, 0.08, 1.0, 2.5, 3);
-                // Pure modulated saw
-                sig = SelectX.ar(pm_zone, [sig, (saw_pm * pm_drive).tanh * 0.8]);
+                var carrier_mix = (shape_idx - 2.0).clip(0, 1);
+                var base_osc = (stage1_osc * (1.0 - carrier_mix)) + (saw_pm * carrier_mix);
 
-                // ── STAGE 3.5-5.0: PWM Saw→Square→Pulse (pure saw derived) ──
-                pwm_zone = ((shape_idx - 3.5) / 1.5).clip(0, 1);
-                dc_narrow = pwm_zone.linexp(0.001, 1.0, 1.0, 0.475);
-                duty_cycle = 0.5 - dc_narrow * 0.5;
-                delay_time = (duty_cycle / safe_f).max(SampleDur.ir);
-                delay_component = DelayC.ar(sig, 0.1, delay_time);
-                delay_aa = LPF.ar(delay_component, (safe_f * 8.0).clip(20, 18000));
-                delay_clean = SelectX.ar(pwm_zone, [delay_component, delay_aa]);
-                pulse_raw = sig - (delay_clean * pwm_zone);
-                pulse_dc = LeakDC.ar(pulse_raw) * 0.5;
-                sig = SelectX.ar(pwm_zone, [sig, pulse_dc]);
+                var sub_mix = (shape_idx - 4.0).clip(0, 1);
+                var dc_narrow = (shape_idx - 5.0).clip(0, 1).lincurve(0, 1, 0.0, 0.475, 4);
+                var dc_widen = (shape_idx - 7.0).clip(0, 0.5).lincurve(0, 0.5, 0.0, 0.475, -2);
+                var duty_cycle = 0.5 - dc_narrow + dc_widen;
 
-                // ── STAGE 5.0-6.0: Pulse → Triangle ──
-                tri_zone = ((shape_idx - 5.0) / 1.0).clip(0, 1);
-                tri_raw = Clip.ar(Integrator.ar(sig, 0.99), -10.0, 10.0) * (4.0 * safe_f / SampleRate.ir);
-                tri_dc = LeakDC.ar(tri_raw);
-                sig = SelectX.ar(tri_zone, [sig, tri_dc]);
+                var delay_time = (duty_cycle / safe_f).max(SampleDur.ir);
+                var delay_component = DelayC.ar(base_osc, 0.1, delay_time);
+                var delay_aa = LPF.ar(delay_component, (safe_f * 8.0).clip(20, 18000));
+                var delay_clean = SelectX.ar(sub_mix, [delay_component, delay_aa]);
+                var pulse_raw = base_osc - (delay_clean * sub_mix);
+                var pulse_dc = LeakDC.ar(pulse_raw) * 0.5;
 
-                // ── STAGE 6.0-7.0: Tri → Sine ──
-                sine_zone = ((shape_idx - 6.0) / 1.0).clip(0, 1);
-                tri_norm = sig * (pi / 2);
-                sine_base = sin(tri_norm);
-                sig = SelectX.ar(sine_zone, [sig, sine_base]);
+                var int_mix = (shape_idx - 6.0).clip(0, 1);
+                var tri_raw = Clip.ar(Integrator.ar(pulse_dc, 0.99), -10.0, 10.0) * (4.0 * safe_f / SampleRate.ir);
+                var tri_dc = LeakDC.ar(tri_raw);
+                var osc_stage3 = (pulse_dc * (1.0 - int_mix)) + (tri_dc * int_mix);
 
-                // ── STAGE 7.0-9.5: WAVEFOLD ZONE ──
-                wf_zone = ((shape_idx - 7.0) / 2.5).clip(0, 1);
-                fold_drive = wf_zone.linexp(0, 1, 3.0, 15.0);
-                // Asym DC offset in last 0.5u
-                asym_zone = (shape_idx - 9.5).clip(0, 0.5) * 2.0;
-                asym_off = asym_zone.linexp(0.001, 1.0, 0.001, 0.4);
-                to_fold = (sig + asym_off);
-                folded = (to_fold * fold_drive).fold2(1.0);
-                clean_folded = LeakDC.ar(LPF.ar(folded, (safe_f * 12.0).clip(20, 19000)));
-                sig = SelectX.ar(wf_zone, [sig, clean_folded]);
+                var sine_mix = (shape_idx - 7.5).clip(0, 0.5) * 2.0;
 
-                // Gain at each stop
-                gain_db = SelectX.kr(shape_idx, [
+                var fold_drive_actual = (shape_idx - 8.0).clip(0, 1).linexp(0, 1, 1.0, 12.0);
+                var asym_offset = (shape_idx - 9.0).clip(0, 1).lincurve(0, 1, 0.0, 0.4, 2);
+
+                var pure_sine = ((osc_stage3 + asym_offset) * 0.5pi).sin - asym_offset;
+                var folded_sine = (pure_sine * fold_drive_actual).fold2(1.0);
+
+                var mitigated_folded = LPF.ar(folded_sine, (safe_f * 24.0).clip(20, 19000));
+
+                var final_osc = (osc_stage3 * (1.0 - sine_mix)) + (mitigated_folded * sine_mix);
+
+                var gain_db = SelectX.kr(shape_idx,[
                     9.5,   // 0.0 Dust
-                    3.5,   // 1.0 Pink Noise
-                    9.5,   // 2.0 Tuned Noise
-                    9.5,   // 3.0 Tuned Noise end
+                    8.0,   // 1.0 Pink Noise
+                    3.5,   // 2.0 Tuned Noise
+                    0.0,   // 3.0 Tuned Noised Saw
                     0.0,   // 4.0 Pure Saw
                     -2.0,  // 5.0 Square
                     2.5,   // 6.0 Pulse 2.5%
@@ -286,7 +241,7 @@ Engine_Ltra : CroneEngine {
                     -10.4  // 10.0 Buchla Asym
                 ]);
 
-                sig * gain_db.dbamp;
+                final_osc * gain_db.dbamp;
             };
 
             mod1_chaos = Slew.kr(Latch.kr(WhiteNoise.kr.range(0, 1), Impulse.kr(mod1_chaos_rate * 4)), mod1_chaos_slew * 10, mod1_chaos_slew * 10);
