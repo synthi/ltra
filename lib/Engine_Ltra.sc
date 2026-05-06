@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v3.0.0
-// FIX: Pulse Anti-Aliasing, Matrix Pitch Lag (2ms), LFO Phase Reset on BPM Change
+// lib/Engine_Ltra.sc | v3.0.1
+// FIX: Reverted Pulse Anti-Aliasing (caused silence on shapes 0-3)
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -203,8 +203,7 @@ Engine_Ltra : CroneEngine {
                 
                 var delay_time = (duty_cycle / safe_f).max(SampleDur.ir);
                 var pulse_raw = base_osc - (DelayC.ar(base_osc, 0.1, delay_time) * sub_mix);
-                var pulse_filtered = LPF.ar(pulse_raw, (safe_f * 8.0).clip(20, 18000));
-                var pulse_dc = LeakDC.ar(pulse_raw * (1.0 - sub_mix) + pulse_filtered * sub_mix) * 0.5;
+                var pulse_dc = LeakDC.ar(pulse_raw) * 0.5;
                 
                 var int_mix = (shape_idx - 6.0).clip(0, 1);
                 var tri_raw = Clip.ar(Integrator.ar(pulse_dc, 0.99), -10.0, 10.0) * (4.0 * safe_f / SampleRate.ir);
