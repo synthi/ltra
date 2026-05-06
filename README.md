@@ -58,16 +58,18 @@ The synth starts silent. You have three ways to trigger voices:
 
 ```
  GRID LAYOUT — PAGE 1 (MAIN)
+          1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16   ← Destinations
+         P1 P2 P3 P4 A1 A2 A3 A4 M1 M2 M3 M4 F1 F2 DT DF   (P=Pitch A=Amp M=Morph F=Filter)
  ┌───────────────────────────────────────────────────────────┐
- │ Row 1 │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │ MOD 1 Source    │
- │ Row 2 │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │ MOD 2 Source    │
- │ Row 3 │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │ MOD 3 Source    │
- │ Row 4 │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │ OUTLINE Source  │
- │       │  ↑ Modulation Matrix (16 destinations) ↑          │
- │ Row 5 │ ● ● ● ● · · · · · · · · ○ ○ ○ ○ │ MIDI | Masks   │
- │ Row 6 │ · · · · · ▓ ▓ ▓ ▓ · · · · · · · │ Mod Dashboard   │
- │ Row 7 │ ● ● ● ● · ◇ ◇ ◇ ◇ ◇ ◇ · △ △ △ △│ ENV|SNAP|GEST  │
- │ Row 8 │ ▼ ▼ ▼ ▼ L · · ▣ ▣ ▣ · T · P P · S│ Nav Bar        │
+ │ Row 1 │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │   MOD 1 Source  │
+ │ Row 2 │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │   MOD 2 Source  │
+ │ Row 3 │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │   MOD 3 Source  │ 
+ │ Row 4 │ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ │   OUTLINE Src   │
+ │       │  ↑ Modulation Matrix (5 sources × 16 dests) ↑     │
+ │ Row 5 │ ● ● ● ● · · · · · · · · ○ ○ ○ ○ │   MIDI | Masks  │
+ │ Row 6 │ · · · · · ▓ ▓ ▓ ▓ · · · · · · · │   Mod Dashboard │
+ │ Row 7 │ ● ● ● ● · ◇ ◇ ◇ ◇ ◇ ◇ · △ △ △ △ │   ENV|SNAP|GEST │
+ │ Row 8 │ ▼ ▼ ▼ ▼ L · · ▣ ▣ ▣ · T P P · S │   Nav Bar       │
  └───────────────────────────────────────────────────────────┘
    Voice 1-4  L=Latch    Loopers  T=Tap  P=Pages  S=Shift
 ```
@@ -144,16 +146,19 @@ The primary performance interface. Top half is the modulation matrix, bottom hal
 
 ```
  GRID LAYOUT — PAGE 2 (SCALES)
+          1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16
  ┌───────────────────────────────────────────────────────────┐
- │ Row 1 │ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ │ Preset A (1-16)  │
- │ Row 2 │ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ │ Preset B (17-32) │
- │ Row 3 │ · · · · · · · · · · · · · · · · │ Custom (1-16)    │
- │ Row 4 │   █ █   █ █ █   █ █ █   █         │ Black keys       │
- │ Row 5 │ █   █   █   █   █   █   █   █     │ White keys       │
- │ Row 6 │ · · · · · · · · · · · · · · · · │ Root note        │
- │ Row 7 │ (same as Page 1)                                     │
- │ Row 8 │ (same as Page 1)                                     │
+ │ Row 1 │ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ │ TET scales 1-16 │
+ │ Row 2 │ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ ○ │ JI scales 17-32 │
+ │ Row 3 │ · · · · · · · · · · · · · · · · │ Custom 33-48    │
+ │ Row 4 │ · · · █ · █ · · █ · █ · █ · · · │ Black keys      │
+ │ Row 5 │ · · █ · █ · █ █ · █ · █ · █ · · │ White keys      │
+ │ Row 6 │ · · · · · · · · · · · · · · · · │ Root note (C-B) │ 
+ │ Row 7 │ ● ● ● ● · ◇ ◇ ◇ ◇ ◇ ◇ · △ △ △ △ │ ENV|SNAP|GEST   │
+ │ Row 8 │ ▼ ▼ ▼ ▼ L · · ▣ ▣ ▣ · T P P · S │ Nav Bar         │
  └───────────────────────────────────────────────────────────┘
+   Row 4: █ = black key (C# D# F# G# A#)  |  Row 5: ○ = white key (C D E F G A B)
+   Row 6: Root note selector (buttons 3-14 = C to B)
 ```
 
 - **Rows 1–2:** 32 preset scales — 18 TET scales (Major, Minor, Dorian, Phrygian, Lydian, etc.) + 14 Just Intonation scales (Pythagorean, Partch, Overtone, Maqam Rast, Carlos Harmonic, etc.)
