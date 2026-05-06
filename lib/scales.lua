@@ -1,4 +1,4 @@
--- lib/scales.lua | v2.5.0
+-- lib/scales.lua | v3.0.0
 -- FIX: Dynamic Boundary Logic for 47 Scales
 
 local Scales = {}

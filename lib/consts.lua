@@ -1,4 +1,4 @@
--- lib/consts.lua | v2.6.0
+-- lib/consts.lua | v3.0.0
 -- FIX: Added Scale #32 (Carlos Harmonic)
 
 local Consts = {}

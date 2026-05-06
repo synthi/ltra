@@ -1,5 +1,5 @@
--- ltra.lua | v2.9.0
--- FIX: Scale Initialization Bug (State Bleed on Boot)
+-- ltra.lua | v3.0.0
+-- FIX: sync_watcher BPM change triggers LFO phase reset
 
 engine.name = 'Ltra'
 
@@ -38,7 +38,7 @@ function osc.event(path, args, from)
 end
 
 function init()
-    print("LTRA: Initializing v2.8.1 (Phase Wave Elite Update)...")
+    print("LTRA: Initializing v3.0.0...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")
@@ -109,9 +109,15 @@ function init()
     
     local sync_watcher = metro.init()
     sync_watcher.time = 0.5
+    local last_sync_bpm = 0
     sync_watcher.event = function()
         if not g_state.loaded then return end
         local bpm = params:get("clock_tempo")
+        -- FIX #7: Detect BPM change and trigger LFO phase reset
+        if last_sync_bpm > 0 and math.abs(bpm - last_sync_bpm) > 0.5 then
+            Bridge.reset_lfo()
+        end
+        last_sync_bpm = bpm
         local function update_sync(name)
             if params:get(name.."_sync") == 1 then
                 local div_idx = params:get(name.."_div")

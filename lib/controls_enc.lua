@@ -1,4 +1,4 @@
--- lib/controls_enc.lua | v2.8.3
+-- lib/controls_enc.lua | v3.0.0
 -- FIX: MIDI Quantization Toggle uses params:delta
 
 local Enc = {}

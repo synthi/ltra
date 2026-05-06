@@ -1,5 +1,5 @@
--- lib/loopers.lua | v2.8.4
--- FIX: Softcut Input Routing (Post-FX Synth Signal)
+-- lib/loopers.lua | v3.0.0
+-- FIX: Exponential volume, Full softcut reset on init
 
 local Loopers = {}
 local Globals
@@ -19,6 +19,14 @@ function Loopers.init(g_ref)
         softcut.rate(v_l, 1.0)
         softcut.fade_time(v_l, 0.005) 
         softcut.post_filter_fc(v_l, 18000)
+        -- FIX #12: Full softcut reset — clear residual state from previous PSET
+        softcut.post_filter_hp(v_l, 0)
+        softcut.post_filter_lp(v_l, 1)
+        softcut.post_filter_rq(v_l, 2.0)
+        softcut.rec_level(v_l, 0)
+        softcut.pre_level(v_l, 1)
+        softcut.rec(v_l, 0)
+        softcut.play(v_l, 0)
         
         -- FIX: Route Norns Audio Bus 1 (L) to Softcut
         softcut.level_input_cut(1, v_l, 1.0)
@@ -32,6 +40,14 @@ function Loopers.init(g_ref)
         softcut.rate(v_r, 1.0)
         softcut.fade_time(v_r, 0.005)
         softcut.post_filter_fc(v_r, 18000)
+        -- FIX #12: Full softcut reset — clear residual state from previous PSET
+        softcut.post_filter_hp(v_r, 0)
+        softcut.post_filter_lp(v_r, 1)
+        softcut.post_filter_rq(v_r, 2.0)
+        softcut.rec_level(v_r, 0)
+        softcut.pre_level(v_r, 1)
+        softcut.rec(v_r, 0)
+        softcut.play(v_r, 0)
         
         -- FIX: Route Norns Audio Bus 2 (R) to Softcut
         softcut.level_input_cut(1, v_r, 0.0)
@@ -55,8 +71,10 @@ end
 function Loopers.set_vol(idx, val)
     local l = Globals.loopers[idx]
     if l and (l.state == 1 or l.state == 2 or l.state == 3) then 
-        softcut.level((idx*2)-1, val) 
-        softcut.level(idx*2, val) 
+        -- FIX #10: Exponential volume (perceptual linear)
+        local exp_vol = val * val
+        softcut.level((idx*2)-1, exp_vol) 
+        softcut.level(idx*2, exp_vol) 
         l.current_vol = val
     end
 end
@@ -104,8 +122,8 @@ function Loopers.do_fade(idx, is_fade_in)
     if fade_time <= 0 then
         if is_fade_in then
             l.current_vol = target_vol
-            softcut.level((idx*2)-1, target_vol)
-            softcut.level(idx*2, target_vol)
+            softcut.level((idx*2)-1, target_vol * target_vol)
+            softcut.level(idx*2, target_vol * target_vol)
             softcut.play((idx*2)-1, 1)
             softcut.play(idx*2, 1)
             l.state = 2
@@ -129,21 +147,22 @@ function Loopers.do_fade(idx, is_fade_in)
     if is_fade_in then
         l.state = 6
         local start_vol = l.current_vol or 0
-        softcut.level((idx*2)-1, start_vol)
-        softcut.level(idx*2, start_vol)
+        softcut.level((idx*2)-1, start_vol * start_vol)
+        softcut.level(idx*2, start_vol * start_vol)
         softcut.play((idx*2)-1, 1)
         softcut.play(idx*2, 1)
 
         l.fade_clock = clock.run(function()
             for i=1, steps do
                 l.current_vol = start_vol + (target_vol - start_vol) * (i/steps)
-                softcut.level((idx*2)-1, l.current_vol)
-                softcut.level(idx*2, l.current_vol)
+                local exp_v = l.current_vol * l.current_vol
+                softcut.level((idx*2)-1, exp_v)
+                softcut.level(idx*2, exp_v)
                 clock.sleep(step_time)
             end
             l.current_vol = target_vol
-            softcut.level((idx*2)-1, target_vol)
-            softcut.level(idx*2, target_vol)
+            softcut.level((idx*2)-1, target_vol * target_vol)
+            softcut.level(idx*2, target_vol * target_vol)
             l.state = 2
         end)
     else
@@ -152,8 +171,9 @@ function Loopers.do_fade(idx, is_fade_in)
         l.fade_clock = clock.run(function()
             for i=1, steps do
                 l.current_vol = start_vol * (1 - (i/steps))
-                softcut.level((idx*2)-1, l.current_vol)
-                softcut.level(idx*2, l.current_vol)
+                local exp_v = l.current_vol * l.current_vol
+                softcut.level((idx*2)-1, exp_v)
+                softcut.level(idx*2, exp_v)
                 clock.sleep(step_time)
             end
             l.current_vol = 0
@@ -179,8 +199,9 @@ function Loopers.handle_button(idx)
         l.state = 1
         l.rec_start_time = util.time()
         l.current_vol = params:get("looper"..idx.."_vol") or 1.0
-        softcut.level((idx*2)-1, l.current_vol)
-        softcut.level(idx*2, l.current_vol)
+        local exp_v = l.current_vol * l.current_vol
+        softcut.level((idx*2)-1, exp_v)
+        softcut.level(idx*2, exp_v)
         softcut.position((idx*2)-1, l.start_pos)
         softcut.position(idx*2, l.start_pos)
         softcut.rec_level((idx*2)-1, 1.0)
@@ -203,8 +224,9 @@ function Loopers.handle_button(idx)
         if l.fade_clock then clock.cancel(l.fade_clock) end
         l.state = 3
         l.current_vol = params:get("looper"..idx.."_vol") or 1.0
-        softcut.level((idx*2)-1, l.current_vol)
-        softcut.level(idx*2, l.current_vol)
+        local exp_v = l.current_vol * l.current_vol
+        softcut.level((idx*2)-1, exp_v)
+        softcut.level(idx*2, exp_v)
         softcut.rec_level((idx*2)-1, 1.0)
         softcut.rec_level(idx*2, 1.0)
         softcut.pre_level((idx*2)-1, 1.0)

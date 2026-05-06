@@ -1,5 +1,5 @@
--- lib/engine_bridge.lua | v2.8.5
--- FIX: Added set_midi_ratio
+-- lib/engine_bridge.lua | v3.0.0
+-- FIX: sync_matrix sends zeros, reset_lfos command
 
 local Bridge = {}
 local Globals
@@ -31,11 +31,9 @@ function Bridge.sync_matrix()
             local val = Globals.matrix[s_idx][d_idx]
             local quant = Globals.matrix_quant[s_idx][d_idx] or 1
             
-            if val > 0 or quant ~= 1 then 
-                engine.set_matrix(s_idx, d_idx, val)
-                if d_idx <= 4 then
-                    engine.set_matrix_quant(s_idx, d_idx, quant)
-                end
+            engine.set_matrix(s_idx, d_idx, val)
+            if d_idx <= 4 then
+                engine.set_matrix_quant(s_idx, d_idx, quant)
             end
         end
     end
@@ -48,7 +46,7 @@ function Bridge.set_param(name, value) engine.set_engine_param(name, value) end
 function Bridge.set_freq(idx, hz) engine.set_engine_param("freq"..idx, hz) end
 function Bridge.set_gate(idx, val) engine.set_engine_param("gate"..idx, val) end
 function Bridge.set_midi_gate(idx, val) engine.set_engine_param("midi_gate"..idx, val) end
-function Bridge.reset_lfo() engine.set_engine_param("t_reset", 1) end
+function Bridge.reset_lfo() engine.reset_lfos() end
 
 function Bridge.set_midi_vel(idx, vel) engine.set_engine_param("midi_vel"..idx, vel) end
 function Bridge.set_mod_wheel(val) engine.set_engine_param("mod_wheel", val) end

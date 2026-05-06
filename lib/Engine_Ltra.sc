@@ -1,5 +1,5 @@
-// lib/Engine_Ltra.sc | v2.8.5
-// FIX: Restored MIDI Pitch Tracking via Ratio Multipliers (Supports JI & Glide)
+// lib/Engine_Ltra.sc | v3.0.0
+// FIX: Pulse Anti-Aliasing, Matrix Pitch Lag (2ms), LFO Phase Reset on BPM Change
 
 Engine_Ltra : CroneEngine {
     var <synth;
@@ -87,6 +87,7 @@ Engine_Ltra : CroneEngine {
             var system_dirt = \system_dirt.kr(0);
             var dust_dens = \dust_dens.kr(0);
             var clear_trig = \clear_trig.kr(0);
+            var lfo_reset_trig = \lfo_reset.tr(0);
             
             var freqs = 8.collect { |i| NamedControl.kr("freq" ++ (i+1), 110) };
             var gates = 8.collect { |i| NamedControl.kr("gate" ++ (i+1), 0) };
@@ -119,6 +120,7 @@ Engine_Ltra : CroneEngine {
             var twin_enables = 4.collect { |i| NamedControl.kr("twin_enable" ++ (i+1), 0) };
             var midi_gates = 4.collect { |i| NamedControl.kr("midi_gate" ++ (i+1), 0) };
 
+            var lfo_fade_gate;
             var mod1_dest = \mod1_dest.kr(0!16);
             var mod2_dest = \mod2_dest.kr(0!16);
             var mod3_dest = \mod3_dest.kr(0!16);
@@ -201,7 +203,8 @@ Engine_Ltra : CroneEngine {
                 
                 var delay_time = (duty_cycle / safe_f).max(SampleDur.ir);
                 var pulse_raw = base_osc - (DelayC.ar(base_osc, 0.1, delay_time) * sub_mix);
-                var pulse_dc = LeakDC.ar(pulse_raw) * 0.5;
+                var pulse_filtered = LPF.ar(pulse_raw, (safe_f * 8.0).clip(20, 18000));
+                var pulse_dc = LeakDC.ar(pulse_raw * (1.0 - sub_mix) + pulse_filtered * sub_mix) * 0.5;
                 
                 var int_mix = (shape_idx - 6.0).clip(0, 1);
                 var tri_raw = Clip.ar(Integrator.ar(pulse_dc, 0.99), -10.0, 10.0) * (4.0 * safe_f / SampleRate.ir);
@@ -261,6 +264,13 @@ Engine_Ltra : CroneEngine {
             mod4_lfo = SelectX.kr(m4_final_shape,[ LFPulse.kr(mod4_lfo_rate, 0, 0.5), (LFSaw.kr(mod4_lfo_rate, 0) + 1) * 0.5, (LFTri.kr(mod4_lfo_rate, 0) + 1) * 0.5, (SinOsc.kr(mod4_lfo_rate, 0) + 1) * 0.5 ]);
             mod4_sig = SelectX.kr(mod4_mix,[mod4_lfo, mod4_chaos]) * mod4_depth;
 
+            // FIX #7: LFO reset gate - 50ms fadeout/fadein on BPM change
+            lfo_fade_gate = 1.0 - EnvGen.kr(Env.perc(0.005, 0.045), lfo_reset_trig);
+            mod1_sig = mod1_sig * lfo_fade_gate;
+            mod2_sig = mod2_sig * lfo_fade_gate;
+            mod3_sig = mod3_sig * lfo_fade_gate;
+            mod4_sig = mod4_sig * lfo_fade_gate;
+
             env_int = LagUD.kr(gates.sum.clip(0,1), 0.01, 0.5);
             env_ext = Amplitude.kr(LeakDC.ar(SoundIn.ar(0))); 
             outline_sig = (Select.kr(outline_source,[env_int, env_ext]) * outline_gain) + mod4_sig;
@@ -274,11 +284,11 @@ Engine_Ltra : CroneEngine {
             };
             
             calc_mod_pitch = { |dest_idx, arp_val|
-                var raw_mod1 = mod1_sig * mod1_dest[dest_idx] * 24.0;
-                var raw_mod2 = mod2_sig * mod2_dest[dest_idx] * 24.0;
-                var raw_mod3 = mod3_sig * mod3_dest[dest_idx] * 24.0;
-                var raw_outline = outline_sig * outline_dest[dest_idx] * 24.0;
-                var raw_arp = arp_val * arp_dest[dest_idx] * 24.0;
+                var raw_mod1 = Lag.kr(mod1_sig * mod1_dest[dest_idx] * 24.0, 0.002);
+                var raw_mod2 = Lag.kr(mod2_sig * mod2_dest[dest_idx] * 24.0, 0.002);
+                var raw_mod3 = Lag.kr(mod3_sig * mod3_dest[dest_idx] * 24.0, 0.002);
+                var raw_outline = Lag.kr(outline_sig * outline_dest[dest_idx] * 24.0, 0.002);
+                var raw_arp = Lag.kr(arp_val * arp_dest[dest_idx] * 24.0, 0.002);
                 
                 var q_mod1 = Select.kr(mod1_quant[dest_idx],[raw_mod1, quantize_fn.(raw_mod1)]);
                 var q_mod2 = Select.kr(mod2_quant[dest_idx],[raw_mod2, quantize_fn.(raw_mod2)]);
@@ -450,6 +460,7 @@ Engine_Ltra : CroneEngine {
         
         this.addCommand("set_engine_param", "sf", { arg msg; synth.set(msg[1].asSymbol, msg[2]); });
         this.addCommand("clear_delay", "", { synth.set(\clear_trig, 1); });
+        this.addCommand("reset_lfos", "", { synth.set(\lfo_reset, 1); });
         this.addCommand("ping", "", { NetAddr("127.0.0.1", 10111).sendMsg("/ltra/ready"); });
         
         this.addCommand("set_matrix", "iif", { arg msg;

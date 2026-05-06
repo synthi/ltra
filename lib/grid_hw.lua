@@ -1,4 +1,4 @@
--- lib/grid_hw.lua | v2.1.6
+-- lib/grid_hw.lua | v3.0.0
 -- FIX: Hardware Debounce (20ms) for Norns Shield
 
 local GridHW = {}

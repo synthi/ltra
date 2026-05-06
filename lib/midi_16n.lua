@@ -1,4 +1,4 @@
--- lib/midi_16n.lua | v2.6.0
+-- lib/midi_16n.lua | v3.0.0
 -- FIX: 1:1 Grid Matrix Mapping (Faders 9-12 = Shape)
 
 local Midi16n = {}

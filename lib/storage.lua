@@ -1,5 +1,5 @@
--- lib/storage.lua | v2.8.0
--- FIX: Zero-Waste Asynchronous I/O, Gesture Looper Serialization
+-- lib/storage.lua | v3.0.0
+-- FIX: Mutex saves, Atomic rename, WAV cleanup, Orphan cleanup
 
 local Storage = {}
 local Globals
@@ -8,6 +8,7 @@ local Consts = require 'ltra/lib/consts'
 
 function Storage.init(g_ref)
     Globals = g_ref
+    Storage._saving = false
     
     params.action_write = function(filename, name, number)
         Storage.save_sidecar(number)
@@ -16,9 +17,58 @@ function Storage.init(g_ref)
     params.action_read = function(filename, silent, number)
         Storage.load_sidecar(number)
     end
+    
+    Storage.cleanup_orphans()
+end
+
+-- FIX #21: Remove orphan WAV files (no matching PSET data)
+function Storage.cleanup_orphans()
+    local audio_dir = _path.audio .. "ltra/snapshots/"
+    local data_dir = _path.data .. "ltra/"
+    if not util.file_exists(audio_dir) then return end
+    
+    -- Build set of valid PSET numbers from existing .data files
+    local valid_psets = {}
+    local data_cmd = 'ls "' .. data_dir .. 'pset_*.data" 2>/dev/null'
+    local data_files = io.popen(data_cmd)
+    if data_files then
+        for line in data_files:lines() do
+            local num = line:match("pset_(%d+)%.data")
+            if num then valid_psets[tonumber(num)] = true end
+        end
+        data_files:close()
+    end
+    
+    -- Check audio files and remove orphans
+    local audio_cmd = 'ls "' .. audio_dir .. '*.wav" 2>/dev/null'
+    local audio_files = io.popen(audio_cmd)
+    if audio_files then
+        local orphans = {}
+        for line in audio_files:lines() do
+            local filename = line:match("([^/]+)$")
+            local pset_num = filename and filename:match("pset_(%d+)")
+            if pset_num and not valid_psets[tonumber(pset_num)] then
+                orphans[#orphans + 1] = line
+            end
+        end
+        audio_files:close()
+        
+        for _, f in ipairs(orphans) do
+            os.remove(f)
+            print("LTRA: Removed orphan: " .. f:match("([^/]+)$"))
+        end
+        if #orphans > 0 then print("LTRA: Cleaned " .. #orphans .. " orphan files.") end
+    end
 end
 
 function Storage.save_sidecar(pset_number)
+    -- FIX #2: Mutex — prevent concurrent saves
+    if Storage._saving then
+        print("LTRA: Save already in progress, skipping PSET " .. pset_number)
+        return
+    end
+    Storage._saving = true
+    
     print("LTRA: Saving Sidecar Data for PSET " .. pset_number)
     
     -- FIX: Extract pure data from Gesture Loopers (No Coroutines)
@@ -35,11 +85,30 @@ function Storage.save_sidecar(pset_number)
         gesture_loopers = safe_gestures
     }
     
+    -- FIX #4: Atomic rename — write to tmp first, then rename
     local data_path = _path.data .. "ltra/pset_" .. pset_number .. ".data"
-    tab.save(data, data_path)
+    local tmp_path = data_path .. ".tmp"
+    tab.save(data, tmp_path)
+    os.rename(tmp_path, data_path)
     
     -- FIX: Asynchronous Zero-Waste Audio Saving
     clock.run(function()
+        -- FIX #19: Clean old WAVs for this PSET before saving new ones
+        local audio_dir = _path.audio .. "ltra/snapshots/"
+        if util.file_exists(audio_dir) then
+            local ls = io.popen('ls "' .. audio_dir .. '" 2>/dev/null')
+            if ls then
+                local old_files = {}
+                for line in ls:lines() do
+                    if line:match("^pset_" .. pset_number .. "_trk_") then
+                        old_files[#old_files + 1] = audio_dir .. line
+                    end
+                end
+                ls:close()
+                for _, f in ipairs(old_files) do os.remove(f) end
+            end
+        end
+        
         local timestamp = os.date("%Y%m%d_%H%M%S")
         for i=1, 3 do
             local l_state = Globals.loopers[i].state
@@ -59,6 +128,7 @@ function Storage.save_sidecar(pset_number)
                 end
             end
         end
+        Storage._saving = false
         print("LTRA: Asynchronous Audio Save Complete.")
     end)
 end

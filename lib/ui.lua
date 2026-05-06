@@ -1,5 +1,5 @@
--- lib/ui.lua | v2.9.0
--- FIX: ENV Menu (Row 7) unified across Page 1 & 2, MIDI ON/OFF to K2, Quantize to K3
+-- lib/ui.lua | v3.0.0
+-- FIX: Page indicator P1/P2 on norns display
 
 local UI = {}
 local Globals
@@ -249,7 +249,11 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v2.9.0")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v3.0.0")
+        
+        -- FIX #15: Page indicator
+        local page_str = "P" .. Globals.page
+        screen.move(90, 10); screen.text(page_str)
         
         if Globals.latch_mode then 
             screen.move(120, 10); screen.text("L") 

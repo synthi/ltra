@@ -1,4 +1,4 @@
--- lib/globals.lua | v2.7.0
+-- lib/globals.lua | v3.0.0
 -- FIX: Added Snapshot Masks and Gesture Loopers State
 
 local Globals = {}

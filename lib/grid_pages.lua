@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v2.9.0
--- FIX: Unified Row 7 across Page 1 & 2
+-- lib/grid_pages.lua | v3.0.0
+-- FIX: Gesture looper max events (10000), buffer full popup
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -9,6 +9,9 @@ local Loopers = require 'ltra/lib/loopers'
 local Globals
 local Consts = require 'ltra/lib/consts'
 local HW
+
+-- FIX #1: Max gesture events to prevent memory bloat
+local MAX_GESTURE_EVENTS = 10000
 
 function Pages.init(g_ref, hw_ref)
     Globals = g_ref
@@ -197,8 +200,18 @@ local function record_event(x, y, z, p)
         for i=1, 4 do
             local l = Globals.gesture_loopers[i]
             if l.state == 1 or l.state == 4 then
-                local dt = (now - l.start_time) % (l.duration > 0 and l.duration or 9999)
-                table.insert(l.data, {dt=dt, x=x, y=y, z=z, p=p})
+                if #l.data >= MAX_GESTURE_EVENTS then
+                    -- FIX #1: Stop recording, show popup
+                    l.state = 3
+                    Globals.ui_popup.active = true
+                    Globals.ui_popup.text = "GESTURE "..i
+                    Globals.ui_popup.val = "BUFFER FULL"
+                    Globals.ui_popup.deadline = util.time() + 1.5
+                    Globals.dirty = true
+                else
+                    local dt = (now - l.start_time) % (l.duration > 0 and l.duration or 9999)
+                    table.insert(l.data, {dt=dt, x=x, y=y, z=z, p=p})
+                end
             end
         end
     end

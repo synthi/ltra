@@ -1,4 +1,4 @@
--- lib/midi_in.lua | v2.9.0
+-- lib/midi_in.lua | v3.0.0
 -- FIX: Absolute Frequency Distance Quantization (Fixes Wrap-Around and JI Bugs)
 
 local MidiIn = {}

@@ -1,4 +1,4 @@
--- lib/controls_key.lua | v2.9.0
+-- lib/controls_key.lua | v3.0.0
 -- FIX: MIDI ON/OFF to K2, Quantize to K3 in ENV Menu
 
 local Keys = {}

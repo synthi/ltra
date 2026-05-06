@@ -1,4 +1,4 @@
--- lib/mod_matrix.lua | v1.5.7
+-- lib/mod_matrix.lua | v3.0.0
 -- FIX: MOD1-3 Visuals
 
 local Matrix = {}
