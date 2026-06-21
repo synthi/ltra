@@ -1,5 +1,5 @@
--- lib/scales.lua | v3.0.0
--- FIX: Dynamic Boundary Logic for 47 Scales
+-- lib/scales.lua | v3.1.7
+-- FIX: JI scale_map now sends 12*log2(ratio) floats for correct JI quantized LFO modulation
 
 local Scales = {}
 local Consts = require 'ltra/lib/consts'
@@ -66,21 +66,58 @@ end
 
 function Scales.update_scale_map()
     if not Globals or not Globals.scale then return end
-    local active_notes = {}
-    for i=0, 11 do
-        if Scales.is_note_active(i) then table.insert(active_notes, i) end
-    end
-    if #active_notes == 0 then active_notes = {0} end
+    local idx = Globals.scale.current_idx or 1
+    local num_predefined = #Consts.SCALES_A + #Consts.SCALES_B
     
-    for i=0, 11 do
-        local nearest_val = active_notes[1]
-        local min_d = 100
-        for _, n in ipairs(active_notes) do
-            if math.abs(i - n) < min_d then min_d = math.abs(i - n); nearest_val = n end
-            if math.abs(i - (n+12)) < min_d then min_d = math.abs(i - (n+12)); nearest_val = n+12 end
-            if math.abs(i - (n-12)) < min_d then min_d = math.abs(i - (n-12)); nearest_val = n-12 end
+    local def = nil
+    if idx <= #Consts.SCALES_A then
+        def = Consts.SCALES_A[idx]
+    elseif idx <= num_predefined then
+        def = Consts.SCALES_B[idx - #Consts.SCALES_A]
+    else
+        local custom_idx = idx - num_predefined
+        if Globals.scale.custom_slots and Globals.scale.custom_slots[custom_idx] then
+            def = { type="TET", intervals=Globals.scale.custom_slots[custom_idx].intervals }
         end
-        Bridge.set_param("scale_map_"..i, nearest_val)
+    end
+    if not def then return end
+    
+    if def.type == "JI" then
+        local ji_st = {}
+        for _, ratio in ipairs(def.intervals) do
+            table.insert(ji_st, 12.0 * math.log(ratio) / math.log(2))
+        end
+        local ji_pool = {}
+        for _, st in ipairs(ji_st) do
+            table.insert(ji_pool, st)
+            table.insert(ji_pool, st - 12)
+            table.insert(ji_pool, st + 12)
+        end
+        for i=0, 11 do
+            local nearest_val = ji_st[1]
+            local min_d = 100
+            for _, st in ipairs(ji_pool) do
+                local d = math.abs(i - st)
+                if d < min_d then min_d = d; nearest_val = st end
+            end
+            Bridge.set_param("scale_map_"..i, nearest_val)
+        end
+    else
+        local active_notes = {}
+        for i=0, 11 do
+            if Scales.is_note_active(i) then table.insert(active_notes, i) end
+        end
+        if #active_notes == 0 then active_notes = {0} end
+        for i=0, 11 do
+            local nearest_val = active_notes[1]
+            local min_d = 100
+            for _, n in ipairs(active_notes) do
+                if math.abs(i - n) < min_d then min_d = math.abs(i - n); nearest_val = n end
+                if math.abs(i - (n+12)) < min_d then min_d = math.abs(i - (n+12)); nearest_val = n+12 end
+                if math.abs(i - (n-12)) < min_d then min_d = math.abs(i - (n-12)); nearest_val = n-12 end
+            end
+            Bridge.set_param("scale_map_"..i, nearest_val)
+        end
     end
 end
 
