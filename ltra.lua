@@ -1,5 +1,5 @@
--- ltra.lua | v3.0.0
--- FIX: sync_watcher BPM change triggers LFO phase reset
+-- ltra.lua | v3.1.7
+-- FIX: JI scale_map now sends 12*log2(ratio) floats for correct JI quantized LFO modulation
 
 engine.name = 'Ltra'
 
@@ -38,7 +38,7 @@ function osc.event(path, args, from)
 end
 
 function init()
-    print("LTRA: Initializing v3.0.0...")
+    print("LTRA: Initializing v3.1.7...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")

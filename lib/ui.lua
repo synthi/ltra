@@ -1,5 +1,5 @@
--- lib/ui.lua | v3.0.0
--- FIX: Page indicator P1/P2 on norns display
+-- lib/ui.lua | v3.1.7
+-- FIX: JI scale_map now sends 12*log2(ratio) floats for correct JI quantized LFO modulation
 
 local UI = {}
 local Globals
@@ -249,7 +249,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v3.0.0")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v3.1.7")
         
         -- FIX #15: Page indicator
         local page_str = "P" .. Globals.page
