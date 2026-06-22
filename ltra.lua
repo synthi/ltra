@@ -1,5 +1,5 @@
--- ltra.lua | v3.1.8
--- FIX: Per-oscillator individual scales (scale_mode, osc_scale_idx)
+-- ltra.lua | v3.1.9
+-- FIX: Added 16/1, 12/1, 8/1, 7/1, 6/1, 5/1 LFO sync divisions
 
 engine.name = 'Ltra'
 
@@ -38,7 +38,7 @@ function osc.event(path, args, from)
 end
 
 function init()
-    print("LTRA: Initializing v3.1.8...")
+    print("LTRA: Initializing v3.1.9...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")

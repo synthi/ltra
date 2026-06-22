@@ -1,5 +1,5 @@
--- lib/ui.lua | v3.1.8
--- FIX: Per-oscillator individual scales (scale_mode, osc_scale_idx)
+-- lib/ui.lua | v3.1.9
+-- FIX: Added 16/1, 12/1, 8/1, 7/1, 6/1, 5/1 LFO sync divisions
 
 local UI = {}
 local Globals
@@ -249,7 +249,7 @@ function UI.redraw()
             screen.move(64,34); screen.text_center(Globals.ui_popup.text.." "..Globals.ui_popup.val)
         end
     else
-        screen.level(15); screen.move(0,10); screen.text("LTRA v3.1.8")
+        screen.level(15); screen.move(0,10); screen.text("LTRA v3.1.9")
         
         -- FIX #15: Page indicator
         local page_str = "P" .. Globals.page
