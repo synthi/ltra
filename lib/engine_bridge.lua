@@ -59,6 +59,10 @@ function Bridge.set_mpe_press(idx, val) engine.set_engine_param("press"..idx, va
 -- FIX: Ratio Tracking for JI Scales
 function Bridge.set_midi_ratio(idx, ratio) engine.set_engine_param("midi_ratio"..idx, ratio) end
 
+function Bridge.set_osc_scale_map(osc_idx, pc, val)
+    engine.set_engine_param("scale_map_osc"..osc_idx.."_"..pc, val)
+end
+
 function Bridge.set_matrix(src_idx, dest_idx, val)
     engine.set_matrix(src_idx, dest_idx, val)
 end

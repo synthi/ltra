@@ -1,5 +1,5 @@
--- ltra.lua | v3.1.7
--- FIX: JI scale_map now sends 12*log2(ratio) floats for correct JI quantized LFO modulation
+-- ltra.lua | v3.1.8
+-- FIX: Per-oscillator individual scales (scale_mode, osc_scale_idx)
 
 engine.name = 'Ltra'
 
@@ -38,7 +38,7 @@ function osc.event(path, args, from)
 end
 
 function init()
-    print("LTRA: Initializing v3.1.7...")
+    print("LTRA: Initializing v3.1.8...")
     
     util.make_dir(_path.data .. "ltra")
     util.make_dir(_path.audio .. "ltra/snapshots")

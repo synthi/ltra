@@ -57,7 +57,7 @@ function Params.init(g_ref)
     local midi_ch_options = {"1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","OMNI","MPE"}
 
     for i=1,4 do
-        params:add_group("VOICE "..i, 24) 
+        params:add_group("VOICE "..i, 25) 
         
         params:add_number("osc"..i.."_octave", "Octave", -2, 2, 0)
         params:set_action("osc"..i.."_octave", function(x)
@@ -68,7 +68,13 @@ function Params.init(g_ref)
         params:add_control("osc"..i.."_pitch", "Pitch", controlspec.new(0,1,"lin",0,0.5))
         params:set_action("osc"..i.."_pitch", function(x)
             local deg = math.floor(x * 24)
-            local hz = Scales.get_freq(deg, params:get("osc"..i.."_octave") or 0)
+            local oct = params:get("osc"..i.."_octave") or 0
+            local hz
+            if Globals and Globals.scale_mode[i] then
+                hz = Scales.get_freq_for_osc(i, deg, oct)
+            else
+                hz = Scales.get_freq(deg, oct)
+            end
             local tune = params:get("osc"..i.."_tune") or 0
             hz = hz * (2 ^ (tune / 12))
             Bridge.set_freq(i, hz)
@@ -132,6 +138,11 @@ function Params.init(g_ref)
         params:set_action("osc"..i.."_press_vol", function(x) Bridge.set_param("press_vol"..i, x) end)
         params:add_control("osc"..i.."_press_shp", "Press to Shape", controlspec.new(-1,1,"lin",0,0.0))
         params:set_action("osc"..i.."_press_shp", function(x) Bridge.set_param("press_shp"..i, x) end)
+        
+        params:add_option("osc"..i.."_scale_mode", "Scale Mode", {"Common", "Individual"}, 1)
+        params:set_action("osc"..i.."_scale_mode", function(x)
+            if Globals then Globals.scale_mode[i] = (x == 2); Globals.dirty = true end
+        end)
         
         params:add_control("osc"..i.."_mod_shape", "Legacy MW>Shape", controlspec.new(0,1,"lin",0,0.0))
         params:set_action("osc"..i.."_mod_shape", function(x) Bridge.set_param("mw_shp"..i, x) end)

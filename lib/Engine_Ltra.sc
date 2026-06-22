@@ -160,7 +160,7 @@ Engine_Ltra : CroneEngine {
             var ap_l, ap_r, rev_filt_l, rev_filt_r, rev_out_l, rev_out_r;
             var decay_kr, bloom_kr, damp_kr, predelay_kr, mod_rate_kr, mod_depth_kr;
             var effects_out, sig_post, osc_trig;
-            var scale_map, mk_osc, calc_mod, calc_mod_pitch, quantize_fn;
+            var scale_maps, mk_osc, calc_mod, calc_mod_pitch, quantize_fn;
             var voices_out;
             
             var prime_combs_l = #[0.031229, 0.037270, 0.043979, 0.050354, 0.057270, 0.064770];
@@ -168,13 +168,15 @@ Engine_Ltra : CroneEngine {
             var prime_ap_l = #[0.011270, 0.031729];
             var prime_ap_r = #[0.011604, 0.031895];
 
-            scale_map = 12.collect { |i| NamedControl.kr("scale_map_" ++ i, i) };
+            scale_maps = 4.collect { |j|
+                12.collect { |i| NamedControl.kr("scale_map_osc" ++ (j+1) ++ "_" ++ i, i) };
+            };
 
-            quantize_fn = { |raw|
+            quantize_fn = { |raw, osc_idx|
                 var rounded = raw.round;
                 var oct = (rounded / 12).floor;
                 var pc = rounded % 12;
-                (oct * 12) + Select.kr(pc, scale_map);
+                (oct * 12) + Select.kr(pc, scale_maps[osc_idx]);
             };
 
             mk_osc = { |f, s|
@@ -294,11 +296,11 @@ Engine_Ltra : CroneEngine {
                 var raw_outline = Lag.kr(outline_sig * outline_dest[dest_idx] * 24.0, 0.002);
                 var raw_arp = Lag.kr(arp_val * arp_dest[dest_idx] * 24.0, 0.002);
                 
-                var q_mod1 = Select.kr(mod1_quant[dest_idx],[raw_mod1, quantize_fn.(raw_mod1)]);
-                var q_mod2 = Select.kr(mod2_quant[dest_idx],[raw_mod2, quantize_fn.(raw_mod2)]);
-                var q_mod3 = Select.kr(mod3_quant[dest_idx],[raw_mod3, quantize_fn.(raw_mod3)]);
-                var q_outline = Select.kr(outline_quant[dest_idx],[raw_outline, quantize_fn.(raw_outline)]);
-                var q_arp = Select.kr(arp_quant[dest_idx],[raw_arp, quantize_fn.(raw_arp)]);
+                var q_mod1 = Select.kr(mod1_quant[dest_idx],[raw_mod1, quantize_fn.(raw_mod1, dest_idx)]);
+                var q_mod2 = Select.kr(mod2_quant[dest_idx],[raw_mod2, quantize_fn.(raw_mod2, dest_idx)]);
+                var q_mod3 = Select.kr(mod3_quant[dest_idx],[raw_mod3, quantize_fn.(raw_mod3, dest_idx)]);
+                var q_outline = Select.kr(outline_quant[dest_idx],[raw_outline, quantize_fn.(raw_outline, dest_idx)]);
+                var q_arp = Select.kr(arp_quant[dest_idx],[raw_arp, quantize_fn.(raw_arp, dest_idx)]);
                 
                 (q_mod1 + q_mod2 + q_mod3 + q_outline + q_arp) / 12.0;
             };

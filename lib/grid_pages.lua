@@ -1,5 +1,5 @@
--- lib/grid_pages.lua | v3.0.0
--- FIX: Gesture looper max events (10000), buffer full popup
+-- lib/grid_pages.lua | v3.1.8
+-- FIX: Per-oscillator individual scales (scale_mode, osc_scale_idx)
 
 local Pages = {}
 local Matrix = require 'ltra/lib/mod_matrix'
@@ -325,6 +325,40 @@ function Pages.redraw()
         end
     end
     
+    -- Per-oscillator scale visual override in page 2
+    if Globals.page == 2 then
+        for osc=1, 4 do
+            if Globals.button_state[osc][7] and Globals.scale_mode[osc] then
+                local idx = Globals.osc_scale_idx[osc]
+                local num_predefined = #Consts.SCALES_A + #Consts.SCALES_B
+                
+                if idx <= #Consts.SCALES_A then
+                    led_safe(idx, 1, Consts.BRIGHT.VAL_PEAK)
+                elseif idx <= num_predefined then
+                    led_safe(idx - #Consts.SCALES_A, 2, Consts.BRIGHT.VAL_PEAK)
+                else
+                    led_safe(idx - num_predefined, 3, Consts.BRIGHT.VAL_PEAK)
+                end
+                
+                local blacks = {false, true, false, true, false, false, true, false, true, false, true, false}
+                for i=1, 12 do
+                    local note_x = i + 2
+                    local note = i - 1
+                    local is_active = Scales.is_note_active_for_scale(idx, note)
+                    if not blacks[i] then
+                        led_safe(note_x, 5, is_active and Consts.BRIGHT.VAL_PEAK or Consts.BRIGHT.VAL_MED)
+                    end
+                    if blacks[i] then
+                        led_safe(note_x, 4, is_active and Consts.BRIGHT.VAL_PEAK or Consts.BRIGHT.BG_MATRIX_B)
+                    end
+                end
+                
+                led_safe(osc, 7, Consts.BRIGHT.VAL_PEAK)
+                break
+            end
+        end
+    end
+    
     draw_nav_bar()
 end
 
@@ -417,6 +451,16 @@ function Pages.key(x, y, z, simulated_page)
     
     -- FIX: ENV Menu unified across Page 1 & 2
     if (p == 1 or p == 2) and y == 7 and x >= 1 and x <= 4 then
+        -- Track hold for per-oscillator scale selection in page 2 (complementary to ENV menu)
+        if p == 2 then
+            if z == 1 then
+                Globals.osc_scale_hold = true
+                Globals.osc_scale_hold_target = x
+            elseif z == 0 then
+                Globals.osc_scale_hold = false
+            end
+        end
+        
         if z == 1 then
             if not Globals.multi_sel.active then
                 Globals.multi_sel.active = true
@@ -621,25 +665,65 @@ function Pages.key(x, y, z, simulated_page)
     
     if p == 2 then
         local num_predefined = #Consts.SCALES_A + #Consts.SCALES_B
-        if y == 1 and z == 1 then 
-            params:set("scale_idx", x)
+        
+        local is_hold = Globals.osc_scale_hold and Globals.osc_scale_hold_target >= 1 and Globals.osc_scale_hold_target <= 4 and Globals.scale_mode[Globals.osc_scale_hold_target]
+        
+        if y == 1 and z == 1 then
+            if is_hold then
+                local target = Globals.osc_scale_hold_target
+                Globals.osc_scale_idx[target] = x
+                Scales.update_osc_scale_map(target)
+                Scales.update_all_voices()
+                Globals.dirty = true
+                return
+            else
+                params:set("scale_idx", x)
+            end
         end
-        if y == 2 and z == 1 and x <= 16 then 
-            params:set("scale_idx", x + 16)
+        if y == 2 and z == 1 and x <= 16 then
+            if is_hold then
+                local target = Globals.osc_scale_hold_target
+                Globals.osc_scale_idx[target] = x + 16
+                Scales.update_osc_scale_map(target)
+                Scales.update_all_voices()
+                Globals.dirty = true
+                return
+            else
+                params:set("scale_idx", x + 16)
+            end
         end
         if y == 3 and z == 1 then
-            params:set("scale_idx", x + num_predefined)
+            if is_hold then
+                local target = Globals.osc_scale_hold_target
+                Globals.osc_scale_idx[target] = x + num_predefined
+                Scales.update_osc_scale_map(target)
+                Scales.update_all_voices()
+                Globals.dirty = true
+                return
+            else
+                params:set("scale_idx", x + num_predefined)
+            end
         end
         if y == 6 and z == 1 and x>=3 and x<=14 then 
             params:set("scale_root", x - 2)
         end
         if z == 1 and (y == 4 or y == 5) and x >= 3 and x <= 14 then
             local note = x - 3 
-            if Globals.scale.current_idx <= num_predefined then
-                params:set("scale_idx", num_predefined + 1)
+            if is_hold then
+                -- Custom notes on individual scale: modify the osc's custom scale
+                -- For now, fall back to global scale custom note toggle
+                if Globals.scale.current_idx <= num_predefined then
+                    params:set("scale_idx", num_predefined + 1)
+                end
+                Scales.toggle_custom_note(note)
+                Scales.update_all_voices()
+            else
+                if Globals.scale.current_idx <= num_predefined then
+                    params:set("scale_idx", num_predefined + 1)
+                end
+                Scales.toggle_custom_note(note)
+                Scales.update_all_voices()
             end
-            Scales.toggle_custom_note(note)
-            Scales.update_all_voices()
         end
     end
 end

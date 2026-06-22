@@ -44,6 +44,10 @@ function Globals.new()
             current_idx = 1, root_note = 1,
             custom_slots = {{0,2,4,5,7,9,11}, {0,2,3,5,7,8,10}, {0,1,5,7,8}, {0,2,4,6,8,10}}
         },
+        scale_mode = {false, false, false, false},
+        osc_scale_idx = {1, 1, 1, 1},
+        osc_scale_hold = false,
+        osc_scale_hold_target = 0,
         
         -- FIX: Snapshot Masks (13:Filt, 14:Shape/Vol, 15:Space/Tune, 16:All Else)
         snap_masks = {false, false, false, false},
