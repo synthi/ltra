@@ -38,7 +38,9 @@ Consts.SYNC_DIVS = {
     {name="1/4 D", v=1.5}, {name="1/4", v=1}, {name="1/4 T", v=0.6667},
     {name="1/8 D", v=0.75}, {name="1/8", v=0.5}, {name="1/8 T", v=0.3333},
     {name="1/16 D", v=0.375}, {name="1/16", v=0.25}, {name="1/16 T", v=0.1667},
-    {name="1/32", v=0.125}, {name="1/64", v=0.0625}
+    {name="1/32", v=0.125}, {name="1/64", v=0.0625},
+    {name="5/1", v=20}, {name="6/1", v=24}, {name="7/1", v=28}, {name="8/1", v=32},
+    {name="12/1", v=48}, {name="16/1", v=64}
 }
 
 Consts.POLY_MODES = {"Round Robin", "Reset", "Unison"}
